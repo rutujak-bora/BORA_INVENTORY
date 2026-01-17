@@ -23,7 +23,7 @@ const InwardStock = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pickup');
-  
+
   // Pick-up (In-Transit) state
   const [selectedPo, setSelectedPo] = useState('');
   const [poLineStats, setPoLineStats] = useState(null);
@@ -45,7 +45,8 @@ const InwardStock = () => {
     line_items: []
   });
   const [warehouseFilter, setWarehouseFilter] = useState('all');
-  
+
+  console.log('pickupEntries', pickupEntries);
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -55,7 +56,7 @@ const InwardStock = () => {
     inwardType: 'all'
   });
   const [filteredInward, setFilteredInward] = useState([]);
-  
+
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -109,7 +110,7 @@ const InwardStock = () => {
       filtered = filtered.filter(item =>
         item.inward_invoice_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.po_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.line_items?.some(li => 
+        item.line_items?.some(li =>
           li.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           li.sku?.toLowerCase().includes(searchTerm.toLowerCase())
         )
@@ -161,28 +162,28 @@ const InwardStock = () => {
           return { data: [] };
         })
       ]);
-      
+
       // Safely set data with Array validation
       setInwardEntries(Array.isArray(inwardRes.data) ? inwardRes.data : []);
       setPos(Array.isArray(posRes.data) ? posRes.data : []);
       setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
       setWarehouses(Array.isArray(warehousesRes.data) ? warehousesRes.data : []);
       setPickupEntries(Array.isArray(pickupsRes.data) ? pickupsRes.data : []);
-      
+
       // Show warning if any critical data is missing
       if (!Array.isArray(posRes.data) || posRes.data.length === 0) {
-        toast({ 
-          title: 'Warning', 
+        toast({
+          title: 'Warning',
           description: 'No Purchase Orders found. Create a PO first to proceed with inward entries.',
           variant: 'default'
         });
       }
     } catch (error) {
       console.error('Inward Stock fetch error:', error);
-      toast({ 
-        title: 'Error', 
+      toast({
+        title: 'Error',
         description: 'Unable to load data. Please refresh the page or contact support.',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
       // Set empty arrays as fallback to prevent crashes
       setInwardEntries([]);
@@ -221,7 +222,7 @@ const InwardStock = () => {
       setSelectedPo(voucher_no);
       const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
       setPoLineStats(response.data);
-      
+
       // Initialize form data with line items
       const lineItems = response.data.line_items.map(item => ({
         product_id: item.product_id,
@@ -235,7 +236,7 @@ const InwardStock = () => {
         in_transit: item.in_transit,
         available_for_pickup: item.available_for_pickup
       }));
-      
+
       setPickupFormData(prev => ({
         ...prev,
         line_items: lineItems
@@ -253,7 +254,7 @@ const InwardStock = () => {
   const handlePickupQuantityChange = (index, value) => {
     const newQuantity = parseFloat(value) || 0;
     const lineItem = pickupFormData.line_items[index];
-    
+
     // Validation: Check if new quantity exceeds available
     if (newQuantity > lineItem.available_for_pickup) {
       toast({
@@ -263,7 +264,7 @@ const InwardStock = () => {
       });
       return;
     }
-    
+
     const updatedLineItems = [...pickupFormData.line_items];
     updatedLineItems[index].quantity = newQuantity;
     setPickupFormData(prev => ({ ...prev, line_items: updatedLineItems }));
@@ -271,7 +272,7 @@ const InwardStock = () => {
 
   const handlePickupSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!poLineStats) {
       toast({
         title: 'Error',
@@ -280,10 +281,10 @@ const InwardStock = () => {
       });
       return;
     }
-    
+
     // Filter line items with quantity > 0
     const validLineItems = pickupFormData.line_items.filter(item => item.quantity > 0);
-    
+
     if (validLineItems.length === 0) {
       toast({
         title: 'Error',
@@ -292,7 +293,7 @@ const InwardStock = () => {
       });
       return;
     }
-    
+
     try {
       const pickupData = {
         po_id: poLineStats.po_id,
@@ -306,15 +307,15 @@ const InwardStock = () => {
           rate: item.rate
         }))
       };
-      
+
       await api.post('/pickups', pickupData);
-      
+
       toast({
         title: 'Success',
         description: 'Pickup (In-Transit) entry created successfully',
         variant: 'default'
       });
-      
+
       // Reset form and refresh data
       setSelectedPo('');
       setPoLineStats(null);
@@ -338,7 +339,7 @@ const InwardStock = () => {
     if (!window.confirm('Are you sure you want to delete this pickup entry?')) {
       return;
     }
-    
+
     try {
       await api.delete(`/pickups/${pickupId}`);
       toast({
@@ -347,7 +348,7 @@ const InwardStock = () => {
         variant: 'default'
       });
       fetchPickupEntries();
-      
+
       // Refresh PO line stats if a PO is selected
       if (selectedPo) {
         handlePoSelection(selectedPo);
@@ -367,6 +368,7 @@ const InwardStock = () => {
     try {
       const response = await api.get('/inward-stock?inward_type=warehouse');
       setWarehouseEntries(Array.isArray(response.data) ? response.data : []);
+      // console.log("here is the response of the warehouse", response.data);
     } catch (error) {
       console.error('Failed to fetch warehouse entries:', error);
     }
@@ -389,7 +391,7 @@ const InwardStock = () => {
       setSelectedWarehousePo(voucher_no);
       const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
       setWarehousePoLineStats(response.data);
-      
+
       // Initialize form data with line items
       const lineItems = response.data.line_items.map(item => ({
         product_id: item.product_id,
@@ -402,7 +404,7 @@ const InwardStock = () => {
         new_inward_qty: 0,
         rate: item.rate
       }));
-      
+
       setWarehouseInwardFormData(prev => ({
         ...prev,
         line_items: lineItems
@@ -421,7 +423,7 @@ const InwardStock = () => {
     const newQuantity = parseFloat(value) || 0;
     const lineItem = warehouseInwardFormData.line_items[index];
     const remainingAllowed = lineItem.po_quantity - lineItem.already_inwarded - lineItem.in_transit;
-    
+
     // Validation: Check if new quantity exceeds remaining allowed
     if (newQuantity > remainingAllowed) {
       toast({
@@ -431,7 +433,7 @@ const InwardStock = () => {
       });
       return;
     }
-    
+
     const updatedLineItems = [...warehouseInwardFormData.line_items];
     updatedLineItems[index].new_inward_qty = newQuantity;
     setWarehouseInwardFormData(prev => ({ ...prev, line_items: updatedLineItems }));
@@ -439,7 +441,7 @@ const InwardStock = () => {
 
   const handleWarehouseInwardSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!warehousePoLineStats) {
       toast({
         title: 'Error',
@@ -457,10 +459,10 @@ const InwardStock = () => {
       });
       return;
     }
-    
+
     // Filter line items with quantity > 0
     const validLineItems = warehouseInwardFormData.line_items.filter(item => item.new_inward_qty > 0);
-    
+
     if (validLineItems.length === 0) {
       toast({
         title: 'Error',
@@ -482,7 +484,7 @@ const InwardStock = () => {
         return;
       }
     }
-    
+
     try {
       const inwardData = {
         po_voucher_no: warehousePoLineStats.po_voucher_no,
@@ -499,15 +501,15 @@ const InwardStock = () => {
           rate: item.rate
         }))
       };
-      
+
       await api.post('/inward-stock', inwardData);
-      
+
       toast({
         title: 'Success',
         description: 'Warehouse inward entry created successfully',
         variant: 'default'
       });
-      
+
       // Reset form and refresh data
       setSelectedWarehousePo('');
       setWarehousePoLineStats(null);
@@ -578,24 +580,24 @@ const InwardStock = () => {
       const piQuantitiesMap = new Map();
       const alreadyInwardedMap = new Map();
       const allLinkedPIs = [];
-      
+
       // Process each selected PO
       for (const poId of selectedPoIds) {
         try {
           const fullPO = await api.get(`/po/${poId}`);
           const poData = fullPO.data;
-          
+
           // Get linked PIs (support both single and multiple)
           const linkedPIs = poData.reference_pis || [];
           allLinkedPIs.push(...linkedPIs);
-          
+
           // Fetch all PIs to get PI quantities
           if (Array.isArray(linkedPIs) && linkedPIs.length > 0) {
             for (const linkedPI of linkedPIs) {
               try {
                 const piResponse = await api.get(`/pi/${linkedPI.id}`);
                 const piData = piResponse.data || {};
-                
+
                 // Aggregate PI quantities by product
                 piData.line_items?.forEach(item => {
                   const productKey = item.product_id;
@@ -610,12 +612,12 @@ const InwardStock = () => {
               }
             }
           }
-          
+
           // Fetch already inwarded quantities for this PO
           try {
             const inwardResponse = await api.get('/inward-stock');
             const inwardEntries = inwardResponse.data.filter(entry => entry.po_id === poId);
-            
+
             inwardEntries.forEach(entry => {
               entry.line_items?.forEach(item => {
                 const productKey = item.product_id;
@@ -629,7 +631,7 @@ const InwardStock = () => {
           } catch (err) {
             console.error('Error fetching inward stock:', err);
           }
-          
+
           // Aggregate line items from this PO
           poData.line_items?.forEach(item => {
             const productKey = item.product_id;
@@ -649,14 +651,14 @@ const InwardStock = () => {
           });
         } catch (err) {
           console.error(`Error fetching PO ${poId}:`, err);
-          toast({ 
-            title: 'Error', 
-            description: `Failed to fetch PO details for ${poId}`, 
-            variant: 'destructive' 
+          toast({
+            title: 'Error',
+            description: `Failed to fetch PO details for ${poId}`,
+            variant: 'destructive'
           });
         }
       }
-      
+
       // Convert aggregated products to line items
       const lineItemsFromPOs = Array.from(aggregatedProducts.values()).map(item => ({
         product_id: item.product_id,
@@ -669,25 +671,25 @@ const InwardStock = () => {
         rate: item.rate,  // From PO
         amount: 0  // Will calculate based on quantity
       }));
-      
+
       setFormData(prev => ({
         ...prev,
         po_ids: selectedPoIds,
         pi_id: allLinkedPIs.length > 0 ? allLinkedPIs[0].id : '',
         line_items: lineItemsFromPOs.length > 0 ? lineItemsFromPOs : prev.line_items
       }));
-      
+
       // Show success message with PI info
       if (allLinkedPIs.length > 0) {
         const uniquePIs = [...new Set(allLinkedPIs.map(pi => pi.voucher_no))];
-        toast({ 
-          title: `${selectedPoIds.length} PO(s) Selected`, 
-          description: `Linked to ${uniquePIs.length} PI(s): ${uniquePIs.join(', ')}. Products auto-filled with aggregated PI & PO quantities. Enter Inward Quantity manually.` 
+        toast({
+          title: `${selectedPoIds.length} PO(s) Selected`,
+          description: `Linked to ${uniquePIs.length} PI(s): ${uniquePIs.join(', ')}. Products auto-filled with aggregated PI & PO quantities. Enter Inward Quantity manually.`
         });
       } else {
-        toast({ 
-          title: `${selectedPoIds.length} PO(s) Selected`, 
-          description: 'Products aggregated from all selected POs. Enter Inward Quantity manually.' 
+        toast({
+          title: `${selectedPoIds.length} PO(s) Selected`,
+          description: 'Products aggregated from all selected POs. Enter Inward Quantity manually.'
         });
       }
     } catch (error) {
@@ -699,12 +701,12 @@ const InwardStock = () => {
   const handleLineItemChange = (index, field, value) => {
     const newLineItems = [...formData.line_items];
     newLineItems[index][field] = value;
-    
+
     // Auto-calculate amount
     if (field === 'quantity' || field === 'rate') {
       newLineItems[index].amount = newLineItems[index].quantity * newLineItems[index].rate;
     }
-    
+
     setFormData({ ...formData, line_items: newLineItems });
   };
 
@@ -726,8 +728,8 @@ const InwardStock = () => {
     const newLineItems = formData.line_items.filter((_, i) => i !== index);
     // Keep at least one empty item if all are removed
     if (newLineItems.length === 0) {
-      setFormData({ 
-        ...formData, 
+      setFormData({
+        ...formData,
         line_items: [{
           product_id: '',
           product_name: '',
@@ -831,14 +833,14 @@ const InwardStock = () => {
     const dataToExport = selectedPickupIds.length > 0
       ? pickupEntries.filter(item => selectedPickupIds.includes(item.id))
       : pickupEntries;
-    
+
     const fieldMapping = {
       'po_voucher_no': 'PO Number',
       'pickup_date': 'Pickup Date',
       'notes': 'Notes',
       'created_at': 'Created At'
     };
-    
+
     exportToCSV(formatDataForExport(dataToExport, fieldMapping), 'pickup-entries');
     toast({ title: 'Success', description: 'Pickup entries exported to CSV' });
   };
@@ -847,14 +849,14 @@ const InwardStock = () => {
     const dataToExport = selectedPickupIds.length > 0
       ? pickupEntries.filter(item => selectedPickupIds.includes(item.id))
       : pickupEntries;
-    
+
     const fieldMapping = {
       'po_voucher_no': 'PO Number',
       'pickup_date': 'Pickup Date',
       'notes': 'Notes',
       'created_at': 'Created At'
     };
-    
+
     exportToExcel(formatDataForExport(dataToExport, fieldMapping), 'pickup-entries', 'Pickup Entries');
     toast({ title: 'Success', description: 'Pickup entries exported to Excel' });
   };
@@ -863,17 +865,17 @@ const InwardStock = () => {
     if (!window.confirm(`Delete ${selectedPickupIds.length} selected pickup entries? This action cannot be undone.`)) {
       return;
     }
-    
+
     try {
       const response = await api.post('/pickups/bulk-delete', { ids: selectedPickupIds });
-      
+
       if (response.data.deleted_count > 0) {
         toast({
           title: 'Success',
           description: `${response.data.deleted_count} pickup entry(s) deleted successfully`,
         });
       }
-      
+
       if (response.data.failed_count > 0) {
         toast({
           title: 'Partial Success',
@@ -881,7 +883,7 @@ const InwardStock = () => {
           variant: 'destructive'
         });
       }
-      
+
       setSelectedPickupIds([]);
       fetchPickupEntries();
     } catch (error) {
@@ -914,7 +916,7 @@ const InwardStock = () => {
     const dataToExport = selectedWarehouseIds.length > 0
       ? warehouseEntries.filter(item => selectedWarehouseIds.includes(item.id))
       : warehouseEntries;
-    
+
     const fieldMapping = {
       'inward_invoice_no': 'Invoice No',
       'date': 'Date',
@@ -922,7 +924,7 @@ const InwardStock = () => {
       'total_amount': 'Total Amount',
       'created_at': 'Created At'
     };
-    
+
     exportToCSV(formatDataForExport(dataToExport, fieldMapping), 'warehouse-inward');
     toast({ title: 'Success', description: 'Warehouse inward entries exported to CSV' });
   };
@@ -931,7 +933,7 @@ const InwardStock = () => {
     const dataToExport = selectedWarehouseIds.length > 0
       ? warehouseEntries.filter(item => selectedWarehouseIds.includes(item.id))
       : warehouseEntries;
-    
+
     const fieldMapping = {
       'inward_invoice_no': 'Invoice No',
       'date': 'Date',
@@ -939,7 +941,7 @@ const InwardStock = () => {
       'total_amount': 'Total Amount',
       'created_at': 'Created At'
     };
-    
+
     exportToExcel(formatDataForExport(dataToExport, fieldMapping), 'warehouse-inward', 'Warehouse Inward');
     toast({ title: 'Success', description: 'Warehouse inward entries exported to Excel' });
   };
@@ -948,17 +950,17 @@ const InwardStock = () => {
     if (!window.confirm(`Delete ${selectedWarehouseIds.length} selected warehouse inward entries? This action cannot be undone.`)) {
       return;
     }
-    
+
     try {
       const response = await api.post('/inward-stock/bulk-delete', { ids: selectedWarehouseIds });
-      
+
       if (response.data.deleted_count > 0) {
         toast({
           title: 'Success',
           description: `${response.data.deleted_count} warehouse inward entry(s) deleted successfully`,
         });
       }
-      
+
       if (response.data.failed_count > 0) {
         toast({
           title: 'Partial Success',
@@ -966,7 +968,7 @@ const InwardStock = () => {
           variant: 'destructive'
         });
       }
-      
+
       setSelectedWarehouseIds([]);
       fetchWarehouseEntries();
     } catch (error) {
@@ -999,7 +1001,7 @@ const InwardStock = () => {
     const dataToExport = selectedDirectIds.length > 0
       ? directEntries.filter(item => selectedDirectIds.includes(item.id))
       : directEntries;
-    
+
     const fieldMapping = {
       'inward_invoice_no': 'Invoice No',
       'date': 'Date',
@@ -1007,7 +1009,7 @@ const InwardStock = () => {
       'total_amount': 'Total Amount',
       'status': 'Status'
     };
-    
+
     exportToCSV(formatDataForExport(dataToExport, fieldMapping), 'direct-inward');
     toast({ title: 'Success', description: 'Direct inward entries exported to CSV' });
   };
@@ -1016,7 +1018,7 @@ const InwardStock = () => {
     const dataToExport = selectedDirectIds.length > 0
       ? directEntries.filter(item => selectedDirectIds.includes(item.id))
       : directEntries;
-    
+
     const fieldMapping = {
       'inward_invoice_no': 'Invoice No',
       'date': 'Date',
@@ -1024,7 +1026,7 @@ const InwardStock = () => {
       'total_amount': 'Total Amount',
       'status': 'Status'
     };
-    
+
     exportToExcel(formatDataForExport(dataToExport, fieldMapping), 'direct-inward', 'Direct Inward');
     toast({ title: 'Success', description: 'Direct inward entries exported to Excel' });
   };
@@ -1033,17 +1035,17 @@ const InwardStock = () => {
     if (!window.confirm(`Delete ${selectedDirectIds.length} selected direct inward entries? This action cannot be undone.`)) {
       return;
     }
-    
+
     try {
       const response = await api.post('/inward-stock/bulk-delete', { ids: selectedDirectIds });
-      
+
       if (response.data.deleted_count > 0) {
         toast({
           title: 'Success',
           description: `${response.data.deleted_count} direct inward entry(s) deleted successfully`,
         });
       }
-      
+
       if (response.data.failed_count > 0) {
         toast({
           title: 'Partial Success',
@@ -1051,7 +1053,7 @@ const InwardStock = () => {
           variant: 'destructive'
         });
       }
-      
+
       setSelectedDirectIds([]);
       fetchData();
     } catch (error) {
@@ -1107,19 +1109,19 @@ const InwardStock = () => {
   }
 
   // Filter entries by type and warehouse (with safety checks) - AFTER loading check
-  
+
   const filteredWarehouseEntries = (filteredInward || []).filter(e => {
     const matchesType = e.inward_type === 'warehouse';
     const matchesWarehouse = !warehouseFilter || warehouseFilter === 'all' || e.warehouse_id === warehouseFilter;
     return matchesType && matchesWarehouse;
   });
-  
+
   const directEntries = (filteredInward || []).filter(e => {
     const matchesType = e.source_type === 'direct_inward';
     const matchesWarehouse = !warehouseFilter || warehouseFilter === 'all' || e.warehouse_id === warehouseFilter;
     return matchesType && matchesWarehouse;
   });
-  
+
   // Filter pending pickup entries by warehouse (with safety checks)
   // Note: pickup pending functionality has been removed
   const filteredPickupPending = [];
@@ -1183,8 +1185,8 @@ const InwardStock = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handlePickupSubmit} className="space-y-6">
-                {/* PO Selection and Date */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* PO Selection, Warehouse, and Date */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="po">Purchase Order *</Label>
                     <Select value={selectedPo} onValueChange={handlePoSelection}>
@@ -1200,7 +1202,27 @@ const InwardStock = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
+                  <div className="space-y-2">
+                    <Label htmlFor="warehouse">Warehouse *</Label>
+                    <Select
+                      value={pickupFormData.warehouse_id}
+                      onValueChange={(value) => setPickupFormData({ ...pickupFormData, warehouse_id: value })}
+                    >
+                      <SelectTrigger id="warehouse">
+                        <SelectValue placeholder="Select Warehouse" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Warehouses</SelectItem>
+                        {(warehouses || []).map(warehouse => (
+                          <SelectItem key={warehouse.id} value={warehouse.id}>
+                            {warehouse.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="pickup_date">Pickup Date *</Label>
                     <Input
@@ -1298,6 +1320,7 @@ const InwardStock = () => {
                           setPoLineStats(null);
                           setPickupFormData({
                             pickup_date: new Date().toISOString().split('T')[0],
+                            warehouse_id: '',
                             notes: '',
                             line_items: []
                           });
@@ -1429,8 +1452,8 @@ const InwardStock = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="warehouse_select">Warehouse *</Label>
-                    <Select 
-                      value={warehouseInwardFormData.warehouse_id} 
+                    <Select
+                      value={warehouseInwardFormData.warehouse_id}
                       onValueChange={(value) => setWarehouseInwardFormData({ ...warehouseInwardFormData, warehouse_id: value })}
                     >
                       <SelectTrigger id="warehouse_select">
@@ -1499,7 +1522,7 @@ const InwardStock = () => {
                           {warehouseInwardFormData.line_items.map((item, index) => {
                             const remainingAllowed = item.po_quantity - item.already_inwarded - item.in_transit;
                             const amount = item.new_inward_qty * item.rate;
-                            
+
                             return (
                               <TableRow key={item.product_id}>
                                 <TableCell className="font-medium">{item.product_name}</TableCell>
@@ -1624,7 +1647,7 @@ const InwardStock = () => {
                           </TableCell>
                           <TableCell className="font-medium">{entry.inward_invoice_no || 'N/A'}</TableCell>
                           <TableCell>{entry.date}</TableCell>
-                          <TableCell>{entry.warehouse_name || 'Unknown'}</TableCell>
+                          <TableCell>{entry?.warehouse?.warehouseName || 'Unknown'}</TableCell>
                           <TableCell>
                             <div className="text-sm">
                               {entry.line_items?.length || 0} items
@@ -1646,6 +1669,43 @@ const InwardStock = () => {
                         </TableRow>
                       ))
                     )}
+
+                    {/* Pickup Entries */}
+                    {pickupEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedPickupIds.includes(entry.id)}
+                            onChange={(e) => handleSelectPickup(entry.id, e.target.checked)}
+                            className="rounded border-gray-300"
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{entry.po_voucher_no}</TableCell>
+                        <TableCell>{entry.pickup_date}</TableCell>
+                        <TableCell>-</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {entry.line_items?.length || 0} items
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          ₹{(entry.line_items?.reduce((sum, item) => sum + (item.quantity * item.rate), 0) || 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleDeletePickup(entry.id)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Delete pickup"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -1656,7 +1716,7 @@ const InwardStock = () => {
         <TabsContent value="direct" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Direct Inward to Warehouse</h2>
-            <Button 
+            <Button
               onClick={() => openCreateDialog('direct')}
               className="bg-purple-600 hover:bg-purple-700"
             >
@@ -1673,7 +1733,7 @@ const InwardStock = () => {
             onExportCSV={handleExportDirectCSV}
             onExportExcel={handleExportDirectExcel}
           />
-          
+
           <div className="border rounded-lg overflow-hidden bg-white">
             <Table>
               <TableHeader>
@@ -1761,12 +1821,12 @@ const InwardStock = () => {
             <DialogTitle>
               {editingEntry ? 'Edit' : 'Create'} {
                 formData.inward_type === 'in_transit' ? 'Pick-up Inward (In-Transit)' :
-                formData.inward_type === 'warehouse' ? 'Inward to Warehouse' :
-                'Direct Inward to Warehouse'
+                  formData.inward_type === 'warehouse' ? 'Inward to Warehouse' :
+                    'Direct Inward to Warehouse'
               }
             </DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Header Information */}
             <div className="grid grid-cols-3 gap-4">
@@ -1774,7 +1834,7 @@ const InwardStock = () => {
                 <Label>Inward Invoice No *</Label>
                 <Input
                   value={formData.inward_invoice_no}
-                  onChange={(e) => setFormData({...formData, inward_invoice_no: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, inward_invoice_no: e.target.value })}
                   required
                 />
               </div>
@@ -1783,7 +1843,7 @@ const InwardStock = () => {
                 <Input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
               </div>
@@ -1816,7 +1876,7 @@ const InwardStock = () => {
                         })
                       )}
                     </div>
-                    
+
                     {/* Dropdown to Select POs */}
                     <div className="border rounded-md max-h-48 overflow-y-auto bg-white">
                       {!Array.isArray(pos) || pos.length === 0 ? (
@@ -1863,7 +1923,7 @@ const InwardStock = () => {
                   <Label>Warehouse *</Label>
                   <Select
                     value={formData.warehouse_id}
-                    onValueChange={(value) => setFormData({...formData, warehouse_id: value})}
+                    onValueChange={(value) => setFormData({ ...formData, warehouse_id: value })}
                     required={formData.inward_type === 'warehouse' || formData.source_type === 'direct_inward'}
                   >
                     <SelectTrigger>
@@ -1896,14 +1956,14 @@ const InwardStock = () => {
                   <div className="flex items-start gap-2">
                     <div className="text-blue-600 mt-0.5">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="12" y1="16" x2="12" y2="12"/>
-                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
                       </svg>
                     </div>
                     <div className="text-xs text-blue-800">
                       <strong>Inward Validation Logic:</strong> You can only inward up to <strong>PO Quantity</strong>.
-                      <strong> Remaining Allowed</strong> = PO Qty - Already Inwarded. 
+                      <strong> Remaining Allowed</strong> = PO Qty - Already Inwarded.
                       If you exceed, the system will <strong className="text-red-600">BLOCK</strong> the entry.
                     </div>
                   </div>
@@ -1916,10 +1976,10 @@ const InwardStock = () => {
                   <div key={index} className="border rounded-lg p-4 bg-slate-50 relative">
                     <div className="flex items-center justify-between mb-3">
                       <span className="font-medium text-slate-700">Item {index + 1} - {item.product_name || 'New Product'}</span>
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={() => removeLineItem(index)}
                         className="text-red-600 hover:text-red-800 hover:bg-red-50 border-red-300"
                         title="Remove this product"
@@ -2059,7 +2119,7 @@ const InwardStock = () => {
           <DialogHeader>
             <DialogTitle>View Inward Stock Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewingEntry && (
             <div className="space-y-6">
               {/* Entry Header Information */}
@@ -2081,13 +2141,12 @@ const InwardStock = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Type</Label>
                     <div className="mt-1">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        viewingEntry.inward_type === 'in_transit' ? 'bg-blue-100 text-blue-800' :
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${viewingEntry.inward_type === 'in_transit' ? 'bg-blue-100 text-blue-800' :
                         viewingEntry.inward_type === 'warehouse' ? 'bg-green-100 text-green-800' :
-                        'bg-purple-100 text-purple-800'
-                      }`}>
+                          'bg-purple-100 text-purple-800'
+                        }`}>
                         {viewingEntry.inward_type === 'in_transit' ? 'In-Transit' :
-                         viewingEntry.inward_type === 'warehouse' ? 'Warehouse' : 'Direct'}
+                          viewingEntry.inward_type === 'warehouse' ? 'Warehouse' : 'Direct'}
                       </span>
                     </div>
                   </div>
@@ -2175,7 +2234,7 @@ const InwardStock = () => {
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Total Amount */}
                 <div className="mt-4 flex justify-end">
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">

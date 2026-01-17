@@ -1109,7 +1109,7 @@ async def get_pis(current_user: dict = Depends(get_current_active_user)):
         pis.append(pi)
     return pis
 
-@api_router.get("/pi/{pi_id}")
+@api_router.get("/pI/{pi_id}")
 async def get_pi(pi_id: str, current_user: dict = Depends(get_current_active_user)):
     pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
     if not pi:
@@ -1120,6 +1120,102 @@ async def get_pi(pi_id: str, current_user: dict = Depends(get_current_active_use
         company = await mongo_db.companies.find_one({"id": pi["company_id"]}, {"_id": 0})
         pi["company"] = company
     
+    return pi
+
+async def get_dispatched_qty_for_pi(
+    pi_id: str,
+    product_id: str,
+    warehouse_id: str
+):
+    dispatched = 0.0
+
+    async for outward in mongo_db.outward_stock.find(
+        {
+            "pi_ids": pi_id,
+            "warehouse_id": warehouse_id,
+            "is_active": True
+        },
+        {"_id": 0}
+    ):
+        for item in outward.get("line_items", []):
+            if item.get("product_id") == product_id:
+                dispatched += float(item.get("quantity", 0))
+
+    return dispatched
+
+async def get_inward_qty_for_pi(
+    pi_id: str,
+    product_id: str,
+    warehouse_id: str
+):
+    inward = 0.0
+
+    async for inward_doc in mongo_db.inward_stock.find(
+        {
+            "pi_id": pi_id,
+            "warehouse_id": warehouse_id,
+            "is_active": True
+        },
+        {"_id": 0}
+    ):
+        for item in inward_doc.get("line_items", []):
+            if item.get("product_id") == product_id:
+                inward += float(item.get("quantity", 0))
+
+    return inward
+
+
+@api_router.get("/pi/{pi_id}")
+async def get_pi(
+    pi_id: str,
+    warehouse_id: str,  # ✅ REQUIRED
+    current_user: dict = Depends(get_current_active_user)
+):
+    # Fetch the PI
+    pi = await mongo_db.performa_invoices.find_one(
+        {"id": pi_id},
+        {"_id": 0}
+    )
+    if not pi:
+        raise HTTPException(status_code=404, detail="PI not found")
+
+    # Company
+    if pi.get("company_id"):
+        company = await mongo_db.companies.find_one(
+            {"id": pi["company_id"]},
+            {"_id": 0}
+        )
+        pi["company"] = company
+
+    # Inward stock (optional, reference only)
+    inward_stocks = []
+    async for stock in mongo_db.inward_stock.find(
+        {"pi_id": pi_id, "warehouse_id": warehouse_id},
+        {"_id": 0}
+    ):
+        inward_stocks.append(stock)
+    pi["inward_stock"] = inward_stocks
+
+    # ✅ CORRECT CALCULATION
+    for item in pi.get("line_items", []):
+
+        inward_qty = await get_inward_qty_for_pi(
+            pi_id=pi_id,
+            product_id=item.get("product_id"),
+            warehouse_id=warehouse_id
+        )
+
+        dispatched_qty = await get_dispatched_qty_for_pi(
+            pi_id=pi_id,
+            product_id=item.get("product_id"),
+            warehouse_id=warehouse_id
+        )
+
+        item["pi_quantity"] = float(item.get("quantity", 0))
+        item["inward_quantity"] = inward_qty
+        item["dispatched_quantity"] = dispatched_qty
+        item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
+
     return pi
 
 @api_router.put("/pi/{pi_id}")

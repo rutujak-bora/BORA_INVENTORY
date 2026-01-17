@@ -33,7 +33,8 @@ const OutwardStockNew = () => {
   const [pendingDispatchPlans, setPendingDispatchPlans] = useState([]);
   const [availableQuantities, setAvailableQuantities] = useState({});
   const [directInwardEntries, setDirectInwardEntries] = useState([]);
-  
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -45,7 +46,7 @@ const OutwardStockNew = () => {
   const [filteredDispatch, setFilteredDispatch] = useState([]);
   const [filteredExport, setFilteredExport] = useState([]);
   const [filteredDirect, setFilteredDirect] = useState([]);
-  
+
   // Form State
   const [formData, setFormData] = useState({
     dispatch_type: 'dispatch_plan',
@@ -70,17 +71,17 @@ const OutwardStockNew = () => {
   }, []);
 
   // Memoize filtered entries by type to prevent infinite re-renders
-  const dispatchEntries = useMemo(() => 
+  const dispatchEntries = useMemo(() =>
     outwardEntries.filter(e => e.dispatch_type === 'dispatch_plan'),
     [outwardEntries]
   );
-  
-  const exportEntries = useMemo(() => 
+
+  const exportEntries = useMemo(() =>
     outwardEntries.filter(e => e.dispatch_type === 'export_invoice'),
     [outwardEntries]
   );
-  
-  const directEntries = useMemo(() => 
+
+  const directEntries = useMemo(() =>
     outwardEntries.filter(e => e.dispatch_type === 'direct_export'),
     [outwardEntries]
   );
@@ -94,7 +95,7 @@ const OutwardStockNew = () => {
       if (searchTerm) {
         filtered = filtered.filter(entry =>
           entry.export_invoice_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          entry.line_items?.some(item => 
+          entry.line_items?.some(item =>
             item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
           )
@@ -137,7 +138,7 @@ const OutwardStockNew = () => {
         api.get('/outward-stock/dispatch-plans-pending'),
         api.get('/inward-stock/direct-entries')
       ]);
-      
+
       setOutwardEntries(outwardRes.data || []);
       setCompanies(companiesRes.data || []);
       setPIs(pisRes.data || []);
@@ -155,7 +156,7 @@ const OutwardStockNew = () => {
   // Calculate totals for filtered data
   const calculateTotals = (entries) => {
     const totalDispatchQty = entries.reduce((sum, entry) => {
-      const entryTotal = entry.line_items?.reduce((s, item) => 
+      const entryTotal = entry.line_items?.reduce((s, item) =>
         s + (parseFloat(item.dispatch_quantity) || parseFloat(item.quantity) || 0), 0) || 0;
       return sum + entryTotal;
     }, 0);
@@ -191,6 +192,94 @@ const OutwardStockNew = () => {
   };
 
   // Handle PI Selection
+  // const handlePISelect = async (piIds) => {
+  //   if (!piIds || piIds.length === 0) {
+  //     setFormData(prev => ({ ...prev, pi_ids: [], line_items: [] }));
+  //     setAvailableQuantities({});
+  //     return;
+  //   }
+
+  //   try {
+  //     const selectedPIs = await Promise.all(
+  //       piIds.map(piId => api.get(`/pi/${piId}?warehouse_id=${selectedWarehouseId}`))
+  //     );
+
+  //     const allLineItems = [];
+  //     const seenProducts = new Set();
+  //     const quantities = {}; // Build quantities here instead
+
+  //     selectedPIs.forEach(res => {
+  //       const pi = res.data;
+
+  //       // Use inward_stock line_items if it exists, otherwise fallback to PI line_items
+  //       const itemsToUse = pi.inward_stock?.[0]?.line_items || pi.line_items;
+
+  //       pi.line_items.forEach(item => {
+  //         const productKey = item.sku || item.product_id;
+  //         if (!seenProducts.has(productKey)) {
+  //           seenProducts.add(productKey);
+
+  //           // Get the quantity from inward_stock if available
+  //           const availableQty = item.available_quantity ?? 0; // This is from inward_stock line_items
+
+  //           allLineItems.push({
+  //             product_id: item.product_id,
+  //             product_name: item.product_name,
+  //             sku: item.sku,
+  //             pi_total_quantity: item.total_po_qty || item.quantity, // use total_po_qty if available
+  //             rate: item.rate,
+  //             available_quantity: availableQty,
+  //             dispatch_quantity: 0,
+  //             remaining: item.remaining || item.quantity,
+  //             already_inwarded: item.already_inwarded || 0,
+  //             dimensions: '',
+  //             weight: 0,
+  //             amount: item.amount || 0
+  //           });
+
+  //           // Set the available quantity in the quantities object
+  //           quantities[item.product_id] = availableQty;
+  //         }
+  //       });
+  //     });
+
+  //     setFormData(prev => ({
+  //       ...prev,
+  //       pi_ids: piIds,
+  //       company_id: selectedPIs[0]?.data?.company_id || prev.company_id,
+  //       line_items: allLineItems
+  //     }));
+
+  //     // Set available quantities from inward_stock
+  //     setAvailableQuantities(quantities);
+
+  //     toast({
+  //       title: 'PI Selected',
+  //       description: `Products loaded from ${piIds.length} PI(s). Enter dispatch quantities.`
+  //     });
+
+  //   } catch (error) {
+  //     console.error('Error loading PI:', error);
+
+  //     let errorMessage = 'Failed to load PI details. Please try again.';
+  //     if (error.response?.status === 403) {
+  //       errorMessage = 'Access denied. Your session may have expired. Please log in again.';
+  //     } else if (error.response?.status === 404) {
+  //       errorMessage = 'PI not found. It may have been deleted.';
+  //     } else if (error.response?.data?.detail) {
+  //       errorMessage = error.response.data.detail;
+  //     }
+
+  //     toast({
+  //       title: 'Error',
+  //       description: errorMessage,
+  //       variant: 'destructive'
+  //     });
+
+  //     setFormData(prev => ({ ...prev, pi_ids: [], line_items: [] }));
+  //   }
+  // };
+
   const handlePISelect = async (piIds) => {
     if (!piIds || piIds.length === 0) {
       setFormData(prev => ({ ...prev, pi_ids: [], line_items: [] }));
@@ -199,31 +288,42 @@ const OutwardStockNew = () => {
     }
 
     try {
+      // 1️⃣ Call API WITH warehouse_id
       const selectedPIs = await Promise.all(
-        piIds.map(piId => api.get(`/pi/${piId}`))
+        piIds.map(piId =>
+          api.get(`/pi/${piId}?warehouse_id=${selectedWarehouseId}`)
+        )
       );
 
       const allLineItems = [];
       const seenProducts = new Set();
+      const quantities = {};
 
       selectedPIs.forEach(res => {
         const pi = res.data;
-        pi.line_items?.forEach(item => {
-          const productKey = item.sku || item.product_id;
-          if (!seenProducts.has(productKey)) {
-            seenProducts.add(productKey);
-            allLineItems.push({
-              product_id: item.product_id,
-              product_name: item.product_name,
-              sku: item.sku,
-              pi_total_quantity: item.quantity,
-              rate: item.rate,
-              dispatch_quantity: 0,
-              dimensions: '',
-              weight: 0,
-              amount: 0
-            });
-          }
+
+        // 2️⃣ Use ONLY pi.line_items
+        pi.line_items.forEach(item => {
+          const key = item.product_id || item.sku;
+          if (seenProducts.has(key)) return;
+          seenProducts.add(key);
+
+          const availableQty = item.available_quantity ?? 0;
+
+          allLineItems.push({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            sku: item.sku,
+            pi_total_quantity: item.pi_quantity,
+            rate: item.rate,
+            available_quantity: availableQty,
+            dispatch_quantity: 0,
+            dimensions: '',
+            weight: 0,
+            amount: 0
+          });
+
+          quantities[item.product_id] = availableQty;
         });
       });
 
@@ -234,41 +334,23 @@ const OutwardStockNew = () => {
         line_items: allLineItems
       }));
 
-      // Fetch available quantities for all products
-      if (formData.warehouse_id) {
-        const quantities = {};
-        for (const item of allLineItems) {
-          const availableQty = await fetchAvailableQuantity(item.product_id, formData.warehouse_id);
-          quantities[item.product_id] = availableQty;
-        }
-        setAvailableQuantities(quantities);
-      }
+      setAvailableQuantities(quantities);
 
       toast({
         title: 'PI Selected',
-        description: `Products loaded from ${piIds.length} PI(s). Enter dispatch quantities.`
+        description: 'Available stock loaded (Inward − Outward)'
       });
+
     } catch (error) {
-      console.error('Error loading PI:', error);
-      
-      // More detailed error message
-      let errorMessage = 'Failed to load PI details. Please try again.';
-      if (error.response?.status === 403) {
-        errorMessage = 'Access denied. Your session may have expired. Please log in again.';
-      } else if (error.response?.status === 404) {
-        errorMessage = 'PI not found. It may have been deleted.';
-      } else if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      }
-      
+      console.error(error);
       toast({
-        title: 'Error',
-        description: errorMessage,
+        title: 'Error', 
+        description: 'Failed to load PI details',
         variant: 'destructive'
       });
-      setFormData(prev => ({ ...prev, pi_ids: [], line_items: [] }));
     }
   };
+
 
   // Handle Direct Inward Invoice Selection (for Direct Export)
   const handleDirectInwardSelect = (inwardInvoiceIds) => {
@@ -414,8 +496,8 @@ const OutwardStockNew = () => {
     const newLineItems = formData.line_items.filter((_, i) => i !== index);
     // Keep at least one empty item if all are removed
     if (newLineItems.length === 0) {
-      setFormData({ 
-        ...formData, 
+      setFormData({
+        ...formData,
         line_items: [{
           product_id: '',
           product_name: '',
@@ -437,7 +519,7 @@ const OutwardStockNew = () => {
   // Validate form
   const validateForm = () => {
     console.log('🔍 Starting validation...');
-    
+
     if (!formData.company_id) {
       console.log('❌ Validation failed: No company selected');
       toast({ title: 'Error', description: 'Please select a company', variant: 'destructive' });
@@ -461,7 +543,7 @@ const OutwardStockNew = () => {
 
     const validItems = formData.line_items.filter(item => item.product_name && item.product_name.trim() !== '');
     console.log('✅ Valid line items:', validItems.length);
-    
+
     if (validItems.length === 0) {
       console.log('❌ Validation failed: No products');
       toast({ title: 'Error', description: 'Please add at least one product', variant: 'destructive' });
@@ -471,7 +553,7 @@ const OutwardStockNew = () => {
     // Validate quantities
     for (const item of validItems) {
       console.log(`📦 Checking item: ${item.product_name}, Dispatch: ${item.dispatch_quantity}, Available: ${availableQuantities[item.product_id]}`);
-      
+
       if (!item.dispatch_quantity || item.dispatch_quantity <= 0) {
         console.log(`❌ Validation failed: Invalid quantity for ${item.product_name}`);
         toast({
@@ -508,7 +590,7 @@ const OutwardStockNew = () => {
     console.log('🔵 CREATE BUTTON CLICKED');
     console.log('📋 Form Data:', formData);
     console.log('📦 Available Quantities:', availableQuantities);
-    
+
     if (!validateForm()) {
       console.log('❌ Validation failed');
       return;
@@ -542,11 +624,11 @@ const OutwardStockNew = () => {
       console.error('❌ Error response:', error.response);
       console.error('❌ Error detail:', error.response?.data?.detail);
       console.error('❌ Error status:', error.response?.status);
-      
+
       // Show detailed error message
       const errorMessage = error.response?.data?.detail || 'Failed to save outward entry';
       console.error('❌ Showing error message:', errorMessage);
-      
+
       toast({
         title: 'Error Creating Entry',
         description: errorMessage,
@@ -600,7 +682,7 @@ const OutwardStockNew = () => {
   const handleCreateExportInvoice = async (dispatchPlan) => {
     try {
       console.log('🔄 Converting Dispatch Plan to Export Invoice:', dispatchPlan);
-      
+
       // Create export invoice with dispatch_plan_id reference
       const exportInvoiceData = {
         dispatch_type: 'export_invoice',
@@ -634,22 +716,22 @@ const OutwardStockNew = () => {
       await api.delete(`/outward-stock/${dispatchPlan.id}`);
       console.log('✅ Dispatch Plan removed after conversion');
 
-      toast({ 
-        title: 'Success', 
-        description: 'Export Invoice created from Dispatch Plan successfully!' 
+      toast({
+        title: 'Success',
+        description: 'Export Invoice created from Dispatch Plan successfully!'
       });
-      
+
       fetchData();
     } catch (error) {
       console.error('❌ Error creating export invoice:', error);
       console.error('❌ Error response:', error.response?.data);
       console.error('❌ Error status:', error.response?.status);
       console.error('❌ Error detail:', error.response?.data?.detail);
-      
-      toast({ 
-        title: 'Error Creating Export Invoice', 
+
+      toast({
+        title: 'Error Creating Export Invoice',
         description: error.response?.data?.detail || 'Failed to create export invoice. Check console for details.',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
     }
   };
@@ -662,17 +744,17 @@ const OutwardStockNew = () => {
 
     try {
       await api.delete(`/outward-stock/${dispatchPlan.id}`);
-      toast({ 
-        title: 'Success', 
-        description: 'Dispatch Plan removed successfully' 
+      toast({
+        title: 'Success',
+        description: 'Dispatch Plan removed successfully'
       });
       fetchData();
     } catch (error) {
       console.error('❌ Error removing dispatch plan:', error);
-      toast({ 
-        title: 'Error', 
+      toast({
+        title: 'Error',
         description: 'Failed to remove dispatch plan',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
     }
   };
@@ -720,7 +802,7 @@ const OutwardStockNew = () => {
               <Input
                 type="date"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               />
             </div>
             <div>
@@ -728,7 +810,7 @@ const OutwardStockNew = () => {
               <Input
                 type="date"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
             </div>
             <div>
@@ -736,7 +818,7 @@ const OutwardStockNew = () => {
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                 value={filters.mode}
-                onChange={(e) => setFilters({...filters, mode: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, mode: e.target.value })}
               >
                 <option value="all">All Modes</option>
                 <option value="sea">Sea</option>
@@ -748,7 +830,7 @@ const OutwardStockNew = () => {
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                 value={filters.warehouse}
-                onChange={(e) => setFilters({...filters, warehouse: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, warehouse: e.target.value })}
               >
                 <option value="all">All Warehouses</option>
                 {warehouses.map(wh => (
@@ -759,8 +841,8 @@ const OutwardStockNew = () => {
           </div>
           <div className="flex items-center justify-between mt-3 pt-3 border-t">
             <div className="text-sm text-slate-600">
-              <span className="font-semibold">Dispatch Plans:</span> {filteredDispatch.length} | 
-              <span className="font-semibold ml-2">Export Invoices:</span> {filteredExport.length} | 
+              <span className="font-semibold">Dispatch Plans:</span> {filteredDispatch.length} |
+              <span className="font-semibold ml-2">Export Invoices:</span> {filteredExport.length} |
               <span className="font-semibold ml-2">Direct Exports:</span> {filteredDirect.length}
             </div>
             <Button variant="outline" size="sm" onClick={resetFilters}>
@@ -778,10 +860,32 @@ const OutwardStockNew = () => {
         </TabsList>
 
         {/* Dispatch Plan Tab */}
+
+        <div className="flex items-center gap-3 mb-4">
+          <Label className="text-sm font-medium">Warehouse</Label>
+
+          <Select
+            value={selectedWarehouseId}
+            onValueChange={(value) => setSelectedWarehouseId(value)}
+          >
+            <SelectTrigger className="w-[260px]">
+              <SelectValue placeholder="Select warehouse" />
+            </SelectTrigger>
+
+            <SelectContent>
+              {warehouses.map(w => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <TabsContent value="dispatch">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Dispatch Plans</h2>
-            <Button onClick={() => openCreateDialog('dispatch_plan')} className="bg-blue-600 hover:bg-blue-700">
+            <Button disabled={!selectedWarehouseId} onClick={() => openCreateDialog('dispatch_plan')} className="bg-blue-600 hover:bg-blue-700">
               <Plus size={16} className="mr-2" />
               Create Dispatch Plan
             </Button>
@@ -827,7 +931,7 @@ const OutwardStockNew = () => {
                       <TableCell>{entry.export_invoice_number || '-'}</TableCell>
                       <TableCell>{entry.mode}</TableCell>
                       <TableCell>
-                        {entry.pi_ids?.length > 0 
+                        {entry.pi_ids?.length > 0
                           ? `${entry.pi_ids.length} PI(s)`
                           : '-'}
                       </TableCell>
@@ -909,14 +1013,13 @@ const OutwardStockNew = () => {
                         <TableCell className="font-medium">{entry.export_invoice_no}</TableCell>
                         <TableCell>{entry.export_invoice_number || '-'}</TableCell>
                         <TableCell>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            entry.mode === 'Air' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'
-                          }`}>
+                          <span className={`px-2 py-1 rounded text-xs ${entry.mode === 'Air' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'
+                            }`}>
                             {entry.mode}
                           </span>
                         </TableCell>
                         <TableCell>
-                          {entry.pi_ids?.length > 0 
+                          {entry.pi_ids?.length > 0
                             ? `${entry.pi_ids.length} PI(s)`
                             : '-'}
                         </TableCell>
@@ -926,16 +1029,16 @@ const OutwardStockNew = () => {
                         </TableCell>
                         <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2) || '0.00'}</TableCell>
                         <TableCell className="text-right space-x-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             className="bg-green-600 hover:bg-green-700"
                             onClick={() => handleCreateExportInvoice(entry)}
                           >
                             <Plus size={14} className="mr-1" />
                             Create Export Invoice
                           </Button>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             className="border-red-300 text-red-600 hover:bg-red-50"
                             onClick={() => handleRemoveDispatchPlan(entry)}
@@ -985,9 +1088,8 @@ const OutwardStockNew = () => {
                         <TableCell className="font-medium">{entry.export_invoice_no}</TableCell>
                         <TableCell>{entry.export_invoice_number || '-'}</TableCell>
                         <TableCell>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            entry.mode === 'Air' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'
-                          }`}>
+                          <span className={`px-2 py-1 rounded text-xs ${entry.mode === 'Air' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'
+                            }`}>
                             {entry.mode}
                           </span>
                         </TableCell>
@@ -1103,12 +1205,12 @@ const OutwardStockNew = () => {
             <DialogTitle>
               {editingEntry ? 'Edit' : 'Create'} {
                 formData.dispatch_type === 'dispatch_plan' ? 'Dispatch Plan' :
-                formData.dispatch_type === 'export_invoice' ? 'Export Invoice' :
-                'Direct Export Invoice'
+                  formData.dispatch_type === 'export_invoice' ? 'Export Invoice' :
+                    'Direct Export Invoice'
               }
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {/* Basic Fields */}
             <div className="grid grid-cols-2 gap-4">
@@ -1247,6 +1349,7 @@ const OutwardStockNew = () => {
                   value="_select_pi_"
                   onValueChange={(piId) => {
                     if (piId && piId !== "_select_pi_" && !formData.pi_ids.includes(piId)) {
+                      console.log("this is the data which is being shown in the form ", piId);
                       requestAnimationFrame(() => {
                         setTimeout(() => {
                           handlePISelect([...formData.pi_ids, piId]);
@@ -1268,7 +1371,7 @@ const OutwardStockNew = () => {
                       ))}
                   </SelectContent>
                 </Select>
-                
+
                 {formData.pi_ids.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2 p-2 bg-slate-50 rounded border">
                     {formData.pi_ids.map(piId => {
@@ -1323,7 +1426,7 @@ const OutwardStockNew = () => {
                       ))}
                   </SelectContent>
                 </Select>
-                
+
                 {(formData.inward_invoice_ids || []).length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2 p-2 bg-slate-50 rounded border">
                     {(formData.inward_invoice_ids || []).map(invoiceId => {
@@ -1368,7 +1471,7 @@ const OutwardStockNew = () => {
 
               {formData.line_items.length === 0 ? (
                 <div className="text-center py-8 text-slate-500 border rounded">
-                  {formData.dispatch_type === 'direct_export' 
+                  {formData.dispatch_type === 'direct_export'
                     ? 'Select Direct Inward Invoice or click "Add Product" to add items manually'
                     : 'Select PI to load products'}
                 </div>
@@ -1378,10 +1481,10 @@ const OutwardStockNew = () => {
                     <div key={index} className="border rounded p-4 bg-slate-50 relative">
                       <div className="flex justify-between items-start mb-3">
                         <h4 className="font-semibold text-slate-700">Product {index + 1} - {item.product_name || 'New Product'}</h4>
-                        <Button 
-                          type="button" 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleRemoveLineItem(index)}
                           className="text-red-600 hover:text-red-800 hover:bg-red-50 border-red-300"
                           title="Remove this product"
@@ -1468,19 +1571,18 @@ const OutwardStockNew = () => {
                             placeholder="Dispatch qty"
                             className={
                               availableQuantities[item.product_id] !== undefined &&
-                              item.dispatch_quantity > availableQuantities[item.product_id]
+                                item.dispatch_quantity > availableQuantities[item.product_id]
                                 ? 'border-red-500 bg-red-50'
                                 : ''
                             }
                           />
                           {availableQuantities[item.product_id] !== undefined && (
-                            <p className={`text-xs mt-1 ${
-                              item.dispatch_quantity > availableQuantities[item.product_id]
-                                ? 'text-red-600 font-semibold'
-                                : 'text-slate-500'
-                            }`}>
+                            <p className={`text-xs mt-1 ${item.dispatch_quantity > availableQuantities[item.product_id]
+                              ? 'text-red-600 font-semibold'
+                              : 'text-slate-500'
+                              }`}>
                               Max: {availableQuantities[item.product_id]}
-                              {item.dispatch_quantity > availableQuantities[item.product_id] && 
+                              {item.dispatch_quantity > availableQuantities[item.product_id] &&
                                 ' ⚠️ Exceeds available!'}
                             </p>
                           )}
@@ -1543,7 +1645,7 @@ const OutwardStockNew = () => {
               </Button>
             </div>
           </div>
-          
+
         </DialogContent>
       </Dialog>
 
@@ -1558,7 +1660,7 @@ const OutwardStockNew = () => {
               {viewingEntry?.dispatch_type === 'direct_export' && 'Direct Export Details'}
             </DialogTitle>
           </DialogHeader>
-          
+
           {viewingEntry && (
             <div className="space-y-6">
               {/* Basic Information */}

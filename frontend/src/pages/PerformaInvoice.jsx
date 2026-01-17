@@ -22,7 +22,7 @@ const PerformaInvoice = () => {
   const [editingPI, setEditingPI] = useState(null);
   const [viewingPI, setViewingPI] = useState(null);
   const [selectedPIs, setSelectedPIs] = useState([]);
-  
+
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -32,7 +32,7 @@ const PerformaInvoice = () => {
     company: 'all'
   });
   const [filteredPIs, setFilteredPIs] = useState([]);
-  
+
   const [formData, setFormData] = useState({
     company_id: '',
     voucher_no: '',
@@ -75,7 +75,7 @@ const PerformaInvoice = () => {
         pi.voucher_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pi.consignee?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pi.buyer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        pi.line_items?.some(item => 
+        pi.line_items?.some(item =>
           item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
         )
@@ -172,12 +172,12 @@ const PerformaInvoice = () => {
   const handleLineItemChange = (index, field, value) => {
     const newLineItems = [...formData.line_items];
     newLineItems[index][field] = value;
-    
+
     // Auto-calculate amount
     if (field === 'quantity' || field === 'rate') {
       newLineItems[index].amount = newLineItems[index].quantity * newLineItems[index].rate;
     }
-    
+
     setFormData({ ...formData, line_items: newLineItems });
   };
 
@@ -538,30 +538,45 @@ const PerformaInvoice = () => {
                             />
                           </div>
                           <div className="col-span-2">
-                            <Label>SKU * (Searchable)</Label>
-                            <SearchableSelect
+                            <Label>SKU</Label>
+                            {/* <SearchableSelect
                               value={item.product_id}
                               onValueChange={(value) => handleSKUSelect(index, value)}
                               options={products.map(p => ({ value: p.id, label: p.sku_name }))}
                               placeholder="Search and select SKU"
                               searchPlaceholder="Type to search SKU..."
+                            /> */}
+
+                            <Input
+                              value={item.sku}
+                              onChange={(e) => handleLineItemChange(index, 'sku', e.target.value)}
+                              placeholder="Enter sku value"
+                              required
                             />
                           </div>
                           <div>
-                            <Label>Category (Auto-filled)</Label>
-                            <Input value={item.category} disabled className="bg-gray-100" />
+                            <Label>Category </Label>
+                            <Input value={item.category}
+                              onChange={(e) => handleLineItemChange(index, 'category', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
-                            <Label>Brand (Auto-filled)</Label>
-                            <Input value={item.brand} disabled className="bg-gray-100" />
+                            <Label>Brand</Label>
+                            <Input value={item.brand}
+                              onChange={(e) => handleLineItemChange(index, 'brand', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
-                            <Label>HSN/SAC (Auto-filled)</Label>
-                            <Input value={item.hsn_sac} disabled className="bg-gray-100" />
+                            <Label>HSN/SAC</Label>
+                            <Input value={item.hsn_sac}
+                              onChange={(e) => handleLineItemChange(index, 'hsn_sac', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
-                            <Label>Made In (Auto-filled)</Label>
-                            <Input value={item.made_in} disabled className="bg-gray-100" />
+                            <Label>Made In </Label>
+                            <Input value={item.made_in}
+                              onChange={(e) => handleLineItemChange(index, 'made_in', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
                             <Label>Quantity *</Label>
@@ -626,7 +641,7 @@ const PerformaInvoice = () => {
           <DialogHeader>
             <DialogTitle>View Performa Invoice Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewingPI && (
             <div className="space-y-6">
               {/* PI Header Information */}
@@ -654,11 +669,10 @@ const PerformaInvoice = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Status</Label>
                     <div className="mt-1">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        viewingPI.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                        viewingPI.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${viewingPI.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                          viewingPI.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                            'bg-yellow-100 text-yellow-800'
+                        }`}>
                         {viewingPI.status}
                       </span>
                     </div>
@@ -711,7 +725,7 @@ const PerformaInvoice = () => {
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Total Amount */}
                 <div className="mt-4 flex justify-end">
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">
@@ -755,48 +769,48 @@ const PerformaInvoice = () => {
                 />
               </div>
             </div>
-            
+
             {/* Date From */}
             <div>
               <Label className="text-xs">From Date</Label>
               <Input
                 type="date"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               />
             </div>
-            
+
             {/* Date To */}
             <div>
               <Label className="text-xs">To Date</Label>
               <Input
                 type="date"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
             </div>
-            
+
             {/* Status Filter */}
             <div>
               <Label className="text-xs">Status</Label>
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                 value={filters.status}
-                onChange={(e) => setFilters({...filters, status: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="completed">Completed</option>
               </select>
             </div>
-            
+
             {/* Company Filter */}
             <div>
               <Label className="text-xs">Company</Label>
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                 value={filters.company}
-                onChange={(e) => setFilters({...filters, company: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, company: e.target.value })}
               >
                 <option value="all">All Companies</option>
                 {companies.map(company => (
@@ -805,7 +819,7 @@ const PerformaInvoice = () => {
               </select>
             </div>
           </div>
-          
+
           {/* Reset and Results Count */}
           <div className="flex items-center justify-between mt-3 pt-3 border-t">
             <p className="text-sm text-slate-600">
@@ -881,11 +895,10 @@ const PerformaInvoice = () => {
                   </TableCell>
                   <TableCell className="font-semibold">₹{pi.total_amount?.toFixed(2)}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      pi.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                      pi.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${pi.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                        pi.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
+                      }`}>
                       {pi.status}
                     </span>
                   </TableCell>

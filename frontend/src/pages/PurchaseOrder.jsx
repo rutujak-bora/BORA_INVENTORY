@@ -198,7 +198,7 @@ const PurchaseOrder = () => {
     try {
       // Fetch all selected PIs
       const selectedPIs = await Promise.all(
-        piIds.map(piId => api.get(`/pi/${piId}`))
+        piIds.map(piId => api.get(`/pI/${piId}`))
       );
 
       // Build reference_no_date string from all PIs

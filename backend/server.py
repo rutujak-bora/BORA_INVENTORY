@@ -5061,6 +5061,7 @@ async def create_pickup(
             "pickup_date": pickup_data.get("pickup_date"),
             "po_id": po_id,
             "po_voucher_no": po.get("voucher_no"),
+            "manual": pickup_data.get("manual", ""),
             "notes": pickup_data.get("notes", ""),
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -5127,6 +5128,85 @@ async def get_pickups(
         logger.error(f"Error fetching pickups: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@api_router.post("/{pickup_id}/inward")
+async def inward_from_pickup(pickup_id: str):
+
+    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id})
+    if not pickup:
+        raise HTTPException(status_code=404, detail="Pickup not found")
+
+    if pickup.get("is_inwarded"):
+        raise HTTPException(status_code=400, detail="Pickup already inwarded")
+
+    inward = await mongo_db.inward_stock.find_one({"po_id": pickup["po_id"]})
+    if not inward:
+        raise HTTPException(status_code=400, detail="Inward stock not found for this PO")
+
+    for pickup_item in pickup["line_items"]:
+
+        inward_item = next(
+            (
+                item for item in inward["line_items"]
+                if item["product_name"] == pickup_item["product_name"]
+                and item["sku"] == pickup_item["sku"]
+            ),
+            None
+        )
+
+        if not inward_item:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Product {pickup_item['product_name']} not found in inward stock"
+            )
+
+        if pickup_item["quantity"] > inward_item["remaining"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Pickup quantity exceeds remaining PO quantity for {pickup_item['product_name']}"
+            )
+
+        # 🔹 MOVE quantity from pickup → inward
+        pickup_qty = pickup_item["quantity"]
+
+        # save old inward quantity
+        inward_item["previous_quantity"] = inward_item.get("quantity", 0)
+
+        # update inward quantity
+        inward_item["quantity"] = inward_item["previous_quantity"] + pickup_qty
+        inward_item["already_inwarded"] += pickup_qty
+        inward_item["remaining"] = inward_item["total_po_qty"] - inward_item["quantity"]
+
+        # reset pickup quantity
+        pickup_item["already_inwarded"] = pickup_qty
+        pickup_item["quantity"] = 0
+
+    await mongo_db.pickup_in_transit.update_one(
+        {"id": pickup["id"]},
+        {
+            "$set": {
+                "line_items": pickup["line_items"],
+                "is_inwarded": True
+            }
+        }
+    )
+
+    await mongo_db.inward_stock.update_one(
+        {"_id": inward["_id"]},
+        {
+            "$set": {
+                "line_items": inward["line_items"],
+                "status": "Received"
+            }
+        }
+    )
+
+    return {
+        "message": "Inward completed successfully",
+        "pickup_id": pickup["id"],
+        "inward_stock_id": str(inward["_id"]),
+        "po_id": pickup["po_id"]
+    }
 
 @api_router.get("/pickups/export")
 async def export_pickups(

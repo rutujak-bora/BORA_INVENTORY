@@ -28,16 +28,20 @@ const InwardStock = () => {
   const [selectedPo, setSelectedPo] = useState('');
   const [poLineStats, setPoLineStats] = useState(null);
   const [pickupEntries, setPickupEntries] = useState([]);
+  // console.log("this is pickupEntries", pickupEntries);
   const [pickupFormData, setPickupFormData] = useState({
     pickup_date: new Date().toISOString().split('T')[0],
+    manual: '',
     notes: '',
     line_items: []
   });
+
 
   // Warehouse Inward state
   const [selectedWarehousePo, setSelectedWarehousePo] = useState('');
   const [warehousePoLineStats, setWarehousePoLineStats] = useState(null);
   const [warehouseEntries, setWarehouseEntries] = useState([]);
+  console.log("yooo hooo", warehouseEntries)
   const [warehouseInwardFormData, setWarehouseInwardFormData] = useState({
     warehouse_id: '',
     inward_date: new Date().toISOString().split('T')[0],
@@ -46,7 +50,6 @@ const InwardStock = () => {
   });
   const [warehouseFilter, setWarehouseFilter] = useState('all');
 
-  console.log('pickupEntries', pickupEntries);
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -64,6 +67,7 @@ const InwardStock = () => {
   const [editingEntry, setEditingEntry] = useState(null);
   const [viewingEntry, setViewingEntry] = useState(null);
   const [selectedPickupEntry, setSelectedPickupEntry] = useState(null);
+  const [pickupViewOpen, setPickupViewOpen] = useState(false);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
 
   // Bulk operations state
@@ -72,6 +76,8 @@ const InwardStock = () => {
   const [selectedDirectIds, setSelectedDirectIds] = useState([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
+
+  //modal
 
   const [formData, setFormData] = useState({
     inward_invoice_no: '',
@@ -212,6 +218,7 @@ const InwardStock = () => {
       setPoLineStats(null);
       setPickupFormData({
         pickup_date: new Date().toISOString().split('T')[0],
+        manual: '',
         notes: '',
         line_items: []
       });
@@ -298,6 +305,7 @@ const InwardStock = () => {
       const pickupData = {
         po_id: poLineStats.po_id,
         pickup_date: pickupFormData.pickup_date,
+        manual: pickupFormData.manual,
         notes: pickupFormData.notes,
         line_items: validLineItems.map(item => ({
           product_id: item.product_id,
@@ -362,6 +370,52 @@ const InwardStock = () => {
       });
     }
   };
+
+  const handleViewPickup = (entry) => {
+    setSelectedPickupEntry(entry);
+    setPickupViewOpen(true);
+  };
+
+
+  //this is for the section where we are adding the transit to inward
+
+  const handleInwardPickup = async (pickupId) => {
+    if (!window.confirm("Are you sure you want to inward this pickup?")) {
+      return;
+    }
+
+    try {
+      const res = await api.post(
+        `${pickupId}/inward`
+      );
+
+      toast({
+        title: "Success",
+        description: res.data.message || "Inward completed successfully",
+        variant: "default",
+      });
+
+      // Refresh pickup list
+      fetchPickupEntries();
+
+      // Optional: refresh PO stats
+      if (selectedPo) {
+        handlePoSelection(selectedPo);
+      }
+
+    } catch (error) {
+      console.error("Inward failed:", error);
+
+      toast({
+        title: "Error",
+        description:
+          error.response?.data?.detail || "Failed to inward pickup",
+        variant: "destructive",
+      });
+    }
+  };
+
+
 
   // Warehouse Inward Functions
   const fetchWarehouseEntries = async () => {
@@ -1188,6 +1242,15 @@ const InwardStock = () => {
                 {/* PO Selection, Warehouse, and Date */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
+                    <Label>Manual Entry</Label>
+                    <Input
+                      type="text"
+                      placeholder="Enter Manual"
+                      value={pickupFormData.manual}
+                      onChange={(e) => setPickupFormData({ ...pickupFormData, manual: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="po">Purchase Order *</Label>
                     <Select value={selectedPo} onValueChange={handlePoSelection}>
                       <SelectTrigger id="po">
@@ -1370,7 +1433,8 @@ const InwardStock = () => {
                       <TableHead>PO Number</TableHead>
                       <TableHead>Pickup Date</TableHead>
                       <TableHead>Items</TableHead>
-                      <TableHead>Notes</TableHead>
+                      {/* <TableHead>Notes</TableHead> */}
+                      <TableHead>In Transit</TableHead>
                       <TableHead>Created At</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1400,10 +1464,15 @@ const InwardStock = () => {
                               {entry.line_items?.length || 0} items
                             </div>
                           </TableCell>
-                          <TableCell>{entry.notes || '-'}</TableCell>
+                          <TableCell>{entry?.line_items?.map(item => item.quantity)}</TableCell>
                           <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
+
+                              <Button variant="ghost" size="sm" onClick={() => handleViewPickup(entry)}>
+                                <Eye size={16} className="text-blue-600" />
+                              </Button>
+
                               <button
                                 onClick={() => handleDeletePickup(entry.id)}
                                 className="text-red-600 hover:text-red-800 p-1"
@@ -1623,7 +1692,7 @@ const InwardStock = () => {
                       <TableHead>Warehouse</TableHead>
                       <TableHead>Items</TableHead>
                       <TableHead>Total Amount</TableHead>
-                      <TableHead>Created At</TableHead>
+                      <TableHead>Already Inwarded</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1654,7 +1723,13 @@ const InwardStock = () => {
                             </div>
                           </TableCell>
                           <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
-                          <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {entry?.line_items?.map((item, index) => (
+                              <div key={index}>
+                                {item.quantity}
+                              </div>
+                            ))}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button
@@ -1670,7 +1745,40 @@ const InwardStock = () => {
                       ))
                     )}
 
-                    {/* Pickup Entries */}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pickup Entries Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Pickup Entries</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          checked={selectedPickupIds.length === pickupEntries.length && pickupEntries.length > 0}
+                          onChange={(e) => handleSelectAllPickups(e.target.checked)}
+                          className="rounded border-gray-300"
+                        />
+                      </TableHead>
+                      <TableHead>PO Number</TableHead>
+                      <TableHead>Pickup Date</TableHead>
+                      <TableHead>Warehouse</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>Total Amount</TableHead>
+                      <TableHead>Created At</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {pickupEntries.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell>
@@ -1695,6 +1803,22 @@ const InwardStock = () => {
                         <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* View */}
+                            <Button variant="ghost" size="sm" onClick={() => handleViewPickup(entry)}>
+                              <Eye size={16} className="text-blue-600" />
+                            </Button>
+
+                            {/* Inward */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={entry.is_inwarded}
+                              onClick={() => handleInwardPickup(entry.id)}
+                            >
+                              {entry.is_inwarded ? "Inwarded" : "Inward"}
+                            </Button>
+
+                            {/* Delete */}
                             <button
                               onClick={() => handleDeletePickup(entry.id)}
                               className="text-red-600 hover:text-red-800 p-1"
@@ -1704,6 +1828,7 @@ const InwardStock = () => {
                             </button>
                           </div>
                         </TableCell>
+
                       </TableRow>
                     ))}
                   </TableBody>
@@ -2009,7 +2134,7 @@ const InwardStock = () => {
                           disabled={formData.po_id && !editingEntry}
                         />
                       </div>
-                      <div>
+                      {/* <div>
                         <Label className="text-xs">PI Qty (From Invoice)</Label>
                         <Input
                           value={item.pi_quantity || 0}
@@ -2047,7 +2172,7 @@ const InwardStock = () => {
                           className="bg-purple-50 font-bold text-purple-700"
                           title="Maximum quantity you can inward now"
                         />
-                      </div>
+                      </div> */}
                       <div>
                         <Label className="text-xs">New Inward Qty *</Label>
                         <Input
@@ -2110,6 +2235,84 @@ const InwardStock = () => {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pickupViewOpen} onOpenChange={setPickupViewOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Pickup Entry Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedPickupEntry && (
+            <div className="space-y-6">
+              <div className="bg-slate-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-4 text-slate-800">Pickup Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">PO Number</Label>
+                    <div className="mt-1 p-2 bg-white rounded border font-semibold">
+                      {selectedPickupEntry.po_voucher_no}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">Pickup Date</Label>
+                    <div className="mt-1 p-2 bg-white rounded border">
+                      {selectedPickupEntry.pickup_date}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">Manual</Label>
+                    <div className="mt-1 p-2 bg-white rounded border">
+                      {selectedPickupEntry.manual || '-'}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-slate-600">Notes</Label>
+                    <div className="mt-1 p-2 bg-white rounded border">
+                      {selectedPickupEntry.notes || '-'}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium text-slate-600">Created At</Label>
+                    <div className="mt-1 p-2 bg-white rounded border">
+                      {new Date(selectedPickupEntry.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-4 text-slate-800">Line Items</h3>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-slate-100">
+                      <tr>
+                        <th className="text-left p-3 font-medium text-slate-700">Product Name</th>
+                        <th className="text-left p-3 font-medium text-slate-700">SKU</th>
+                        <th className="text-right p-3 font-medium text-slate-700">Quantity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPickupEntry.line_items?.map((item, index) => (
+                        <tr key={item.id || index} className="border-t">
+                          <td className="p-3">{item.product_name}</td>
+                          <td className="p-3 font-mono text-sm">{item.sku}</td>
+                          <td className="p-3 text-right">{item.quantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t pt-4">
+                <Button variant="outline" onClick={() => setPickupViewOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

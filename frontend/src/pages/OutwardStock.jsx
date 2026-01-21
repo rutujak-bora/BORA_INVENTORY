@@ -34,7 +34,7 @@ const OutwardStock = () => {
 
   const [formData, setFormData] = useState({
     export_invoice_no: '',
-    export_invoice_number: '', // NEW: Manually typed export invoice number
+    // export_invoice_number: '', // NEW: Manually typed export invoice number
     date: new Date().toISOString().split('T')[0],
     company_id: '',
     pi_ids: [], // Changed from pi_id to pi_ids for multiple PI selection
@@ -665,7 +665,7 @@ const OutwardStock = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Export Invoice No</TableHead>
-                  <TableHead>Export Invoice Number</TableHead>
+                  {/* <TableHead>Export Invoice Number</TableHead> */}
                   <TableHead>Date</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>PI Reference</TableHead>
@@ -688,7 +688,7 @@ const OutwardStock = () => {
                   dispatchEntries.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell className="font-medium">{entry.export_invoice_no}</TableCell>
-                      <TableCell>{entry.export_invoice_number || '-'}</TableCell>
+                      {/* <TableCell>{entry.export_invoice_number || '-'}</TableCell> */}
                       <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
                       <TableCell>{entry.company?.name || '-'}</TableCell>
                       <TableCell>{entry.pi?.voucher_no || '-'}</TableCell>
@@ -752,7 +752,7 @@ const OutwardStock = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Export Invoice No</TableHead>
-                  <TableHead>Export Invoice Number</TableHead>
+                  {/* <TableHead>Export Invoice Number</TableHead> */}
                   <TableHead>Date</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>PI Reference</TableHead>
@@ -837,7 +837,7 @@ const OutwardStock = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Export Invoice No</TableHead>
-                  <TableHead>Export Invoice Number</TableHead>
+                  {/* <TableHead>Export Invoice Number</TableHead> */}
                   <TableHead>Date</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead>Warehouse</TableHead>
@@ -926,14 +926,14 @@ const OutwardStock = () => {
                   placeholder="Auto-generated if empty"
                 />
               </div>
-              <div>
+              {/* <div>
                 <Label>Export Invoice Number</Label>
                 <Input
                   value={formData.export_invoice_number || ''}
                   onChange={(e) => setFormData({...formData, export_invoice_number: e.target.value})}
                   placeholder="Enter export invoice number"
                 />
-              </div>
+              </div> */}
               <div>
                 <Label>Date *</Label>
                 <Input
@@ -1364,12 +1364,12 @@ const OutwardStock = () => {
                       {viewingEntry.export_invoice_no}
                     </div>
                   </div>
-                  <div>
+                  {/* <div>
                     <Label className="text-sm font-medium text-slate-600">Export Invoice Number</Label>
                     <div className="mt-1 p-2 bg-white rounded border font-semibold">
                       {viewingEntry.export_invoice_number || '-'}
                     </div>
-                  </div>
+                  </div> */}
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Date</Label>
                     <div className="mt-1 p-2 bg-white rounded border">

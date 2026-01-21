@@ -23,7 +23,7 @@ const PurchaseOrder = () => {
   const [editingPO, setEditingPO] = useState(null);
   const [viewingPO, setViewingPO] = useState(null);
   const [selectedPOs, setSelectedPOs] = useState([]);
-  
+
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
@@ -34,7 +34,7 @@ const PurchaseOrder = () => {
   });
   const [filteredPOs, setFilteredPOs] = useState([]);
 
-  
+
   const [formData, setFormData] = useState({
     company_id: '',
     voucher_no: '',
@@ -82,7 +82,7 @@ const PurchaseOrder = () => {
         po.po_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         po.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         po.consignee?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        po.line_items?.some(item => 
+        po.line_items?.some(item =>
           item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.sku?.toLowerCase().includes(searchTerm.toLowerCase())
         )
@@ -216,14 +216,14 @@ const PurchaseOrder = () => {
         const pi = res.data;
         pi.line_items?.forEach(item => {
           const productKey = item.sku || item.product_id;
-          
+
           // Aggregate PI quantities for same product
           if (piQuantitiesMap.has(productKey)) {
             piQuantitiesMap.set(productKey, piQuantitiesMap.get(productKey) + (item.quantity || 0));
           } else {
             piQuantitiesMap.set(productKey, item.quantity || 0);
           }
-          
+
           if (!seenProducts.has(productKey)) {
             seenProducts.add(productKey);
             allLineItems.push({
@@ -243,7 +243,7 @@ const PurchaseOrder = () => {
           }
         });
       });
-      
+
       // Update all items with their PI quantities
       allLineItems.forEach(item => {
         const productKey = item.sku || item.product_id;
@@ -269,15 +269,15 @@ const PurchaseOrder = () => {
         }]
       });
 
-      toast({ 
-        title: 'Success', 
-        description: `Products auto-fetched from ${piIds.length} PI(s). Please enter Quantity and Amount manually.` 
+      toast({
+        title: 'Success',
+        description: `Products auto-fetched from ${piIds.length} PI(s). Please enter Quantity and Amount manually.`
       });
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to fetch PI details', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch PI details',
+        variant: 'destructive'
       });
     }
   };
@@ -285,34 +285,34 @@ const PurchaseOrder = () => {
   const handleLineItemChange = (index, field, value) => {
     const newLineItems = [...formData.line_items];
     newLineItems[index][field] = value;
-    
+
     // Auto-calculate amount, GST value, and TDS value
     if (field === 'quantity' || field === 'rate') {
       const amount = newLineItems[index].quantity * newLineItems[index].rate;
       newLineItems[index].amount = amount;
-      
+
       // Calculate GST Value: Amount × (GST % / 100)
       newLineItems[index].gst_value = amount * (formData.gst_percentage / 100);
-      
+
       // Calculate TDS Value: Amount × (TDS % / 100)
       newLineItems[index].tds_value = amount * (formData.tds_percentage / 100);
     }
-    
+
     setFormData({ ...formData, line_items: newLineItems });
   };
-  
+
   // Recalculate all line items when GST% or TDS% changes
   const handlePercentageChange = (field, value) => {
     const percentage = parseFloat(value) || 0;
     const newFormData = { ...formData, [field]: percentage };
-    
+
     // Recalculate GST and TDS for all line items
     newFormData.line_items = formData.line_items.map(item => {
       const gst_value = item.amount * (field === 'gst_percentage' ? percentage : formData.gst_percentage) / 100;
       const tds_value = item.amount * (field === 'tds_percentage' ? percentage : formData.tds_percentage) / 100;
       return { ...item, gst_value, tds_value };
     });
-    
+
     setFormData(newFormData);
   };
 
@@ -377,13 +377,13 @@ const PurchaseOrder = () => {
   const handleEdit = async (po) => {
     const fullPO = await api.get(`/po/${po.id}`);
     setEditingPO(fullPO.data);
-    
+
     // Support both old single PI and new multiple PIs format
     let reference_pi_ids = fullPO.data.reference_pi_ids || [];
     if (!reference_pi_ids.length && fullPO.data.reference_pi_id) {
       reference_pi_ids = [fullPO.data.reference_pi_id];
     }
-    
+
     setFormData({
       company_id: fullPO.data.company_id,
       voucher_no: fullPO.data.voucher_no,
@@ -493,15 +493,15 @@ const PurchaseOrder = () => {
   const getTotalBasicAmount = () => {
     return formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0);
   };
-  
+
   const getTotalGST = () => {
     return formData.line_items.reduce((sum, item) => sum + (item.gst_value || 0), 0);
   };
-  
+
   const getTotalTDS = () => {
     return formData.line_items.reduce((sum, item) => sum + (item.tds_value || 0), 0);
   };
-  
+
   const getTotalAmount = () => {
     const basic = getTotalBasicAmount();
     const gst = getTotalGST();
@@ -660,7 +660,7 @@ const PurchaseOrder = () => {
                             ))}
                         </SelectContent>
                       </Select>
-                      
+
                       {/* Display selected PIs */}
                       {formData.reference_pi_ids.length > 0 && (
                         <div className="flex flex-wrap gap-2 p-2 bg-blue-50 rounded border border-blue-200">
@@ -777,7 +777,7 @@ const PurchaseOrder = () => {
                               required
                             />
                           </div>
-                          <div className="col-span-2">
+                          {/* <div className="col-span-2">
                             <Label>SKU * (Searchable)</Label>
                             <SearchableSelect
                               value={item.product_id}
@@ -786,25 +786,42 @@ const PurchaseOrder = () => {
                               placeholder="Search and select SKU"
                               searchPlaceholder="Type to search SKU..."
                             />
+                          </div> */}
+
+                          <div className="col-span-2">
+                            <Label>SKU *</Label>
+                            <Input
+                              value={item.sku}
+                              onChange={(e) => handleLineItemChange(index, 'sku', e.target.value)}
+                              placeholder="Enter SKU"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <Label>Category</Label>
+                            <Input value={item.category}
+                              onChange={(e) => handleLineItemChange(index, 'category', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
-                            <Label>Category (Auto-filled)</Label>
-                            <Input value={item.category} disabled className="bg-gray-100" />
+                            <Label>Brand</Label>
+                            <Input value={item.brand}
+                              onChange={(e) => handleLineItemChange(index, 'brand', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
-                            <Label>Brand (Auto-filled)</Label>
-                            <Input value={item.brand} disabled className="bg-gray-100" />
+                            <Label>HSN/SAC</Label>
+                            <Input value={item.hsn_sac}
+                            onChange={(e) => handleLineItemChange(index, 'hsn_sac', e.target.value)}
+                              className="bg-gray-100" />
                           </div>
                           <div>
-                            <Label>HSN/SAC (Auto-filled)</Label>
-                            <Input value={item.hsn_sac} disabled className="bg-gray-100" />
-                          </div>
-                          <div>
-                            <Label>PI Total Qty (Auto)</Label>
-                            <Input 
-                              value={item.pi_quantity || 0} 
-                              disabled 
-                              className="bg-blue-50 font-semibold text-blue-700" 
+                            <Label>PI Total Qty</Label>
+                            <Input
+                              value={item.pi_quantity}
+                              onChange={(e) => handleLineItemChange(index, 'pi_quantity', e.target.value)}
+                              className="bg-blue-50 font-semibold text-blue-700"
                               title="Total quantity from linked PI(s)"
                             />
                           </div>
@@ -907,7 +924,7 @@ const PurchaseOrder = () => {
           <DialogHeader>
             <DialogTitle>View Purchase Order Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewingPO && (
             <div className="space-y-6">
               {/* PO Header Information */}
@@ -935,12 +952,11 @@ const PurchaseOrder = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Status</Label>
                     <div className="mt-1">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        viewingPO.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${viewingPO.status === 'Completed' ? 'bg-green-100 text-green-800' :
                         /* In Transit removed */ false ? '' :
-                        viewingPO.status === 'Approved' ? 'bg-purple-100 text-purple-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
+                          viewingPO.status === 'Approved' ? 'bg-purple-100 text-purple-800' :
+                            'bg-yellow-100 text-yellow-800'
+                        }`}>
                         {viewingPO.status}
                       </span>
                     </div>
@@ -964,7 +980,7 @@ const PurchaseOrder = () => {
               {viewingPO.reference_pis && viewingPO.reference_pis.length > 0 && (
                 <div className="bg-blue-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-4 text-blue-800">
-                    Linked Performa Invoice{viewingPO.reference_pis.length > 1 ? 's' : ''} 
+                    Linked Performa Invoice{viewingPO.reference_pis.length > 1 ? 's' : ''}
                     ({viewingPO.reference_pis.length})
                   </h3>
                   <div className="space-y-3">
@@ -1035,7 +1051,7 @@ const PurchaseOrder = () => {
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Total Amount */}
                 <div className="mt-4 flex justify-end">
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">
@@ -1083,7 +1099,7 @@ const PurchaseOrder = () => {
               <Input
                 type="date"
                 value={filters.dateFrom}
-                onChange={(e) => setFilters({...filters, dateFrom: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               />
             </div>
             <div>
@@ -1091,7 +1107,7 @@ const PurchaseOrder = () => {
               <Input
                 type="date"
                 value={filters.dateTo}
-                onChange={(e) => setFilters({...filters, dateTo: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
             </div>
             <div>
@@ -1099,7 +1115,7 @@ const PurchaseOrder = () => {
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                 value={filters.status}
-                onChange={(e) => setFilters({...filters, status: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
@@ -1111,7 +1127,7 @@ const PurchaseOrder = () => {
               <select
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
                 value={filters.company}
-                onChange={(e) => setFilters({...filters, company: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, company: e.target.value })}
               >
                 <option value="all">All Companies</option>
                 {companies.map(company => (
@@ -1194,12 +1210,11 @@ const PurchaseOrder = () => {
                   </TableCell>
                   <TableCell className="font-semibold">₹{po.total_amount?.toFixed(2)}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      po.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                    <span className={`px-2 py-1 rounded-full text-xs ${po.status === 'Completed' ? 'bg-green-100 text-green-800' :
                       /* In Transit removed */ false ? '' :
-                      po.status === 'Approved' ? 'bg-purple-100 text-purple-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
+                        po.status === 'Approved' ? 'bg-purple-100 text-purple-800' :
+                          'bg-yellow-100 text-yellow-800'
+                      }`}>
                       {po.status}
                     </span>
                   </TableCell>

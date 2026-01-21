@@ -57,7 +57,7 @@ const OutwardStockNew = () => {
     pi_ids: [],
     dispatch_plan_id: '',
     export_invoice_no: '',
-    export_invoice_number: '', // NEW: Manually typed export invoice number
+    // export_invoice_number: '', // NEW: Manually typed export invoice number
     inward_invoice_ids: [], // For Direct Export
     line_items: []
   });
@@ -906,7 +906,7 @@ const OutwardStockNew = () => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Invoice No</TableHead>
-                  <TableHead>Invoice Number</TableHead>
+                  {/* <TableHead>Invoice Number</TableHead> */}
                   <TableHead>Mode</TableHead>
                   <TableHead>PI Reference</TableHead>
                   <TableHead>Items</TableHead>
@@ -928,7 +928,7 @@ const OutwardStockNew = () => {
                     <TableRow key={entry.id}>
                       <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
                       <TableCell>{entry.export_invoice_no}</TableCell>
-                      <TableCell>{entry.export_invoice_number || '-'}</TableCell>
+                      {/* <TableCell>{entry.export_invoice_number || '-'}</TableCell> */}
                       <TableCell>{entry.mode}</TableCell>
                       <TableCell>
                         {entry.pi_ids?.length > 0
@@ -988,7 +988,7 @@ const OutwardStockNew = () => {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Invoice No</TableHead>
-                    <TableHead>Invoice Number</TableHead>
+                    {/* <TableHead>Invoice Number</TableHead> */}
                     <TableHead>Mode</TableHead>
                     <TableHead>PI Reference</TableHead>
                     <TableHead>Items</TableHead>
@@ -1064,7 +1064,7 @@ const OutwardStockNew = () => {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Invoice No</TableHead>
-                    <TableHead>Invoice Number</TableHead>
+                    {/* <TableHead>Invoice Number</TableHead> */}
                     <TableHead>Mode</TableHead>
                     <TableHead>From Dispatch Plan</TableHead>
                     <TableHead>Items</TableHead>
@@ -1086,7 +1086,7 @@ const OutwardStockNew = () => {
                       <TableRow key={entry.id} className="bg-green-50">
                         <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
                         <TableCell className="font-medium">{entry.export_invoice_no}</TableCell>
-                        <TableCell>{entry.export_invoice_number || '-'}</TableCell>
+                        {/* <TableCell>{entry.export_invoice_number || '-'}</TableCell> */}
                         <TableCell>
                           <span className={`px-2 py-1 rounded text-xs ${entry.mode === 'Air' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'
                             }`}>
@@ -1143,7 +1143,7 @@ const OutwardStockNew = () => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Invoice No</TableHead>
-                  <TableHead>Invoice Number</TableHead>
+                  {/* <TableHead>Invoice Number</TableHead> */}
                   <TableHead>Mode</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Total Amount</TableHead>
@@ -1223,14 +1223,14 @@ const OutwardStockNew = () => {
                 />
               </div>
 
-              <div>
+              {/* <div>
                 <Label>Export Invoice Number</Label>
                 <Input
                   value={formData.export_invoice_number || ''}
                   onChange={(e) => setFormData({ ...formData, export_invoice_number: e.target.value })}
                   placeholder="Enter export invoice number"
                 />
-              </div>
+              </div> */}
 
               <div>
                 <Label>Date *</Label>
@@ -1673,10 +1673,10 @@ const OutwardStockNew = () => {
                   <label className="text-sm font-semibold text-slate-600">Invoice No</label>
                   <p className="text-slate-900">{viewingEntry.export_invoice_no}</p>
                 </div>
-                <div>
+                {/* <div>
                   <label className="text-sm font-semibold text-slate-600">Invoice Number</label>
                   <p className="text-slate-900">{viewingEntry.export_invoice_number || '-'}</p>
-                </div>
+                </div> */}
                 <div>
                   <label className="text-sm font-semibold text-slate-600">Mode</label>
                   <p className="text-slate-900">{viewingEntry.mode}</p>

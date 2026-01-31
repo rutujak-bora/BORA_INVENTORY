@@ -2029,6 +2029,7 @@ async def create_inward_stock(
     # ------------------- CREATE INWARD ENTRY -------------------
     inward_dict = {
         "id": str(uuid.uuid4()),
+        "manual":inward_data.get("manual"),
         "inward_invoice_no": inward_data.get("inward_invoice_no"),
         "date": inward_data.get("date"),
         "po_id": po_ids[0] if po_ids else None,
@@ -3282,6 +3283,7 @@ async def create_payment(
     payment_dict = {
         "id": str(uuid.uuid4()),
         "pi_id": payment_data["pi_id"],
+        "manual_entry": payment_data.get("manual_entry", ""),
         "pi_voucher_no": pi.get("voucher_no"),
         "company_id": pi.get("company_id"),
         "date": payment_data.get("date", datetime.now(timezone.utc).date().isoformat()),

@@ -45,6 +45,7 @@ const InwardStock = () => {
     warehouse_id: '',
     inward_date: new Date().toISOString().split('T')[0],
     inward_invoice_no: '',
+    manual: '',
     line_items: []
   });
   const [warehouseFilter, setWarehouseFilter] = useState('all');
@@ -674,6 +675,7 @@ const InwardStock = () => {
 
     try {
       const inwardData = {
+        manual: warehouseInwardFormData.manual,
         po_voucher_no: warehousePoLineStats.po_voucher_no,
         po_id: warehousePoLineStats.po_id,
         warehouse_id: warehouseInwardFormData.warehouse_id,
@@ -1376,7 +1378,7 @@ const InwardStock = () => {
                 {/* PO Selection, Warehouse, and Date */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label>Manual Entry</Label>
+                    <Label>Inward Number</Label>
                     <Input
                       type="text"
                       placeholder="Enter Manual"
@@ -1565,6 +1567,7 @@ const InwardStock = () => {
                         />
                       </TableHead>
                       <TableHead>PO Number</TableHead>
+                      <TableHead>Inward Number</TableHead>
                       <TableHead>Pickup Date</TableHead>
                       <TableHead>Items</TableHead>
                       {/* <TableHead>Notes</TableHead> */}
@@ -1592,6 +1595,7 @@ const InwardStock = () => {
                             />
                           </TableCell>
                           <TableCell className="font-medium">{entry.po_voucher_no}</TableCell>
+                          <TableCell className="font-medium">{entry.manual}</TableCell>
                           <TableCell>{entry.pickup_date}</TableCell>
                           <TableCell>
                             <div className="text-sm">
@@ -1643,6 +1647,16 @@ const InwardStock = () => {
               <form onSubmit={handleWarehouseInwardSubmit} className="space-y-6">
                 {/* PO Selection, Warehouse, and Date */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Inward Number */}
+                  <div className="space-y-2">
+                    <Label>Inward Number</Label>
+                    <Input
+                      type="text"
+                      placeholder="Enter Manual"
+                      value={warehouseInwardFormData.manual}
+                      onChange={(e) => setWarehouseInwardFormData({ ...warehouseInwardFormData, manual: e.target.value })}
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="warehouse_po">Purchase Order *</Label>
                     <Select value={selectedWarehousePo} onValueChange={handleWarehousePoSelection}>
@@ -1828,6 +1842,7 @@ const InwardStock = () => {
                         />
                       </TableHead>
                       <TableHead>Invoice No</TableHead>
+                      <TableHead>Inward Number</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Warehouse</TableHead>
                       <TableHead>Items</TableHead>
@@ -1855,6 +1870,7 @@ const InwardStock = () => {
                             />
                           </TableCell>
                           <TableCell className="font-medium">{entry.inward_invoice_no || 'N/A'}</TableCell>
+                          <TableCell className="font-medium">{entry.manual || 'N/A'}</TableCell>
                           <TableCell>{entry.date}</TableCell>
                           <TableCell>{entry?.warehouse?.warehouseName || 'Unknown'}</TableCell>
                           <TableCell>

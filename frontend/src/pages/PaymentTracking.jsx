@@ -35,7 +35,7 @@ const PaymentTracking = () => {
   const [shortPaymentNote, setShortPaymentNote] = useState('');
   const [exportDetails, setExportDetails] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const [formData, setFormData] = useState({
     pi_id: '',
     date: new Date().toISOString().split('T')[0],
@@ -51,9 +51,10 @@ const PaymentTracking = () => {
     dispatch_date: '',
     export_invoice_no: '',
     dispatch_goods_value: 0,
-    notes: ''
+    notes: '',
+    manual_entry: '',
   });
-  
+
   const [paymentEntryForm, setPaymentEntryForm] = useState({
     date: new Date().toISOString().split('T')[0],
     received_amount: 0,
@@ -61,17 +62,17 @@ const PaymentTracking = () => {
     bank_id: '',
     notes: ''
   });
-  
+
   const { toast } = useToast();
   useResizeObserverErrorFix();
-  
+
   useEffect(() => {
     fetchData();
     fetchPIs();
     fetchBanks();
     fetchOutwardStock();
   }, []);
-  
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -83,7 +84,7 @@ const PaymentTracking = () => {
       setLoading(false);
     }
   };
-  
+
   const fetchPIs = async () => {
     try {
       const response = await api.get('/pi');
@@ -92,7 +93,7 @@ const PaymentTracking = () => {
       console.error('Failed to fetch PIs:', error);
     }
   };
-  
+
   const fetchOutwardStock = async () => {
     try {
       const response = await api.get('/outward-stock');
@@ -101,7 +102,7 @@ const PaymentTracking = () => {
       console.error('Failed to fetch outward stock:', error);
     }
   };
-  
+
   const fetchBanks = async () => {
     try {
       const response = await api.get('/banks');
@@ -111,32 +112,32 @@ const PaymentTracking = () => {
     }
   };
 
-  
+
   const handlePISelect = async (piId) => {
     setFormData(prev => ({ ...prev, pi_id: piId }));
-    
+
     if (!piId) return;
-    
+
     try {
       // Fetch PI details
-      const piResponse = await api.get(`/pi/${piId}`);
+      const piResponse = await api.get(`/pI/${piId}`);
       const pi = piResponse.data;
-      
+
       // Calculate total amount and quantity
       const totalAmount = pi.line_items.reduce((sum, item) => sum + (item.amount || 0), 0);
       const totalQuantity = pi.line_items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-      
+
       // Fetch dispatch quantities from outward stock
       const outwardResponse = await api.get(`/outward-stock`);
-      const dispatches = outwardResponse.data.filter(o => 
-        (o.pi_id === piId || o.pi_ids?.includes(piId)) && 
+      const dispatches = outwardResponse.data.filter(o =>
+        (o.pi_id === piId || o.pi_ids?.includes(piId)) &&
         ['export_invoice', 'dispatch_plan'].includes(o.dispatch_type)
       );
-      
+
       let dispatchQty = 0;
       let dispatchValue = 0;
       let exportInvoiceNos = [];
-      
+
       dispatches.forEach(dispatch => {
         dispatch.line_items?.forEach(item => {
           dispatchQty += item.quantity || 0;
@@ -146,9 +147,9 @@ const PaymentTracking = () => {
           exportInvoiceNos.push(dispatch.export_invoice_no);
         }
       });
-      
+
       const pendingQty = totalQuantity - dispatchQty;
-      
+
       setFormData(prev => ({
         ...prev,
         total_amount: totalAmount,
@@ -158,25 +159,25 @@ const PaymentTracking = () => {
         dispatch_goods_value: dispatchValue,
         export_invoice_no: exportInvoiceNos.join(', ')
       }));
-      
-      toast({ 
-        title: 'PI Details Loaded', 
-        description: `Total Amount: ₹${totalAmount.toFixed(2)}, Quantity: ${totalQuantity}` 
+
+      toast({
+        title: 'PI Details Loaded',
+        description: `Total Amount: ₹${totalAmount.toFixed(2)}, Quantity: ${totalQuantity}`
       });
-      
+
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to fetch PI details', variant: 'destructive' });
     }
   };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.pi_id) {
       toast({ title: 'Error', description: 'Please select a PI', variant: 'destructive' });
       return;
     }
-    
+
     try {
       if (editingPayment) {
         await api.put(`/payments/${editingPayment.id}`, formData);
@@ -185,19 +186,19 @@ const PaymentTracking = () => {
         await api.post('/payments', formData);
         toast({ title: 'Success', description: 'Payment record created successfully' });
       }
-      
+
       fetchData();
       setDialogOpen(false);
       resetForm();
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: error.response?.data?.detail || 'Operation failed', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'Operation failed',
+        variant: 'destructive'
       });
     }
   };
-  
+
   const handleEdit = async (payment) => {
     try {
       const fullPayment = await api.get(`/payments/${payment.id}`);
@@ -221,7 +222,7 @@ const PaymentTracking = () => {
       toast({ title: 'Error', description: 'Failed to fetch payment details', variant: 'destructive' });
     }
   };
-  
+
   const handleView = async (payment) => {
     try {
       const fullPayment = await api.get(`/payments/${payment.id}`);
@@ -231,7 +232,7 @@ const PaymentTracking = () => {
       toast({ title: 'Error', description: 'Failed to fetch payment details', variant: 'destructive' });
     }
   };
-  
+
   const handleDelete = async (payment) => {
     if (window.confirm('Are you sure you want to delete this payment record?')) {
       try {
@@ -243,7 +244,7 @@ const PaymentTracking = () => {
       }
     }
   };
-  
+
   const resetForm = () => {
     setFormData({
       pi_id: '',
@@ -264,10 +265,10 @@ const PaymentTracking = () => {
     });
     setEditingPayment(null);
   };
-  
+
   const handleAddPaymentEntry = async () => {
     if (!selectedPaymentForEntry) return;
-    
+
     try {
       const response = await api.post(`/payments/${selectedPaymentForEntry.id}/entries`, paymentEntryForm);
       toast({ title: 'Success', description: 'Payment entry added successfully' });
@@ -284,16 +285,16 @@ const PaymentTracking = () => {
       toast({ title: 'Error', description: error.response?.data?.detail || 'Failed to add payment entry', variant: 'destructive' });
     }
   };
-  
+
   const handleBankSelect = async (bankId) => {
     setFormData(prev => ({ ...prev, bank_id: bankId }));
-    
+
     if (!bankId) return;
-    
+
     try {
       const response = await api.get(`/banks/${bankId}`);
       const bank = response.data;
-      
+
       setFormData(prev => ({
         ...prev,
         bank_name: bank.bank_name || '',
@@ -303,11 +304,11 @@ const PaymentTracking = () => {
       console.error('Failed to fetch bank details:', error);
     }
   };
-  
+
   const handleBankSelectForEntry = async (bankId) => {
     setPaymentEntryForm(prev => ({ ...prev, bank_id: bankId }));
   };
-  
+
   const handleViewExportDetails = async (payment) => {
     setSelectedPaymentForExport(payment);
     try {
@@ -318,7 +319,7 @@ const PaymentTracking = () => {
       toast({ title: 'Error', description: 'Failed to fetch export details', variant: 'destructive' });
     }
   };
-  
+
   const openPaymentEntryDialog = (payment) => {
     // Check if short payment
     if (payment.short_payment_status) {
@@ -332,7 +333,7 @@ const PaymentTracking = () => {
       toast({ title: 'Info', description: 'This payment is already fully paid', variant: 'default' });
       return;
     }
-    
+
     setSelectedPaymentForEntry(payment);
     setPaymentEntryForm({
       date: new Date().toISOString().split('T')[0],
@@ -431,17 +432,17 @@ const PaymentTracking = () => {
     }
     return true;
   };
-  
+
   const openCreateDialog = () => {
     resetForm();
     setDialogOpen(true);
   };
-  
-  const filteredPayments = payments.filter(payment => 
+
+  const filteredPayments = payments.filter(payment =>
     payment.pi_voucher_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     payment.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-  
+
   const getPaymentStatusBadge = (payment) => {
     // Check for short payment first
     if (payment.short_payment_status) {
@@ -457,7 +458,7 @@ const PaymentTracking = () => {
       return <Badge className="bg-red-100 text-red-800">Pending</Badge>;
     }
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -465,7 +466,7 @@ const PaymentTracking = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -485,7 +486,7 @@ const PaymentTracking = () => {
           </Button>
         </div>
       </div>
-      
+
       {/* Search */}
       <Card>
         <CardContent className="pt-6">
@@ -500,7 +501,7 @@ const PaymentTracking = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Payments Table */}
       <Card>
         <CardHeader>
@@ -512,6 +513,7 @@ const PaymentTracking = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>PI Number</TableHead>
+                  <TableHead>Manual PI Entry</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Company</TableHead>
                   <TableHead className="text-right">Total Amount</TableHead>
@@ -533,6 +535,7 @@ const PaymentTracking = () => {
                   filteredPayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell className="font-medium">{payment.pi_voucher_no}</TableCell>
+                      <TableCell className="font-medium">{payment.manual_entry}</TableCell>
                       <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
                       <TableCell>{payment.company_name || 'N/A'}</TableCell>
                       <TableCell className="text-right font-semibold">₹{payment.total_amount?.toFixed(2)}</TableCell>
@@ -558,37 +561,37 @@ const PaymentTracking = () => {
                       <TableCell>{getPaymentStatusBadge(payment)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => openPaymentEntryDialog(payment)} 
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openPaymentEntryDialog(payment)}
                             title="Add Payment"
                             disabled={payment.is_fully_paid}
                             className={payment.is_fully_paid ? 'opacity-50 cursor-not-allowed' : ''}
                           >
                             <DollarSign size={16} className="text-green-600" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => openExtraPaymentDialog(payment)} 
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openExtraPaymentDialog(payment)}
                             title="Extra Payment"
                           >
                             <Receipt size={16} className="text-orange-600" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => payment.short_payment_status ? handleReopenShortPayment(payment) : openShortPaymentDialog(payment)} 
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => payment.short_payment_status ? handleReopenShortPayment(payment) : openShortPaymentDialog(payment)}
                             title={payment.short_payment_status ? "Reopen Short Payment" : "Mark as Short Payment"}
                             className={payment.short_payment_status ? 'bg-red-50' : ''}
                           >
                             <DollarSign size={16} className={payment.short_payment_status ? "text-red-600" : "text-slate-600"} />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => handleViewExportDetails(payment)} 
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewExportDetails(payment)}
                             title="Export Details"
                           >
                             <Package size={16} className="text-purple-600" />
@@ -612,14 +615,14 @@ const PaymentTracking = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingPayment ? 'Edit Payment Record' : 'Create Payment Record'}</DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* PI Selection */}
             <div className="grid grid-cols-2 gap-4">
@@ -644,16 +647,27 @@ const PaymentTracking = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="col-span-4">
+                <Label>Add PI Entry</Label>
+                <Input
+                  value={formData.manual_entry}
+                  onChange={(e) =>
+                    setFormData({ ...formData, manual_entry: e.target.value })
+                  }
+                  placeholder="Enter manual reference / remarks"
+                />
+              </div>
               <div>
                 <Label>Date</Label>
                 <Input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 />
               </div>
             </div>
-            
+
             {/* Payment Details */}
             <div className="bg-slate-50 rounded-lg p-4">
               <h3 className="font-semibold mb-3">Payment Details</h3>
@@ -673,7 +687,7 @@ const PaymentTracking = () => {
                     type="number"
                     step="0.01"
                     value={formData.advance_payment}
-                    onChange={(e) => setFormData({...formData, advance_payment: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, advance_payment: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -682,7 +696,7 @@ const PaymentTracking = () => {
                     type="number"
                     step="0.01"
                     value={formData.received_amount}
-                    onChange={(e) => setFormData({...formData, received_amount: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, received_amount: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -696,15 +710,15 @@ const PaymentTracking = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Bank Details */}
             <div className="bg-blue-50 rounded-lg p-4">
               <h3 className="font-semibold mb-3">Bank Details</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Select Bank *</Label>
-                  <Select 
-                    value={formData.bank_id} 
+                  <Select
+                    value={formData.bank_id}
                     onValueChange={handleBankSelect}
                     {...getSafeSelectContentProps()}
                   >
@@ -731,7 +745,7 @@ const PaymentTracking = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Dispatch Details */}
             <div className="bg-green-50 rounded-lg p-4">
               <h3 className="font-semibold mb-3">Dispatch Details (Auto-calculated, Editable)</h3>
@@ -741,7 +755,7 @@ const PaymentTracking = () => {
                   <Input
                     type="number"
                     value={formData.dispatch_qty}
-                    onChange={(e) => setFormData({...formData, dispatch_qty: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, dispatch_qty: parseInt(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -749,7 +763,7 @@ const PaymentTracking = () => {
                   <Input
                     type="number"
                     value={formData.pending_qty}
-                    onChange={(e) => setFormData({...formData, pending_qty: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, pending_qty: parseInt(e.target.value) || 0 })}
                   />
                 </div>
                 <div>
@@ -757,7 +771,7 @@ const PaymentTracking = () => {
                   <Input
                     type="date"
                     value={formData.dispatch_date}
-                    onChange={(e) => setFormData({...formData, dispatch_date: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, dispatch_date: e.target.value })}
                   />
                 </div>
               </div>
@@ -766,7 +780,7 @@ const PaymentTracking = () => {
                   <Label>Export Invoice No (Auto-filled, Editable)</Label>
                   <Input
                     value={formData.export_invoice_no}
-                    onChange={(e) => setFormData({...formData, export_invoice_no: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, export_invoice_no: e.target.value })}
                     placeholder="Enter or select export invoice"
                   />
                 </div>
@@ -776,23 +790,23 @@ const PaymentTracking = () => {
                     type="number"
                     step="0.01"
                     value={formData.dispatch_goods_value}
-                    onChange={(e) => setFormData({...formData, dispatch_goods_value: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, dispatch_goods_value: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </div>
             </div>
-            
+
             {/* Notes */}
             <div>
               <Label>Notes</Label>
               <textarea
                 value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 className="w-full min-h-[100px] p-2 border rounded-md"
                 placeholder="Enter any notes or remarks..."
               />
             </div>
-            
+
             {/* Actions */}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
@@ -805,14 +819,14 @@ const PaymentTracking = () => {
           </form>
         </DialogContent>
       </Dialog>
-      
+
       {/* View Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Payment Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewingPayment && (
             <div className="space-y-4">
               {/* Header Info */}
@@ -862,7 +876,7 @@ const PaymentTracking = () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Payment Summary */}
               <div className="grid grid-cols-4 gap-4">
                 <Card>
@@ -941,7 +955,7 @@ const PaymentTracking = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Bank Details */}
               {(viewingPayment.bank_name || viewingPayment.bank_details) && (
                 <div className="bg-blue-50 rounded-lg p-4">
@@ -958,7 +972,7 @@ const PaymentTracking = () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Dispatch Details */}
               <div className="bg-green-50 rounded-lg p-4">
                 <h3 className="font-semibold mb-2">Dispatch Information</h3>
@@ -987,7 +1001,7 @@ const PaymentTracking = () => {
                   </div>
                 )}
               </div>
-              
+
               {/* Notes */}
               {viewingPayment.notes && (
                 <div className="bg-yellow-50 rounded-lg p-4">
@@ -995,7 +1009,7 @@ const PaymentTracking = () => {
                   <p className="text-sm">{viewingPayment.notes}</p>
                 </div>
               )}
-              
+
               {/* PI Line Items */}
               {viewingPayment.pi_details?.line_items && (
                 <div>
@@ -1026,7 +1040,7 @@ const PaymentTracking = () => {
                   </div>
                 </div>
               )}
-              
+
               {/* Payment Entries History */}
               {viewingPayment.payment_entries && viewingPayment.payment_entries.length > 0 && (
                 <div>
@@ -1067,7 +1081,7 @@ const PaymentTracking = () => {
                 </div>
               )}
 
-              
+
               {/* Close Button */}
               <div className="flex justify-end">
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
@@ -1079,38 +1093,38 @@ const PaymentTracking = () => {
         </DialogContent>
       </Dialog>
 
-      
+
       {/* Add Payment Entry Dialog */}
       <Dialog open={paymentEntryDialogOpen} onOpenChange={setPaymentEntryDialogOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Add Payment Entry</DialogTitle>
           </DialogHeader>
-          
+
           {selectedPaymentForEntry && (
             <div className="space-y-4">
               {/* Payment Info */}
               <div className="bg-slate-50 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <span className="text-slate-600">PI Number:</span> 
+                    <span className="text-slate-600">PI Number:</span>
                     <span className="font-semibold ml-2">{selectedPaymentForEntry.pi_voucher_no}</span>
                   </div>
                   <div>
-                    <span className="text-slate-600">Total Amount:</span> 
+                    <span className="text-slate-600">Total Amount:</span>
                     <span className="font-semibold ml-2">₹{selectedPaymentForEntry.total_amount?.toFixed(2)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-600">Already Received:</span> 
+                    <span className="text-slate-600">Already Received:</span>
                     <span className="font-semibold ml-2 text-green-600">₹{((selectedPaymentForEntry.advance_payment || 0) + (selectedPaymentForEntry.total_received || 0)).toFixed(2)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-600">Remaining:</span> 
+                    <span className="text-slate-600">Remaining:</span>
                     <span className="font-semibold ml-2 text-orange-600">₹{selectedPaymentForEntry.remaining_payment?.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
-              
+
               {/* Payment Entry Form */}
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -1119,7 +1133,7 @@ const PaymentTracking = () => {
                     <Input
                       type="date"
                       value={paymentEntryForm.date}
-                      onChange={(e) => setPaymentEntryForm({...paymentEntryForm, date: e.target.value})}
+                      onChange={(e) => setPaymentEntryForm({ ...paymentEntryForm, date: e.target.value })}
                       required
                     />
                   </div>
@@ -1129,26 +1143,26 @@ const PaymentTracking = () => {
                       type="number"
                       step="0.01"
                       value={paymentEntryForm.received_amount}
-                      onChange={(e) => setPaymentEntryForm({...paymentEntryForm, received_amount: parseFloat(e.target.value) || 0})}
+                      onChange={(e) => setPaymentEntryForm({ ...paymentEntryForm, received_amount: parseFloat(e.target.value) || 0 })}
                       placeholder="Enter amount"
                       required
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Receipt Number</Label>
                     <Input
                       value={paymentEntryForm.receipt_number}
-                      onChange={(e) => setPaymentEntryForm({...paymentEntryForm, receipt_number: e.target.value})}
+                      onChange={(e) => setPaymentEntryForm({ ...paymentEntryForm, receipt_number: e.target.value })}
                       placeholder="Enter receipt number"
                     />
                   </div>
                   <div>
                     <Label>Bank</Label>
-                    <Select 
-                      value={paymentEntryForm.bank_id} 
+                    <Select
+                      value={paymentEntryForm.bank_id}
                       onValueChange={handleBankSelectForEntry}
                       {...getSafeSelectContentProps()}
                     >
@@ -1165,17 +1179,17 @@ const PaymentTracking = () => {
                     </Select>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label>Notes</Label>
                   <Input
                     value={paymentEntryForm.notes}
-                    onChange={(e) => setPaymentEntryForm({...paymentEntryForm, notes: e.target.value})}
+                    onChange={(e) => setPaymentEntryForm({ ...paymentEntryForm, notes: e.target.value })}
                     placeholder="Optional notes"
                   />
                 </div>
               </div>
-              
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setPaymentEntryDialogOpen(false)}>
                   Cancel
@@ -1188,14 +1202,14 @@ const PaymentTracking = () => {
           )}
         </DialogContent>
       </Dialog>
-      
+
       {/* Export Details Dialog */}
       <Dialog open={exportDetailsDialogOpen} onOpenChange={setExportDetailsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Export Details</DialogTitle>
           </DialogHeader>
-          
+
           {exportDetails && selectedPaymentForExport && (
             <div className="space-y-4">
               {/* Summary Cards */}
@@ -1219,7 +1233,7 @@ const PaymentTracking = () => {
                   </CardContent>
                 </Card>
               </div>
-              
+
               {/* Export Invoice Details */}
               <div>
                 <h3 className="font-semibold mb-3">Export Invoice Details</h3>
@@ -1270,7 +1284,7 @@ const PaymentTracking = () => {
               </div>
             </div>
           )}
-          
+
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setExportDetailsDialogOpen(false)}>
               Close
@@ -1285,7 +1299,7 @@ const PaymentTracking = () => {
           <DialogHeader>
             <DialogTitle>Extra Payments</DialogTitle>
           </DialogHeader>
-          
+
           {selectedPaymentForExtra && (
             <ExtraPaymentPanel
               piNumber={selectedPaymentForExtra.pi_voucher_no}
@@ -1302,7 +1316,7 @@ const PaymentTracking = () => {
           <DialogHeader>
             <DialogTitle>Mark as Short Payment</DialogTitle>
           </DialogHeader>
-          
+
           {selectedPaymentForShort && (
             <div className="space-y-4">
               <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
@@ -1359,8 +1373,8 @@ const PaymentTracking = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setShortPaymentDialogOpen(false);
                     setShortPaymentNote('');
@@ -1368,7 +1382,7 @@ const PaymentTracking = () => {
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleMarkShortPayment}
                   className="bg-red-600 hover:bg-red-700"
                   disabled={!shortPaymentNote.trim()}

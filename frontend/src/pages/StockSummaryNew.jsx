@@ -136,7 +136,7 @@ const StockSummaryNew = () => {
     try {
       setSelectedStock(stock);
       const response = await api.get(
-        `/stock-transactions/${stock.product_id}/${stock.warehouse_id}`
+        `/stock-transactions${stock.product_id}/${stock.warehouse_id}`
       );
       setTransactions(response.data.transactions || []);
       setViewDialogOpen(true);
@@ -422,9 +422,9 @@ const StockSummaryNew = () => {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Color
                   </th>
-                  {/* <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     PI & PO Number
-                  </th> */}
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
@@ -437,15 +437,15 @@ const StockSummaryNew = () => {
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     In-transit
                   </th>
-                  {/* <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Inward
-                  </th> */}
+                  </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Outward
                   </th>
-                  {/* <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Remaining
-                  </th> */}
+                  </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>

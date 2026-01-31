@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../utils/api';
+import api, { API_BASE } from '../utils/api';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -367,14 +367,30 @@ const PerformaInvoice = () => {
           <p className="text-slate-600 mt-1">Manage performa invoices with multi-line items</p>
         </div>
         <div className="flex gap-2">
-          <Button
+          {/* <Button
             variant="outline"
             onClick={() => window.open(`${window.location.origin}/api/templates/pi`, '_blank')}
             data-testid="download-pi-template-btn"
             className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
           >
             Download Template
-          </Button>
+          </Button> */}
+          <Button
+            variant="outline"
+            onClick={() => {
+              const link = document.createElement('a')
+              link.href = `${API_BASE}/templates/pi`
+              link.setAttribute('download', 'PI_Template.xlsx')
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+            }}
+  data-testid="download-pi-template-btn"
+  className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+>
+  Download Template
+</Button>
+
           <input
             type="file"
             id="pi-bulk-upload"

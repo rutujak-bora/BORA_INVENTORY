@@ -295,6 +295,7 @@ const OutwardStockNew = () => {
         )
       );
 
+      console.log("this is the selected pi man", selectedPIs)
       const allLineItems = [];
       const seenProducts = new Set();
       const quantities = {};
@@ -310,7 +311,13 @@ const OutwardStockNew = () => {
 
           const availableQty = item.available_quantity ?? 0;
 
+          console.log(`✅ Adding: ${item.product_name}`);
+  console.log(`   ID: ${item.id}`);
+  console.log(`   Available Qty: ${availableQty}`);
+  console.log(`   Key in quantities: ${item.id || item._id}`);
+
           allLineItems.push({
+            id: item.id || item._id,
             product_id: item.product_id,
             product_name: item.product_name,
             sku: item.sku,
@@ -323,9 +330,11 @@ const OutwardStockNew = () => {
             amount: 0
           });
 
-          quantities[item.product_id] = availableQty;
+          quantities[item.id || item._id] = availableQty;
         });
+        console.log('📊 Final quantities object:', quantities);
       });
+      
 
       setFormData(prev => ({
         ...prev,
@@ -566,7 +575,7 @@ const OutwardStockNew = () => {
 
       // Check available quantity ONLY for Dispatch Plan and Export Invoice (not for Direct Export)
       if (formData.dispatch_type !== 'direct_export') {
-        const available = availableQuantities[item.product_id] || 0;
+        const available = availableQuantities[item.id] || 0;
         if (item.dispatch_quantity > available) {
           console.log(`❌ Validation failed: ${item.product_name} - Dispatch (${item.dispatch_quantity}) > Available (${available})`);
           toast({
@@ -1550,11 +1559,11 @@ const OutwardStockNew = () => {
                         </div>
 
                         {/* Available Quantity Display */}
-                        {availableQuantities[item.product_id] !== undefined && (
+                        {availableQuantities[item.id] !== undefined && (
                           <div>
                             <Label>Available Quantity</Label>
                             <Input
-                              value={availableQuantities[item.product_id] || 0}
+                              value={availableQuantities[item.id] || 0}
                               readOnly
                               className="bg-green-50 font-semibold text-green-700 border-green-300"
                             />
@@ -1570,18 +1579,18 @@ const OutwardStockNew = () => {
                             onChange={(e) => handleLineItemChange(index, 'dispatch_quantity', parseFloat(e.target.value) || 0)}
                             placeholder="Dispatch qty"
                             className={
-                              availableQuantities[item.product_id] !== undefined &&
-                                item.dispatch_quantity > availableQuantities[item.product_id]
+                              availableQuantities[item.id] !== undefined &&
+                                item.dispatch_quantity > availableQuantities[item.id]
                                 ? 'border-red-500 bg-red-50'
                                 : ''
                             }
                           />
-                          {availableQuantities[item.product_id] !== undefined && (
-                            <p className={`text-xs mt-1 ${item.dispatch_quantity > availableQuantities[item.product_id]
+                          {availableQuantities[item.id] !== undefined && (
+                            <p className={`text-xs mt-1 ${item.dispatch_quantity > availableQuantities[item.id]
                               ? 'text-red-600 font-semibold'
                               : 'text-slate-500'
                               }`}>
-                              Max: {availableQuantities[item.product_id]}
+                              Max: {availableQuantities[item.id]}
                               {item.dispatch_quantity > availableQuantities[item.product_id] &&
                                 ' ⚠️ Exceeds available!'}
                             </p>
@@ -1641,7 +1650,7 @@ const OutwardStockNew = () => {
                 Cancel
               </Button>
               <Button type="button" onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">
-                {editingEntry ? 'Update' : 'Create'}
+                {editingEntry ? 'Update' : 'Create mamf'}
               </Button>
             </div>
           </div>

@@ -41,7 +41,6 @@ const InwardStock = () => {
   const [selectedWarehousePo, setSelectedWarehousePo] = useState('');
   const [warehousePoLineStats, setWarehousePoLineStats] = useState(null);
   const [warehouseEntries, setWarehouseEntries] = useState([]);
-  console.log("yooo hooo", warehouseEntries)
   const [warehouseInwardFormData, setWarehouseInwardFormData] = useState({
     warehouse_id: '',
     inward_date: new Date().toISOString().split('T')[0],
@@ -212,6 +211,53 @@ const InwardStock = () => {
     }
   };
 
+  // const handlePoSelection = async (voucher_no) => {
+  //   if (!voucher_no) {
+  //     setSelectedPo('');
+  //     setPoLineStats(null);
+  //     setPickupFormData({
+  //       pickup_date: new Date().toISOString().split('T')[0],
+  //       manual: '',
+  //       notes: '',
+  //       line_items: []
+  //     });
+  //     return;
+  //   }
+
+  //   try {
+  //     setSelectedPo(voucher_no);
+  //     const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
+  //     setPoLineStats(response.data);
+
+  //     // Initialize form data with line items
+  //     const lineItems = response.data.line_items.map(item => ({
+  //       id: item.id,
+  //       product_id: item.product_id,
+  //       product_name: item.product_name,
+  //       sku: item.sku,
+  //       quantity: 0,
+  //       rate: item.rate,
+  //       pi_quantity: item.pi_quantity,
+  //       po_quantity: item.po_quantity,
+  //       already_inwarded: item.already_inwarded,
+  //       in_transit: item.in_transit,
+  //       available_for_pickup: item.available_for_pickup
+  //     }));
+
+  //     setPickupFormData(prev => ({
+  //       ...prev,
+  //       line_items: lineItems
+  //     }));
+  //   } catch (error) {
+  //     console.error('Failed to fetch PO line stats:', error);
+  //     toast({
+  //       title: 'Error',
+  //       description: error.response?.data?.detail || 'Failed to load PO details',
+  //       variant: 'destructive'
+  //     });
+  //   }
+  // };
+
   const handlePoSelection = async (voucher_no) => {
     if (!voucher_no) {
       setSelectedPo('');
@@ -230,19 +276,32 @@ const InwardStock = () => {
       const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
       setPoLineStats(response.data);
 
+      // 🔍 DEBUG: Check what the API returns
+      console.log('API Response:', response.data);
+      console.log('Line Items from API:', response.data.line_items);
+
       // Initialize form data with line items
-      const lineItems = response.data.line_items.map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        sku: item.sku,
-        quantity: 0,
-        rate: item.rate,
-        pi_quantity: item.pi_quantity,
-        po_quantity: item.po_quantity,
-        already_inwarded: item.already_inwarded,
-        in_transit: item.in_transit,
-        available_for_pickup: item.available_for_pickup
-      }));
+      const lineItems = response.data.line_items.map(item => {
+        // 🔍 DEBUG: Check each item's id
+        console.log('Item ID:', item.id, 'Product:', item.product_name);
+
+        return {
+          id: item.id, // ✅ PO line item ID - MUST be present in API response
+          product_id: item.product_id,
+          product_name: item.product_name,
+          sku: item.sku,
+          quantity: 0,
+          rate: item.rate,
+          pi_quantity: item.pi_quantity,
+          po_quantity: item.po_quantity,
+          already_inwarded: item.already_inwarded,
+          in_transit: item.in_transit,
+          available_for_pickup: item.available_for_pickup
+        };
+      });
+
+      // 🔍 DEBUG: Check the mapped line items
+      console.log('Mapped Line Items:', lineItems);
 
       setPickupFormData(prev => ({
         ...prev,
@@ -277,6 +336,72 @@ const InwardStock = () => {
     setPickupFormData(prev => ({ ...prev, line_items: updatedLineItems }));
   };
 
+  // const handlePickupSubmit = async (e) => {
+  //   e.preventDefault();
+
+  //   if (!poLineStats) {
+  //     toast({
+  //       title: 'Error',
+  //       description: 'Please select a Purchase Order first',
+  //       variant: 'destructive'
+  //     });
+  //     return;
+  //   }
+
+  //   // Filter line items with quantity > 0
+  //   const validLineItems = pickupFormData.line_items.filter(item => item.quantity > 0);
+
+  //   if (validLineItems.length === 0) {
+  //     toast({
+  //       title: 'Error',
+  //       description: 'Please enter at least one quantity greater than 0',
+  //       variant: 'destructive'
+  //     });
+  //     return;
+  //   }
+
+  //   try {
+  //     const pickupData = {
+  //       po_id: poLineStats.po_id,
+  //       pickup_date: pickupFormData.pickup_date,
+  //       manual: pickupFormData.manual,
+  //       notes: pickupFormData.notes,
+  //       line_items: validLineItems.map(item => ({
+  //         id: item.id,
+  //         product_name: item.product_name,
+  //         sku: item.sku,
+  //         quantity: item.quantity,
+  //         rate: item.rate
+  //       }))
+  //     };
+
+  //     await api.post('/pickups', pickupData);
+
+  //     toast({
+  //       title: 'Success',
+  //       description: 'Pickup (In-Transit) entry created successfully',
+  //       variant: 'default'
+  //     });
+
+  //     // Reset form and refresh data
+  //     setSelectedPo('');
+  //     setPoLineStats(null);
+  //     setPickupFormData({
+  //       pickup_date: new Date().toISOString().split('T')[0],
+  //       notes: '',
+  //       line_items: []
+  //     });
+  //     fetchPickupEntries();
+  //   } catch (error) {
+  //     console.error('Failed to create pickup:', error);
+  //     toast({
+  //       title: 'Error',
+  //       description: error.response?.data?.detail || 'Failed to create pickup entry',
+  //       variant: 'destructive'
+  //     });
+  //   }
+  // };
+
   const handlePickupSubmit = async (e) => {
     e.preventDefault();
 
@@ -308,13 +433,17 @@ const InwardStock = () => {
         manual: pickupFormData.manual,
         notes: pickupFormData.notes,
         line_items: validLineItems.map(item => ({
-          product_id: item.product_id,
+          id: item.id, // ✅ PO line item ID (not product_id)
           product_name: item.product_name,
           sku: item.sku,
           quantity: item.quantity,
           rate: item.rate
         }))
       };
+
+      // 🔍 DEBUG: Check the payload before sending
+      console.log('Pickup Data Being Sent:', pickupData);
+      console.log('Line Items in Payload:', pickupData.line_items);
 
       await api.post('/pickups', pickupData);
 
@@ -329,6 +458,7 @@ const InwardStock = () => {
       setPoLineStats(null);
       setPickupFormData({
         pickup_date: new Date().toISOString().split('T')[0],
+        manual: '',
         notes: '',
         line_items: []
       });
@@ -444,10 +574,13 @@ const InwardStock = () => {
     try {
       setSelectedWarehousePo(voucher_no);
       const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
+      console.log("this is the posline with stats ", response);
+
       setWarehousePoLineStats(response.data);
 
       // Initialize form data with line items
       const lineItems = response.data.line_items.map(item => ({
+        id: item.id,
         product_id: item.product_id,
         product_name: item.product_name,
         sku: item.sku,
@@ -548,6 +681,7 @@ const InwardStock = () => {
         inward_invoice_no: warehouseInwardFormData.inward_invoice_no || `INW-${Date.now()}`,
         inward_type: 'warehouse',
         line_items: validLineItems.map(item => ({
+          id: item.id,
           product_id: item.product_id,
           product_name: item.product_name,
           sku: item.sku,
@@ -1464,7 +1598,13 @@ const InwardStock = () => {
                               {entry.line_items?.length || 0} items
                             </div>
                           </TableCell>
-                          <TableCell>{entry?.line_items?.map(item => item.quantity)}</TableCell>
+                          {/* <TableCell>{entry?.line_items?.map(item => item.quantity)}</TableCell> */}
+                          <TableCell>
+                            {entry?.line_items?.reduce(
+                              (total, item) => total + (item.quantity || 0),
+                              0
+                            )}
+                          </TableCell>
                           <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1723,13 +1863,20 @@ const InwardStock = () => {
                             </div>
                           </TableCell>
                           <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
-                          <TableCell>
+                          {/* <TableCell>
                             {entry?.line_items?.map((item, index) => (
                               <div key={index}>
                                 {item.quantity}
                               </div>
                             ))}
+                          </TableCell> */}
+                          <TableCell>
+                            {entry?.line_items?.reduce(
+                              (sum, item) => sum + (item.quantity || 0),
+                              0
+                            )}
                           </TableCell>
+
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button

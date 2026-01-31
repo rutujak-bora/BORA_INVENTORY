@@ -1122,9 +1122,109 @@ async def get_pi(pi_id: str, current_user: dict = Depends(get_current_active_use
     
     return pi
 
+# async def get_dispatched_qty_for_pi(
+#     pi_id: str,
+#     line_item_id: str,  # Match by line item ID
+#     warehouse_id: str
+# ):
+#     dispatched = 0.0
+
+#     async for outward in mongo_db.outward_stock.find(
+#         {
+#             "pi_ids": pi_id,
+#             "warehouse_id": warehouse_id,
+#             "is_active": True
+#         },
+#         {"_id": 0}
+#     ):
+#         for item in outward.get("line_items", []):
+#             if item.get("id") == line_item_id:  # Match by line item ID
+#                 dispatched += float(item.get("quantity", 0))
+
+#     return dispatched
+
+# async def get_inward_qty_for_pi(
+#     pi_id: str,
+#     line_item_id: str,  # Match by line item ID
+#     warehouse_id: str
+# ):
+#     inward = 0.0
+
+#     async for inward_doc in mongo_db.inward_stock.find(
+#         {
+#             "pi_id": pi_id,
+#             "warehouse_id": warehouse_id,
+#             "is_active": True
+#         },
+#         {"_id": 0}
+#     ):
+#         for item in inward_doc.get("line_items", []):
+#             if item.get("id") == line_item_id:  # Match by line item ID
+#                 inward += float(item.get("quantity", 0))
+
+#     return inward
+
+
+# #i need to see this code carefully
+# @api_router.get("/pi/{pi_id}")
+# async def get_pi(
+#     pi_id: str,
+#     warehouse_id: str,  #REQUIRED
+#     current_user: dict = Depends(get_current_active_user)
+# ):
+#     # Fetch the PI
+#     pi = await mongo_db.performa_invoices.find_one(
+#         {"id": pi_id},
+#         {"_id": 0}
+#     )
+#     if not pi:
+#         raise HTTPException(status_code=404, detail="PI not found")
+
+#     # Company
+#     if pi.get("company_id"):
+#         company = await mongo_db.companies.find_one(
+#             {"id": pi["company_id"]},
+#             {"_id": 0}
+#         )
+#         pi["company"] = company
+
+#     # Inward stock (optional, reference only)
+#     inward_stocks = []
+#     async for stock in mongo_db.inward_stock.find(
+#         {"pi_id": pi_id, "warehouse_id": warehouse_id},
+#         {"_id": 0}
+#     ):
+#         inward_stocks.append(stock)
+#     pi["inward_stock"] = inward_stocks
+
+#     # ✅ CORRECT CALCULATION
+#     for item in pi.get("line_items", []):
+
+#         line_item_id = item.get("id")
+
+#         inward_qty = await get_inward_qty_for_pi(
+#             pi_id=pi_id,
+#             line_item_id=line_item_id,   #using item id the unique one
+#             warehouse_id=warehouse_id
+#         )
+
+#         dispatched_qty = await get_dispatched_qty_for_pi(
+#             pi_id=pi_id,
+#              line_item_id=line_item_id,
+#             warehouse_id=warehouse_id
+#         )
+
+#         item["pi_quantity"] = float(item.get("quantity", 0))
+#         item["inward_quantity"] = inward_qty
+#         item["dispatched_quantity"] = dispatched_qty
+#         item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
+
+#     return pi
+
+
 async def get_dispatched_qty_for_pi(
     pi_id: str,
-    product_id: str,
+    product_sku: str,  # ✅ Changed to SKU
     warehouse_id: str
 ):
     dispatched = 0.0
@@ -1138,14 +1238,14 @@ async def get_dispatched_qty_for_pi(
         {"_id": 0}
     ):
         for item in outward.get("line_items", []):
-            if item.get("product_id") == product_id:
+            if item.get("sku") == product_sku:  # ✅ Match by SKU
                 dispatched += float(item.get("quantity", 0))
 
     return dispatched
 
 async def get_inward_qty_for_pi(
     pi_id: str,
-    product_id: str,
+    product_sku: str,  # ✅ Changed to SKU
     warehouse_id: str
 ):
     inward = 0.0
@@ -1159,19 +1259,19 @@ async def get_inward_qty_for_pi(
         {"_id": 0}
     ):
         for item in inward_doc.get("line_items", []):
-            if item.get("product_id") == product_id:
+            if item.get("sku") == product_sku:  # ✅ Match by SKU
                 inward += float(item.get("quantity", 0))
 
     return inward
 
 
+# ✅ Update the endpoint
 @api_router.get("/pi/{pi_id}")
 async def get_pi(
     pi_id: str,
-    warehouse_id: str,  # ✅ REQUIRED
+    warehouse_id: str,
     current_user: dict = Depends(get_current_active_user)
 ):
-    # Fetch the PI
     pi = await mongo_db.performa_invoices.find_one(
         {"id": pi_id},
         {"_id": 0}
@@ -1179,7 +1279,6 @@ async def get_pi(
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
 
-    # Company
     if pi.get("company_id"):
         company = await mongo_db.companies.find_one(
             {"id": pi["company_id"]},
@@ -1187,7 +1286,6 @@ async def get_pi(
         )
         pi["company"] = company
 
-    # Inward stock (optional, reference only)
     inward_stocks = []
     async for stock in mongo_db.inward_stock.find(
         {"pi_id": pi_id, "warehouse_id": warehouse_id},
@@ -1196,18 +1294,20 @@ async def get_pi(
         inward_stocks.append(stock)
     pi["inward_stock"] = inward_stocks
 
-    # ✅ CORRECT CALCULATION
+    # ✅ Calculate quantities using SKU
     for item in pi.get("line_items", []):
+
+        product_sku = item.get("sku")  # ✅ Get SKU
 
         inward_qty = await get_inward_qty_for_pi(
             pi_id=pi_id,
-            product_id=item.get("product_id"),
+            product_sku=product_sku,  # ✅ Pass SKU
             warehouse_id=warehouse_id
         )
 
         dispatched_qty = await get_dispatched_qty_for_pi(
             pi_id=pi_id,
-            product_id=item.get("product_id"),
+            product_sku=product_sku,  # ✅ Pass SKU
             warehouse_id=warehouse_id
         )
 
@@ -1217,6 +1317,7 @@ async def get_pi(
         item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
 
     return pi
+
 
 @api_router.put("/pi/{pi_id}")
 async def update_pi(
@@ -1884,12 +1985,14 @@ async def create_inward_stock(
 
             for po_item in po.get("line_items", []):
                 product_id = po_item.get("product_id")
+                po_item_id = po_item.get("id")
                 if product_id not in aggregated_po_quantities:
                     aggregated_po_quantities[product_id] = 0
                 aggregated_po_quantities[product_id] += float(po_item.get("quantity", 0))
 
         # ---- QUANTITY VALIDATION ----
         for inward_item in inward_data.get("line_items", []):
+            po_line_item_id = inward_item.get("id")
             product_id = inward_item.get("product_id")
             inward_qty = float(inward_item.get("quantity", 0))
 
@@ -1903,7 +2006,7 @@ async def create_inward_stock(
                         {"_id": 0}
                     ):
                         for existing_item in existing_inward.get("line_items", []):
-                            if existing_item.get("product_id") == product_id:
+                            if existing_item.get("id") == po_line_item_id:
                                 already_inwarded += float(existing_item.get("quantity", 0))
 
                 total_inward_after_this = already_inwarded + inward_qty
@@ -1948,6 +2051,7 @@ async def create_inward_stock(
     total_amount = 0
 
     for item in inward_data.get("line_items", []):
+        po_line_item_id = item.get("id")
         product_id = item.get("product_id")
         inward_qty = float(item.get("quantity", 0))
         rate = float(item.get("rate", 0))
@@ -1961,13 +2065,14 @@ async def create_inward_stock(
                 {"_id": 0}
             ):
                 for existing_item in existing_inward.get("line_items", []):
-                    if existing_item.get("product_id") == product_id:
+
+                    if existing_item.get("id") == po_line_item_id:
                         already_inwarded += float(existing_item.get("quantity", 0))
 
         remaining = total_po_qty - (already_inwarded + inward_qty)
 
         line_item = {
-            "id": str(uuid.uuid4()),
+            "id": po_line_item_id,
             "product_id": product_id,
             "product_name": item.get("product_name"),
             "sku": item.get("sku"),
@@ -4889,6 +4994,105 @@ async def get_purchase_analysis(
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== PICKUP (IN-TRANSIT) ROUTES ====================
+# @api_router.get("/pos/lines-with-stats")
+# async def get_po_lines_with_stats(
+#     voucher_no: str,
+#     current_user: dict = Depends(get_current_active_user)
+# ):
+#     """
+#     Get PO line items with detailed statistics:
+#     - PI Qty (from PI reference)
+#     - PO Qty (from PO)
+#     - Already Inwarded (from inward_stock)
+#     - In-Transit (from pickup_in_transit collection)
+    
+#     Query param: voucher_no (PO voucher number)
+#     """
+#     try:
+#         # Find PO by voucher number
+#         po = await mongo_db.purchase_orders.find_one({"voucher_no": voucher_no, "is_active": True}, {"_id": 0})
+#         if not po:
+#             raise HTTPException(status_code=404, detail=f"PO not found with voucher number: {voucher_no}")
+        
+#         po_id = po.get("id")
+        
+#         # Get reference PI IDs from PO
+#         reference_pi_ids = po.get("reference_pi_ids", [])
+#         if not reference_pi_ids and po.get("reference_pi_id"):
+#             reference_pi_ids = [po.get("reference_pi_id")]
+        
+#         # Fetch all referenced PIs
+#         pis = []
+#         if reference_pi_ids:
+#             async for pi in mongo_db.performa_invoices.find({"id": {"$in": reference_pi_ids}, "is_active": True}, {"_id": 0}):
+#                 pis.append(pi)
+        
+#         # Build line items with stats
+#         line_stats = []
+#         for po_item in po.get("line_items", []):
+#             product_id = po_item.get("product_id")
+#             product_name = po_item.get("product_name")
+#             sku = po_item.get("sku")
+#             po_quantity = float(po_item.get("quantity", 0))
+#             rate = float(po_item.get("rate", 0))
+            
+#             # Find matching PI quantity
+#             pi_quantity = 0
+#             for pi in pis:
+#                 for pi_item in pi.get("line_items", []):
+#                     if pi_item.get("product_id") == product_id:
+#                         pi_quantity += float(pi_item.get("quantity", 0))
+            
+#             # Calculate Already Inwarded (from inward_stock)
+#             already_inwarded = 0
+#             async for inward in mongo_db.inward_stock.find({
+#                 "po_id": po_id,
+#                 "is_active": True
+#             }, {"_id": 0}):
+#                 for inward_item in inward.get("line_items", []):
+#                     if inward_item.get("product_id") == product_id:
+#                         already_inwarded += float(inward_item.get("quantity", 0))
+            
+#             # Calculate In-Transit (from pickup_in_transit collection)
+#             in_transit = 0
+#             async for pickup in mongo_db.pickup_in_transit.find({
+#                 "po_id": po_id,
+#                 "is_active": True
+#             }, {"_id": 0}):
+#                 for pickup_item in pickup.get("line_items", []):
+#                     if pickup_item.get("product_id") == product_id:
+#                         in_transit += float(pickup_item.get("quantity", 0))
+            
+#             # Calculate available quantity for pickup
+#             available_for_pickup = po_quantity - already_inwarded - in_transit
+            
+#             line_stats.append({
+#                 "id": po_item.get("id"),  # ✅ PO line item ID - required for pickup creation
+#                 "product_id": product_id,
+#                 "product_name": product_name,
+#                 "sku": sku,
+#                 "pi_quantity": pi_quantity,
+#                 "po_quantity": po_quantity,
+#                 "already_inwarded": already_inwarded,
+#                 "in_transit": in_transit,
+#                 "available_for_pickup": available_for_pickup,
+#                 "rate": rate
+#             })
+        
+#         return {
+#             "po_voucher_no": voucher_no,
+#             "po_id": po_id,
+#             "po_date": po.get("date"),
+#             "supplier": po.get("supplier"),
+#             "line_items": line_stats
+#         }
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error fetching PO line stats: {str(e)}")
+#         raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/pos/lines-with-stats")
 async def get_po_lines_with_stats(
     voucher_no: str,
@@ -4925,6 +5129,7 @@ async def get_po_lines_with_stats(
         # Build line items with stats
         line_stats = []
         for po_item in po.get("line_items", []):
+            po_item_id = po_item.get("id")  # ✅ This is the key to match across collections
             product_id = po_item.get("product_id")
             product_name = po_item.get("product_name")
             sku = po_item.get("sku")
@@ -4945,7 +5150,7 @@ async def get_po_lines_with_stats(
                 "is_active": True
             }, {"_id": 0}):
                 for inward_item in inward.get("line_items", []):
-                    if inward_item.get("product_id") == product_id:
+                    if inward_item.get("id") == po_item_id:  # ✅ Match by line item ID
                         already_inwarded += float(inward_item.get("quantity", 0))
             
             # Calculate In-Transit (from pickup_in_transit collection)
@@ -4955,13 +5160,14 @@ async def get_po_lines_with_stats(
                 "is_active": True
             }, {"_id": 0}):
                 for pickup_item in pickup.get("line_items", []):
-                    if pickup_item.get("product_id") == product_id:
+                    if pickup_item.get("id") == po_item_id:  # ✅ Match by line item ID
                         in_transit += float(pickup_item.get("quantity", 0))
             
             # Calculate available quantity for pickup
             available_for_pickup = po_quantity - already_inwarded - in_transit
             
             line_stats.append({
+                "id": po_item_id,  # ✅ PO line item ID - required for pickup creation
                 "product_id": product_id,
                 "product_name": product_name,
                 "sku": sku,
@@ -4987,6 +5193,134 @@ async def get_po_lines_with_stats(
         logger.error(f"Error fetching PO line stats: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# @api_router.post("/pickups")
+# async def create_pickup(
+#     pickup_data: dict,
+#     current_user: dict = Depends(get_current_active_user)
+# ):
+#     """
+#     Create a new Pickup (In-Transit) entry
+#     """
+#     try:
+#         po_id = pickup_data.get("po_id")
+#         if not po_id:
+#             raise HTTPException(status_code=400, detail="po_id is required")
+        
+#         # Verify PO exists
+#         po = await mongo_db.purchase_orders.find_one({"id": po_id, "is_active": True}, {"_id": 0})
+#         if not po:
+#             raise HTTPException(status_code=404, detail="PO not found")
+        
+#         # Validate line items
+#         line_items = pickup_data.get("line_items", [])
+#         if not line_items:
+#             raise HTTPException(status_code=400, detail="At least one line item is required")
+        
+#         # Validation: Check if new pickup quantities are valid
+#         for item in line_items:
+#             po_line_id = item.get("id")   # ← PO line item id
+#             new_quantity = float(item.get("quantity", 0))
+
+#             if not po_line_id:
+#                 raise HTTPException(
+#                     status_code=400,
+#                     detail="PO line item id is required"
+#                 )
+
+            
+#             if new_quantity <= 0:
+#                 continue  # Skip zero quantities
+            
+#             # Find PO quantity for this product
+#             po_quantity = 0
+#             for po_item in po.get("line_items", []):
+#                 if po_item.get("id") == po_line_id:
+#                     po_quantity = float(po_item.get("quantity", 0))
+#                     break
+
+            
+#             # Calculate already inwarded
+#             already_inwarded = 0
+#             async for inward in mongo_db.inward_stock.find({
+#                 "po_id": po_id,
+#                 "is_active": True
+#             }, {"_id": 0}):
+#                 for inward_item in inward.get("line_items", []):
+#                     if pickup_item.get("id") == po_line_id:
+#                         existing_in_transit += float(pickup_item.get("quantity", 0))
+
+            
+#             # Calculate existing in-transit
+#             existing_in_transit = 0
+#             async for pickup in mongo_db.pickup_in_transit.find({
+#                 "po_id": po_id,
+#                 "is_active": True
+#             }, {"_id": 0}):
+#                 for pickup_item in pickup.get("line_items", []):
+#                     if pickup_item.get("product_id") == po_line_id:
+#                         existing_in_transit += float(pickup_item.get("quantity", 0))
+            
+#             # Validate: new + inwarded + existing in-transit should not exceed PO qty
+#             total_quantity = new_quantity + already_inwarded + existing_in_transit
+#             if total_quantity > po_quantity:
+#                 product_name = item.get("product_name", "Unknown Product")
+#                 raise HTTPException(
+#                     status_code=400,
+#                     detail=f"Cannot create pickup for {product_name}: Total quantity ({total_quantity}) exceeds PO quantity ({po_quantity}). Already inwarded: {already_inwarded}, Existing in-transit: {existing_in_transit}"
+#                 )
+        
+#         # Create pickup entry
+#         pickup_dict = {
+#             "id": item.get("id"),
+#             "pickup_date": pickup_data.get("pickup_date"),
+#             "po_id": po_id,
+#             "po_voucher_no": po.get("voucher_no"),
+#             "manual": pickup_data.get("manual", ""),
+#             "notes": pickup_data.get("notes", ""),
+#             "is_active": True,
+#             "created_at": datetime.now(timezone.utc).isoformat(),
+#             "updated_at": datetime.now(timezone.utc).isoformat(),
+#             "created_by": current_user["id"],
+#             "line_items": []
+#         }
+        
+#         # Process line items - only add items with quantity > 0
+#         for item in line_items:
+#             quantity = float(item.get("quantity", 0))
+#             if quantity > 0:
+#                 line_item = {
+#                     "id": str(uuid.uuid4()),
+#                     "product_id": item.get("product_id"),
+#                     "product_name": item.get("product_name"),
+#                     "sku": item.get("sku"),
+#                     "quantity": quantity,
+#                     "rate": float(item.get("rate", 0))
+#                 }
+#                 pickup_dict["line_items"].append(line_item)
+        
+#         if not pickup_dict["line_items"]:
+#             raise HTTPException(status_code=400, detail="No valid line items with quantity > 0")
+        
+#         # Insert pickup entry
+#         await mongo_db.pickup_in_transit.insert_one(pickup_dict)
+        
+#         # Audit log
+#         await mongo_db.audit_logs.insert_one({
+#             "action": "pickup_created",
+#             "user_id": current_user["id"],
+#             "entity_id": pickup_dict["id"],
+#             "timestamp": datetime.now(timezone.utc).isoformat()
+#         })
+        
+#         pickup_dict.pop("_id", None)
+#         return pickup_dict
+        
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error creating pickup: {str(e)}")
+#         raise HTTPException(status_code=500, detail=str(e))
+
 
 @api_router.post("/pickups")
 async def create_pickup(
@@ -4997,67 +5331,103 @@ async def create_pickup(
     Create a new Pickup (In-Transit) entry
     """
     try:
+        # -----------------------------
+        # 1️⃣ BASIC VALIDATION
+        # -----------------------------
         po_id = pickup_data.get("po_id")
         if not po_id:
             raise HTTPException(status_code=400, detail="po_id is required")
-        
-        # Verify PO exists
-        po = await mongo_db.purchase_orders.find_one({"id": po_id, "is_active": True}, {"_id": 0})
+
+        po = await mongo_db.purchase_orders.find_one(
+            {"id": po_id, "is_active": True},
+            {"_id": 0}
+        )
         if not po:
             raise HTTPException(status_code=404, detail="PO not found")
-        
-        # Validate line items
+
         line_items = pickup_data.get("line_items", [])
         if not line_items:
-            raise HTTPException(status_code=400, detail="At least one line item is required")
-        
-        # Validation: Check if new pickup quantities are valid
+            raise HTTPException(
+                status_code=400,
+                detail="At least one line item is required"
+            )
+
+        # -----------------------------
+        # 2️⃣ VALIDATE QUANTITIES
+        # -----------------------------
         for item in line_items:
-            product_id = item.get("product_id")
+            po_line_id = item.get("id")   # ✅ PO line item id
             new_quantity = float(item.get("quantity", 0))
-            
-            if new_quantity <= 0:
-                continue  # Skip zero quantities
-            
-            # Find PO quantity for this product
-            po_quantity = 0
-            for po_item in po.get("line_items", []):
-                if po_item.get("product_id") == product_id:
-                    po_quantity = float(po_item.get("quantity", 0))
-                    break
-            
-            # Calculate already inwarded
-            already_inwarded = 0
-            async for inward in mongo_db.inward_stock.find({
-                "po_id": po_id,
-                "is_active": True
-            }, {"_id": 0}):
-                for inward_item in inward.get("line_items", []):
-                    if inward_item.get("product_id") == product_id:
-                        already_inwarded += float(inward_item.get("quantity", 0))
-            
-            # Calculate existing in-transit
-            existing_in_transit = 0
-            async for pickup in mongo_db.pickup_in_transit.find({
-                "po_id": po_id,
-                "is_active": True
-            }, {"_id": 0}):
-                for pickup_item in pickup.get("line_items", []):
-                    if pickup_item.get("product_id") == product_id:
-                        existing_in_transit += float(pickup_item.get("quantity", 0))
-            
-            # Validate: new + inwarded + existing in-transit should not exceed PO qty
-            total_quantity = new_quantity + already_inwarded + existing_in_transit
-            if total_quantity > po_quantity:
-                product_name = item.get("product_name", "Unknown Product")
+
+            if not po_line_id:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Cannot create pickup for {product_name}: Total quantity ({total_quantity}) exceeds PO quantity ({po_quantity}). Already inwarded: {already_inwarded}, Existing in-transit: {existing_in_transit}"
+                    detail="PO line item id is required"
                 )
-        
-        # Create pickup entry
+
+            if new_quantity <= 0:
+                continue  # skip zero qty
+
+            # 🔹 Find PO quantity for this line
+            po_quantity = 0
+            for po_item in po.get("line_items", []):
+                if po_item.get("id") == po_line_id:
+                    po_quantity = float(po_item.get("quantity", 0))
+                    break
+
+            if po_quantity == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid PO line item id"
+                )
+
+            # 🔹 Calculate already inwarded
+            already_inwarded = 0
+            async for inward in mongo_db.inward_stock.find(
+                {"po_id": po_id, "is_active": True},
+                {"_id": 0}
+            ):
+                for inward_item in inward.get("line_items", []):
+                    if inward_item.get("id") == po_line_id:
+                        already_inwarded += float(
+                            inward_item.get("quantity", 0)
+                        )
+
+            # 🔹 Calculate existing in-transit
+            existing_in_transit = 0
+            async for pickup in mongo_db.pickup_in_transit.find(
+                {"po_id": po_id, "is_active": True},
+                {"_id": 0}
+            ):
+                for pickup_item in pickup.get("line_items", []):
+                    if pickup_item.get("id") == po_line_id:
+                        existing_in_transit += float(
+                            pickup_item.get("quantity", 0)
+                        )
+
+            # 🔹 Final validation
+            total_quantity = (
+                new_quantity
+                + already_inwarded
+                + existing_in_transit
+            )
+
+            if total_quantity > po_quantity:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Pickup quantity exceeds PO quantity. "
+                        f"PO: {po_quantity}, "
+                        f"Inwarded: {already_inwarded}, "
+                        f"In Transit: {existing_in_transit}"
+                    )
+                )
+
+        # -----------------------------
+        # 3️⃣ CREATE PICKUP ENTRY
+        # -----------------------------
         pickup_dict = {
-            "id": str(uuid.uuid4()),
+            "id": str(uuid.uuid4()),  # ✅ pickup id
             "pickup_date": pickup_data.get("pickup_date"),
             "po_id": po_id,
             "po_voucher_no": po.get("voucher_no"),
@@ -5069,27 +5439,32 @@ async def create_pickup(
             "created_by": current_user["id"],
             "line_items": []
         }
-        
-        # Process line items - only add items with quantity > 0
+
+        # -----------------------------
+        # 4️⃣ ADD PICKUP LINE ITEMS
+        # -----------------------------
         for item in line_items:
             quantity = float(item.get("quantity", 0))
             if quantity > 0:
-                line_item = {
-                    "id": str(uuid.uuid4()),
-                    "product_id": item.get("product_id"),
+                pickup_dict["line_items"].append({
+                    "id": item.get("id"),   # ✅ PO line item id
                     "product_name": item.get("product_name"),
                     "sku": item.get("sku"),
                     "quantity": quantity,
                     "rate": float(item.get("rate", 0))
-                }
-                pickup_dict["line_items"].append(line_item)
-        
+                })
+
         if not pickup_dict["line_items"]:
-            raise HTTPException(status_code=400, detail="No valid line items with quantity > 0")
-        
-        # Insert pickup entry
+            raise HTTPException(
+                status_code=400,
+                detail="No valid line items with quantity > 0"
+            )
+
+        # -----------------------------
+        # 5️⃣ SAVE TO DB
+        # -----------------------------
         await mongo_db.pickup_in_transit.insert_one(pickup_dict)
-        
+
         # Audit log
         await mongo_db.audit_logs.insert_one({
             "action": "pickup_created",
@@ -5097,15 +5472,17 @@ async def create_pickup(
             "entity_id": pickup_dict["id"],
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        
+
         pickup_dict.pop("_id", None)
+
         return pickup_dict
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error creating pickup: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @api_router.get("/pickups")

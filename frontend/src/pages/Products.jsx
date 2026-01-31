@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../utils/api';
+import api, { API_BASE } from '../utils/api';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -260,7 +260,7 @@ const Products = () => {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => window.open(`${window.location.origin}/api/templates/products`, '_blank')}
+            onClick={() => window.open(`${API_BASE}/templates/products`, '_blank')}
             className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
           >
             Download Template

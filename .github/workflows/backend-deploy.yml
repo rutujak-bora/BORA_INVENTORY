@@ -1,0 +1,26 @@
+name: Backend Deploy
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.BACKEND_IP }}
+          username: ubuntu
+          key: ${{ secrets.BACKEND_SSH_KEY }}
+          script: |
+            cd ~/BORA_INVENTORY
+            git pull origin main
+            cd backend
+            # Update dependencies if any change
+            ./venv/bin/pip install -r requirements.txt
+            # Restart the service
+            sudo systemctl restart bora-backend

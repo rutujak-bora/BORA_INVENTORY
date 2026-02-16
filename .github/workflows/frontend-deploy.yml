@@ -1,0 +1,53 @@
+name: Frontend Deploy
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm install
+        
+      - name: Build Production Bundle
+        env:
+          REACT_APP_BACKEND_URL: http://${{ secrets.BACKEND_IP }}
+        run: |
+          cd frontend
+          npm run build
+        
+      - name: Upload Build Artifacts to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.FRONTEND_IP }}
+          username: ubuntu
+          key: ${{ secrets.FRONTEND_SSH_KEY }}
+          source: "frontend/build/*"
+          target: "/home/ubuntu/temp-build"
+          strip_components: 2
+
+      - name: Deploy static files to Nginx
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.FRONTEND_IP }}
+          username: ubuntu
+          key: ${{ secrets.FRONTEND_SSH_KEY }}
+          script: |
+            sudo rm -rf /var/www/html/*
+            sudo cp -r /home/ubuntu/temp-build/* /var/www/html/
+            sudo rm -rf /home/ubuntu/temp-build
+            sudo systemctl restart nginx

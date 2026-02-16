@@ -115,7 +115,10 @@ async def create_company(
         data = company_data.model_dump()
         
         # 🔹 map gstn -> GSTNumber for DB consistency
+        # If gstn is empty string or None, we don't want to store it as a duplicate null/empty
         gst_value = data.pop("gstn", None)
+        if not gst_value: # Handle "" or None
+            gst_value = None
         
         company_dict = {
             "id": str(uuid.uuid4()),
@@ -126,6 +129,10 @@ async def create_company(
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
+        # If GSTNumber is None, remove it from dict to avoid Unique index conflict (if using sparse)
+        if company_dict["GSTNumber"] is None:
+            company_dict.pop("GSTNumber")
+            
         await mongo_db.companies.insert_one(company_dict)
         
         await mongo_db.audit_logs.insert_one({
@@ -136,9 +143,8 @@ async def create_company(
         })
         
         company_dict.pop("_id", None)
-        # Convert back for response if needed (get_companies does this)
-        if "GSTNumber" in company_dict:
-            company_dict["gstn"] = company_dict.pop("GSTNumber")
+        # Convert back for response if needed
+        company_dict["gstn"] = company_dict.get("GSTNumber")
             
         return company_dict
     except Exception as e:
@@ -5626,15 +5632,56 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_active_us
     total_warehouses = await mongo_db.warehouses.count_documents({"is_active": True})
     total_products = await mongo_db.products.count_documents({"is_active": True})
     
+    # Count PIs and POs
+    total_pis = await mongo_db.proforma_invoices.count_documents({"is_active": True})
+    total_pos = await mongo_db.purchase_orders.count_documents({"is_active": True})
+    
+    # Calculate Total Stock Inward (Sum of all line item quantities)
+    inward_pipeline = [
+        {"$match": {"is_active": True}},
+        {"$unwind": "$line_items"},
+        {"$group": {"_id": None, "total_qty": {"$sum": "$line_items.quantity"}}}
+    ]
+    inward_result = await mongo_db.inward_stock.aggregate(inward_pipeline).to_list(1)
+    total_stock_inward = inward_result[0]["total_qty"] if inward_result else 0
+    
+    # Calculate Total Stock Outward with Deduplication
+    # (Avoid double-counting when a Dispatch Plan is converted to an Export Invoice)
+    all_outwards = await mongo_db.outward_stock.find({"is_active": True}, {"id": 1, "dispatch_type": 1, "dispatch_plan_id": 1, "line_items": 1}).to_list(None)
+    
+    # Get IDs of dispatch plans that are now export invoices
+    invoiced_plan_ids = {o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_type") == "export_invoice" and o.get("dispatch_plan_id")}
+    
+    total_stock_outward = 0
+    for outward in all_outwards:
+        # Skip if this is a dispatch plan that has already been fulfilled by an export invoice
+        if outward.get("dispatch_type") == "dispatch_plan" and outward.get("id") in invoiced_plan_ids:
+            continue
+            
+        for item in outward.get("line_items", []):
+            total_stock_outward += item.get("quantity", 0)
+    
+    # Count Pending PIs and POs
+    pending_pis = await mongo_db.proforma_invoices.count_documents({
+        "is_active": True,
+        "status": {"$in": ["Pending", "Draft"]}
+    })
+    
+    pending_pos = await mongo_db.purchase_orders.count_documents({
+        "is_active": True,
+        "status": {"$in": ["Pending", "Draft"]}
+    })
+    
     return {
         "total_companies": total_companies,
         "total_warehouses": total_warehouses,
-        "total_pis": 0,
-        "total_pos": 0,
-        "total_stock_inward": 0,
-        "total_stock_outward": 0,
-        "pending_pis": 0,
-        "pending_pos": 0
+        "total_pis": total_pis,
+        "total_pos": total_pos,
+        "total_products": total_products,
+        "total_stock_inward": total_stock_inward,
+        "total_stock_outward": total_stock_outward,
+        "pending_pis": pending_pis,
+        "pending_pos": pending_pos
     }
 
 # Include router in app
@@ -6486,6 +6533,22 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Application started - using MongoDB")
+    
+    # Initialize indexes
+    try:
+        # Companies: Name is unique, GSTNumber is unique but optional (sparse)
+        await mongo_db.companies.create_index("name", unique=True)
+        await mongo_db.companies.create_index("GSTNumber", unique=True, sparse=True)
+        
+        # Products: SKU is unique
+        await mongo_db.products.create_index("sku", unique=True)
+        
+        # Warehouses: Name is unique
+        await mongo_db.warehouses.create_index("name", unique=True)
+        
+        logger.info("MongoDB indexes initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing MongoDB indexes: {str(e)}")
 
 @app.on_event("shutdown")
 async def shutdown_event():

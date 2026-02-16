@@ -67,8 +67,8 @@ class Warehouse(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-class PerformaInvoice(Base):
-    __tablename__ = "performa_invoices"
+class proformaInvoice(Base):
+    __tablename__ = "proforma_invoices"
     
     id = Column(String, primary_key=True)
     company_id = Column(String, ForeignKey('companies.id'))
@@ -87,7 +87,7 @@ class PILineItem(Base):
     __tablename__ = "pi_line_items"
     
     id = Column(String, primary_key=True)
-    pi_id = Column(String, ForeignKey('performa_invoices.id'))
+    pi_id = Column(String, ForeignKey('proforma_invoices.id'))
     product_id = Column(String, ForeignKey('products.id'))
     product_name = Column(String)
     sku = Column(String)
@@ -99,7 +99,7 @@ class PILineItem(Base):
     rate = Column(Float, nullable=False)
     amount = Column(Float, nullable=False)
     
-    pi = relationship("PerformaInvoice")
+    pi = relationship("proformaInvoice")
     product = relationship("Product")
 
 class PurchaseOrder(Base):
@@ -111,7 +111,7 @@ class PurchaseOrder(Base):
     date = Column(DateTime, nullable=False)
     consignee = Column(String)
     supplier = Column(String)
-    reference_pi_id = Column(String, ForeignKey('performa_invoices.id'), nullable=True)
+    reference_pi_id = Column(String, ForeignKey('proforma_invoices.id'), nullable=True)
     reference_no_date = Column(String)
     dispatched_through = Column(String)
     destination = Column(String)
@@ -121,7 +121,7 @@ class PurchaseOrder(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     company = relationship("Company")
-    reference_pi = relationship("PerformaInvoice")
+    reference_pi = relationship("proformaInvoice")
 
 class POLineItem(Base):
     __tablename__ = "po_line_items"
@@ -150,7 +150,7 @@ class InwardStock(Base):
     inward_invoice_no = Column(String, nullable=False)
     date = Column(DateTime, nullable=False)
     po_id = Column(String, ForeignKey('purchase_orders.id'), nullable=True)
-    pi_id = Column(String, ForeignKey('performa_invoices.id'), nullable=True)
+    pi_id = Column(String, ForeignKey('proforma_invoices.id'), nullable=True)
     product_id = Column(String, ForeignKey('products.id'))
     warehouse_id = Column(String, ForeignKey('warehouses.id'), nullable=True)
     product_name = Column(String)
@@ -164,7 +164,7 @@ class InwardStock(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     po = relationship("PurchaseOrder")
-    pi = relationship("PerformaInvoice")
+    pi = relationship("proformaInvoice")
     product = relationship("Product")
     warehouse = relationship("Warehouse")
 
@@ -175,7 +175,7 @@ class OutwardStock(Base):
     export_invoice_no = Column(String, nullable=False, unique=True)
     date = Column(DateTime, nullable=False)
     company_id = Column(String, ForeignKey('companies.id'))
-    pi_id = Column(String, ForeignKey('performa_invoices.id'), nullable=True)
+    pi_id = Column(String, ForeignKey('proforma_invoices.id'), nullable=True)
     warehouse_id = Column(String, ForeignKey('warehouses.id'))
     mode = Column(String)  # Sea, Air
     dispatch_type = Column(String)  # dispatch_plan, export_invoice, direct_export
@@ -184,7 +184,7 @@ class OutwardStock(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     company = relationship("Company")
-    pi = relationship("PerformaInvoice")
+    pi = relationship("proformaInvoice")
     warehouse = relationship("Warehouse")
 
 class OutwardLineItem(Base):
@@ -208,7 +208,7 @@ class Payment(Base):
     __tablename__ = "payments"
     
     id = Column(String, primary_key=True)
-    pi_id = Column(String, ForeignKey('performa_invoices.id'))
+    pi_id = Column(String, ForeignKey('proforma_invoices.id'))
     voucher_no = Column(String)
     date = Column(DateTime, nullable=False)
     advance_payment = Column(Float, default=0)
@@ -224,7 +224,7 @@ class Payment(Base):
     notes = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    pi = relationship("PerformaInvoice")
+    pi = relationship("proformaInvoice")
 
 class Expense(Base):
     __tablename__ = "expenses"

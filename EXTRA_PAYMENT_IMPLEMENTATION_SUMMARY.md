@@ -7,7 +7,7 @@
 
 ## Overview
 
-A brand-new "Extra Payment" feature has been implemented in the Payment Tracking module. This feature allows users to track additional payments associated with each PI (Performa Invoice) beyond the standard advance and received amounts.
+A brand-new "Extra Payment" feature has been implemented in the Payment Tracking module. This feature allows users to track additional payments associated with each PI (proforma Invoice) beyond the standard advance and received amounts.
 
 ---
 
@@ -255,7 +255,7 @@ A brand-new "Extra Payment" feature has been implemented in the Payment Tracking
 
 ---
 
-## Security & Performance
+## Security & proformance
 
 ### Security
 - ✅ All endpoints protected by authentication middleware
@@ -264,7 +264,7 @@ A brand-new "Extra Payment" feature has been implemented in the Payment Tracking
 - ✅ Bank existence verified before saving
 - ✅ Soft delete preserves audit trail
 
-### Performance
+### proformance
 - ✅ Indexed fields: `pi_number`, `is_active`, `date`
 - ✅ Efficient MongoDB queries with filters
 - ✅ Only active records fetched (is_active: true)

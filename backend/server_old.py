@@ -12,7 +12,7 @@ from datetime import datetime, timezone, timedelta
 from database import Base, engine, get_db, get_mongo_db, mongo_db
 from models import (
     User, UserRole, Company, Product, Warehouse, 
-    PerformaInvoice, PILineItem, PurchaseOrder, POLineItem,
+    proformaInvoice, PILineItem, PurchaseOrder, POLineItem,
     InwardStock, OutwardStock, OutwardLineItem, Payment, Expense
 )
 from schemas import (
@@ -311,7 +311,7 @@ async def create_pi(
     current_user: User = Depends(get_current_active_user)
 ):
     # Create PI
-    pi = PerformaInvoice(
+    pi = proformaInvoice(
         id=str(uuid.uuid4()),
         company_id=pi_data.company_id,
         voucher_no=pi_data.voucher_no,
@@ -345,7 +345,7 @@ async def get_pis(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    result = await db.execute(select(PerformaInvoice).where(PerformaInvoice.is_active == True))
+    result = await db.execute(select(proformaInvoice).where(proformaInvoice.is_active == True))
     return result.scalars().all()
 
 @api_router.get("/pi/{pi_id}", response_model=PIDetailResponse)
@@ -354,7 +354,7 @@ async def get_pi(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    result = await db.execute(select(PerformaInvoice).where(PerformaInvoice.id == pi_id))
+    result = await db.execute(select(proformaInvoice).where(proformaInvoice.id == pi_id))
     pi = result.scalar_one_or_none()
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
@@ -374,7 +374,7 @@ async def update_pi(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    result = await db.execute(select(PerformaInvoice).where(PerformaInvoice.id == pi_id))
+    result = await db.execute(select(proformaInvoice).where(proformaInvoice.id == pi_id))
     pi = result.scalar_one_or_none()
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
@@ -393,7 +393,7 @@ async def delete_pi(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    result = await db.execute(select(PerformaInvoice).where(PerformaInvoice.id == pi_id))
+    result = await db.execute(select(proformaInvoice).where(proformaInvoice.id == pi_id))
     pi = result.scalar_one_or_none()
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
@@ -641,10 +641,10 @@ async def get_dashboard_stats(
     # Get counts
     total_companies = await db.scalar(select(func.count()).select_from(Company).where(Company.is_active == True))
     total_warehouses = await db.scalar(select(func.count()).select_from(Warehouse).where(Warehouse.is_active == True))
-    total_pis = await db.scalar(select(func.count()).select_from(PerformaInvoice).where(PerformaInvoice.is_active == True))
+    total_pis = await db.scalar(select(func.count()).select_from(proformaInvoice).where(proformaInvoice.is_active == True))
     total_pos = await db.scalar(select(func.count()).select_from(PurchaseOrder).where(PurchaseOrder.is_active == True))
-    pending_pis = await db.scalar(select(func.count()).select_from(PerformaInvoice).where(
-        and_(PerformaInvoice.is_active == True, PerformaInvoice.status == "Pending")
+    pending_pis = await db.scalar(select(func.count()).select_from(proformaInvoice).where(
+        and_(proformaInvoice.is_active == True, proformaInvoice.status == "Pending")
     ))
     pending_pos = await db.scalar(select(func.count()).select_from(PurchaseOrder).where(
         and_(PurchaseOrder.is_active == True, PurchaseOrder.status == "Pending")

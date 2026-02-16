@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api, { API_BASE } from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -23,6 +24,7 @@ const PurchaseOrder = () => {
   const [editingPO, setEditingPO] = useState(null);
   const [viewingPO, setViewingPO] = useState(null);
   const [selectedPOs, setSelectedPOs] = useState([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
 
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,6 +57,7 @@ const PurchaseOrder = () => {
       category: '',
       brand: '',
       hsn_sac: '',
+      pi_voucher_no: '', // Track which PI this product belongs to
       quantity: 0,
       rate: 0,
       amount: 0,
@@ -79,7 +82,7 @@ const PurchaseOrder = () => {
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(po =>
-        po.po_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        po.voucher_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         po.supplier?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         po.consignee?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         po.line_items?.some(item =>
@@ -104,7 +107,12 @@ const PurchaseOrder = () => {
 
     // Company filter
     if (filters.company !== 'all') {
-      filtered = filtered.filter(po => po.company_id === filters.company);
+      const selectedCompany = companies.find(c => c.id === filters.company);
+      const selectedCompanyName = selectedCompany?.name?.toLowerCase();
+      filtered = filtered.filter(po =>
+        po.company_id === filters.company ||
+        po.company_id?.toLowerCase() === selectedCompanyName
+      );
     }
 
     setFilteredPOs(filtered);
@@ -141,7 +149,7 @@ const PurchaseOrder = () => {
       return sum + poTotal;
     }, 0);
 
-    return { totalQuantity, totalAmount: totalAmount.toFixed(2) };
+    return { totalQuantity: formatNumber(totalQuantity), totalAmount: formatCurrency(totalAmount) };
   };
 
   const resetFilters = () => {
@@ -185,6 +193,7 @@ const PurchaseOrder = () => {
           category: '',
           brand: '',
           hsn_sac: '',
+          pi_voucher_no: '',
           quantity: 0,
           rate: 0,
           amount: 0,
@@ -198,7 +207,7 @@ const PurchaseOrder = () => {
     try {
       // Fetch all selected PIs
       const selectedPIs = await Promise.all(
-        piIds.map(piId => api.get(`/pI/${piId}`))
+        piIds.map(piId => api.get(`/pi/${piId}`))
       );
 
       // Build reference_no_date string from all PIs
@@ -207,47 +216,28 @@ const PurchaseOrder = () => {
         return `${pi.voucher_no} (${new Date(pi.date).toLocaleDateString()})`;
       }).join(', ');
 
-      // Collect all unique products from all selected PIs with PI quantities
+      // Build line items from all selected PIs
       const allLineItems = [];
-      const seenProducts = new Set();
-      const piQuantitiesMap = new Map(); // Store PI quantities per product
 
       selectedPIs.forEach(res => {
         const pi = res.data;
         pi.line_items?.forEach(item => {
-          const productKey = item.sku || item.product_id;
-
-          // Aggregate PI quantities for same product
-          if (piQuantitiesMap.has(productKey)) {
-            piQuantitiesMap.set(productKey, piQuantitiesMap.get(productKey) + (item.quantity || 0));
-          } else {
-            piQuantitiesMap.set(productKey, item.quantity || 0);
-          }
-
-          if (!seenProducts.has(productKey)) {
-            seenProducts.add(productKey);
-            allLineItems.push({
-              product_id: item.product_id,
-              product_name: item.product_name,
-              sku: item.sku,
-              category: item.category || '',
-              brand: item.brand || '',
-              hsn_sac: item.hsn_sac || '',
-              pi_quantity: piQuantitiesMap.get(productKey), // Add PI quantity
-              quantity: 0,  // Manual entry (PO Quantity)
-              rate: 0,      // Manual entry
-              amount: 0,
-              input_igst: 0,
-              tds: 0
-            });
-          }
+          allLineItems.push({
+            product_id: item.product_id,
+            product_name: item.product_name,
+            sku: item.sku,
+            category: item.category || '',
+            brand: item.brand || '',
+            hsn_sac: item.hsn_sac || '',
+            pi_voucher_no: pi.voucher_no, // Label the product with its PI number
+            pi_quantity: item.quantity || 0,
+            quantity: 0,  // Manual entry (PO Quantity)
+            rate: 0,      // Manual entry
+            amount: 0,
+            input_igst: 0,
+            tds: 0
+          });
         });
-      });
-
-      // Update all items with their PI quantities
-      allLineItems.forEach(item => {
-        const productKey = item.sku || item.product_id;
-        item.pi_quantity = piQuantitiesMap.get(productKey) || 0;
       });
 
       setFormData({
@@ -261,6 +251,7 @@ const PurchaseOrder = () => {
           category: '',
           brand: '',
           hsn_sac: '',
+          pi_voucher_no: '',
           quantity: 0,
           rate: 0,
           amount: 0,
@@ -326,6 +317,7 @@ const PurchaseOrder = () => {
         category: '',
         brand: '',
         hsn_sac: '',
+        pi_voucher_no: '',
         quantity: 0,
         rate: 0,
         amount: 0,
@@ -395,6 +387,8 @@ const PurchaseOrder = () => {
       dispatched_through: fullPO.data.dispatched_through || '',
       destination: fullPO.data.destination || '',
       status: fullPO.data.status,
+      gst_percentage: fullPO.data.gst_percentage || 0,
+      tds_percentage: fullPO.data.tds_percentage || 0,
       line_items: fullPO.data.line_items || []
     });
     setDialogOpen(true);
@@ -416,6 +410,7 @@ const PurchaseOrder = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    setBulkUploading(true);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -426,13 +421,16 @@ const PurchaseOrder = () => {
       toast({ title: 'Success', description: response.data.message });
       fetchData();
     } catch (error) {
+      console.error('Bulk upload error:', error);
       toast({
         title: 'Error',
-        description: error.response?.data?.detail || 'Bulk upload failed',
+        description: error.response?.data?.detail || 'Bulk upload failed. Please check the file format.',
         variant: 'destructive',
       });
+    } finally {
+      setBulkUploading(false);
+      e.target.value = '';
     }
-    e.target.value = '';
   };
 
   const handleExport = async () => {
@@ -480,6 +478,7 @@ const PurchaseOrder = () => {
         category: '',
         brand: '',
         hsn_sac: '',
+        pi_voucher_no: '',
         quantity: 0,
         rate: 0,
         amount: 0,
@@ -506,7 +505,7 @@ const PurchaseOrder = () => {
     const basic = getTotalBasicAmount();
     const gst = getTotalGST();
     const tds = getTotalTDS();
-    return (basic + gst - tds).toFixed(2);
+    return formatCurrency(basic + gst - tds);
   };
 
   if (loading) {
@@ -522,7 +521,7 @@ const PurchaseOrder = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Purchase Order (PO)</h1>
-          <p className="text-slate-600 mt-1">Manage purchase orders linked to performa invoices</p>
+          <p className="text-slate-600 mt-1">Manage purchase orders linked to proforma invoices</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -544,9 +543,14 @@ const PurchaseOrder = () => {
             variant="outline"
             onClick={() => document.getElementById('po-bulk-upload').click()}
             data-testid="po-bulk-upload-btn"
+            disabled={bulkUploading}
           >
-            <Upload size={20} className="mr-2" />
-            Bulk Upload
+            {bulkUploading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+            ) : (
+              <Upload size={20} className="mr-2" />
+            )}
+            {bulkUploading ? 'Uploading...' : 'Bulk Upload'}
           </Button>
           {selectedPOs.length > 0 && (
             <Button
@@ -759,7 +763,9 @@ const PurchaseOrder = () => {
                     {formData.line_items.map((item, index) => (
                       <div key={index} className="border rounded-lg p-4 bg-slate-50">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="font-medium text-slate-700">Item {index + 1}</span>
+                          <span className="font-medium text-slate-700">
+                            Item {index + 1} {item.pi_voucher_no ? `- PI ${item.pi_voucher_no}` : ''}
+                          </span>
                           {formData.line_items.length > 1 && (
                             <Button type="button" variant="ghost" size="sm" onClick={() => removeLineItem(index)}>
                               <X size={16} className="text-red-600" />
@@ -813,8 +819,16 @@ const PurchaseOrder = () => {
                           <div>
                             <Label>HSN/SAC</Label>
                             <Input value={item.hsn_sac}
-                            onChange={(e) => handleLineItemChange(index, 'hsn_sac', e.target.value)}
+                              onChange={(e) => handleLineItemChange(index, 'hsn_sac', e.target.value)}
                               className="bg-gray-100" />
+                          </div>
+                          <div>
+                            <Label className="text-blue-600 font-semibold">PI Number</Label>
+                            <Input value={item.pi_voucher_no || 'Manual Entry'}
+                              onChange={(e) => handleLineItemChange(index, 'pi_voucher_no', e.target.value)}
+                              className="bg-blue-50 border-blue-200 font-medium"
+                              readOnly={!!item.pi_voucher_no} // Read-only if fetched from PI
+                            />
                           </div>
                           <div>
                             <Label>PI Total Qty</Label>
@@ -850,7 +864,7 @@ const PurchaseOrder = () => {
                           <div>
                             <Label>Amount (Auto-calc)</Label>
                             <Input
-                              value={`₹${item.amount.toFixed(2)}`}
+                              value={`₹${formatCurrency(item.amount)}`}
                               disabled
                               className="bg-blue-50 font-semibold"
                             />
@@ -858,7 +872,7 @@ const PurchaseOrder = () => {
                           <div>
                             <Label>GST Value (Auto-calc)</Label>
                             <Input
-                              value={`₹${(item.gst_value || 0).toFixed(2)}`}
+                              value={`₹${formatCurrency(item.gst_value || 0)}`}
                               disabled
                               className="bg-green-50 font-semibold text-green-700"
                               title={`Amount × (${formData.gst_percentage}% / 100)`}
@@ -867,7 +881,7 @@ const PurchaseOrder = () => {
                           <div>
                             <Label>TDS Value (Auto-calc)</Label>
                             <Input
-                              value={`₹${(item.tds_value || 0).toFixed(2)}`}
+                              value={`₹${formatCurrency(item.tds_value || 0)}`}
                               disabled
                               className="bg-orange-50 font-semibold text-orange-700"
                               title={`Amount × (${formData.tds_percentage}% / 100)`}
@@ -883,15 +897,15 @@ const PurchaseOrder = () => {
                       <div className="space-y-1">
                         <div className="flex justify-between gap-8">
                           <span className="text-sm text-slate-700">Basic Amount:</span>
-                          <span className="text-sm font-semibold">₹{getTotalBasicAmount().toFixed(2)}</span>
+                          <span className="text-sm font-semibold">₹{formatCurrency(getTotalBasicAmount())}</span>
                         </div>
                         <div className="flex justify-between gap-8">
                           <span className="text-sm text-green-700">+ GST ({formData.gst_percentage}%):</span>
-                          <span className="text-sm font-semibold text-green-700">₹{getTotalGST().toFixed(2)}</span>
+                          <span className="text-sm font-semibold text-green-700">₹{formatCurrency(getTotalGST())}</span>
                         </div>
                         <div className="flex justify-between gap-8">
                           <span className="text-sm text-orange-700">- TDS ({formData.tds_percentage}%):</span>
-                          <span className="text-sm font-semibold text-orange-700">₹{getTotalTDS().toFixed(2)}</span>
+                          <span className="text-sm font-semibold text-orange-700">₹{formatCurrency(getTotalTDS())}</span>
                         </div>
                         <div className="border-t border-blue-300 pt-2 mt-2">
                           <div className="flex justify-between gap-8">
@@ -980,7 +994,7 @@ const PurchaseOrder = () => {
               {viewingPO.reference_pis && viewingPO.reference_pis.length > 0 && (
                 <div className="bg-blue-50 rounded-lg p-4">
                   <h3 className="text-lg font-semibold mb-4 text-blue-800">
-                    Linked Performa Invoice{viewingPO.reference_pis.length > 1 ? 's' : ''}
+                    Linked proforma Invoice{viewingPO.reference_pis.length > 1 ? 's' : ''}
                     ({viewingPO.reference_pis.length})
                   </h3>
                   <div className="space-y-3">
@@ -1027,6 +1041,7 @@ const PurchaseOrder = () => {
                   <table className="w-full">
                     <thead className="bg-slate-100">
                       <tr>
+                        <th className="text-left p-3 font-medium text-slate-700">PI Number</th>
                         <th className="text-left p-3 font-medium text-slate-700">Product Name</th>
                         <th className="text-left p-3 font-medium text-slate-700">SKU</th>
                         <th className="text-left p-3 font-medium text-slate-700">Category</th>
@@ -1039,13 +1054,18 @@ const PurchaseOrder = () => {
                     <tbody>
                       {viewingPO.line_items?.map((item, index) => (
                         <tr key={index} className="border-t">
+                          <td className="p-3">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                              {item.pi_voucher_no || 'manual'}
+                            </span>
+                          </td>
                           <td className="p-3">{item.product_name}</td>
                           <td className="p-3 font-mono text-sm">{item.sku}</td>
                           <td className="p-3">{item.category || '-'}</td>
                           <td className="p-3">{item.brand || '-'}</td>
-                          <td className="p-3 text-right">{item.quantity}</td>
-                          <td className="p-3 text-right">₹{item.rate?.toFixed(2)}</td>
-                          <td className="p-3 text-right font-semibold">₹{item.amount?.toFixed(2)}</td>
+                          <td className="p-3 text-right">{formatNumber(item.quantity)}</td>
+                          <td className="p-3 text-right">₹{formatCurrency(item.rate)}</td>
+                          <td className="p-3 text-right font-semibold">₹{formatCurrency(item.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1057,7 +1077,7 @@ const PurchaseOrder = () => {
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">
                     <span className="text-sm text-slate-700">Total Amount: </span>
                     <span className="text-xl font-bold text-blue-900">
-                      ₹{viewingPO.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2)}
+                      ₹{formatCurrency(viewingPO.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0))}
                     </span>
                   </div>
                 </div>
@@ -1208,7 +1228,7 @@ const PurchaseOrder = () => {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="font-semibold">₹{po.total_amount?.toFixed(2)}</TableCell>
+                  <TableCell className="font-semibold">₹{formatCurrency(po.total_amount)}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs ${po.status === 'Completed' ? 'bg-green-100 text-green-800' :
                       /* In Transit removed */ false ? '' :

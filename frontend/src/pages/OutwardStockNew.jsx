@@ -128,6 +128,19 @@ const OutwardStockNew = () => {
     setFilteredDirect(applyFilters(directEntries));
   }, [searchTerm, filters, dispatchEntries, exportEntries, directEntries]);
 
+  // Filter out Dispatch Plans that are already linked to an Export Invoice
+  const completedPlanIds = useMemo(() =>
+    new Set(outwardEntries
+      .filter(e => e.dispatch_type === 'export_invoice' && e.dispatch_plan_id)
+      .map(e => e.dispatch_plan_id)),
+    [outwardEntries]
+  );
+
+  const displayedPendingPlans = useMemo(() =>
+    filteredDispatch.filter(plan => !completedPlanIds.has(plan.id)),
+    [filteredDispatch, completedPlanIds]
+  );
+
   const fetchData = async () => {
     try {
       const [outwardRes, companiesRes, pisRes, warehousesRes, dispatchPlansRes, directInwardRes] = await Promise.all([
@@ -281,17 +294,20 @@ const OutwardStockNew = () => {
   // };
 
   const handlePISelect = async (piIds) => {
-    if (!piIds || piIds.length === 0) {
+    const idsToFetch = piIds || formData.pi_ids;
+    if (!idsToFetch || idsToFetch.length === 0) {
       setFormData(prev => ({ ...prev, pi_ids: [], line_items: [] }));
       setAvailableQuantities({});
       return;
     }
 
+    const warehouseId = formData.warehouse_id || selectedWarehouseId;
+
     try {
       // 1️⃣ Call API WITH warehouse_id
       const selectedPIs = await Promise.all(
-        piIds.map(piId =>
-          api.get(`/pi/${piId}?warehouse_id=${selectedWarehouseId}`)
+        idsToFetch.map(piId =>
+          api.get(`/pi/${piId}?warehouse_id=${warehouseId}`)
         )
       );
 
@@ -303,25 +319,29 @@ const OutwardStockNew = () => {
       selectedPIs.forEach(res => {
         const pi = res.data;
 
-        // 2️⃣ Use ONLY pi.line_items
         pi.line_items.forEach(item => {
-          const key = item.product_id || item.sku;
+          // Unique key for deduplication should include both product_id and sku to be safe,
+          // but here we just want to avoid adding the same physical item from the PI again if it was somehow duplicated.
+          // However, if different PIs have the same product, we SHOULD probably show them separately or aggregated.
+          // For now, let's keep deduplication but make the key more robust.
+          const key = `${item.product_id}-${item.sku}`;
           if (seenProducts.has(key)) return;
           seenProducts.add(key);
 
           const availableQty = item.available_quantity ?? 0;
+          const itemId = item.id || item._id;
 
-          console.log(`✅ Adding: ${item.product_name}`);
-  console.log(`   ID: ${item.id}`);
-  console.log(`   Available Qty: ${availableQty}`);
-  console.log(`   Key in quantities: ${item.id || item._id}`);
+          // Use backend-provided dispatched_quantity (real-time from outward_stock)
+          const dispatchedQty = item.dispatched_quantity || 0;
+          const piTotalQty = item.pi_quantity || item.quantity || 0;
 
           allLineItems.push({
-            id: item.id || item._id,
+            id: itemId,
             product_id: item.product_id,
             product_name: item.product_name,
             sku: item.sku,
-            pi_total_quantity: item.pi_quantity,
+            pi_total_quantity: piTotalQty,
+            dispatched_quantity: dispatchedQty,
             rate: item.rate,
             available_quantity: availableQty,
             dispatch_quantity: 0,
@@ -330,15 +350,14 @@ const OutwardStockNew = () => {
             amount: 0
           });
 
-          quantities[item.id || item._id] = availableQty;
+          quantities[itemId] = availableQty;
         });
-        console.log('📊 Final quantities object:', quantities);
       });
-      
+
 
       setFormData(prev => ({
         ...prev,
-        pi_ids: piIds,
+        pi_ids: idsToFetch,
         company_id: selectedPIs[0]?.data?.company_id || prev.company_id,
         line_items: allLineItems
       }));
@@ -353,7 +372,7 @@ const OutwardStockNew = () => {
     } catch (error) {
       console.error(error);
       toast({
-        title: 'Error', 
+        title: 'Error',
         description: 'Failed to load PI details',
         variant: 'destructive'
       });
@@ -721,10 +740,6 @@ const OutwardStockNew = () => {
       const response = await api.post('/outward-stock', exportInvoiceData);
       console.log('✅ Export Invoice created:', response.data);
 
-      // Delete the dispatch plan as it's now converted
-      await api.delete(`/outward-stock/${dispatchPlan.id}`);
-      console.log('✅ Dispatch Plan removed after conversion');
-
       toast({
         title: 'Success',
         description: 'Export Invoice created from Dispatch Plan successfully!'
@@ -772,6 +787,43 @@ const OutwardStockNew = () => {
   const handleView = (entry) => {
     setViewingEntry(entry);
     setViewDialogOpen(true);
+  };
+
+  // Handle edit
+  const handleEdit = async (entry) => {
+    try {
+      setEditingEntry(entry);
+      setCurrentType(entry.dispatch_type);
+
+      // Populate form with entry data
+      setFormData({
+        dispatch_type: entry.dispatch_type,
+        date: entry.date,
+        company_id: entry.company_id,
+        warehouse_id: entry.warehouse_id,
+        mode: entry.mode,
+        pi_ids: entry.pi_ids || [],
+        dispatch_plan_id: entry.dispatch_plan_id || '',
+        export_invoice_no: entry.export_invoice_no,
+        export_invoice_number: entry.export_invoice_number || '',
+        inward_invoice_ids: entry.inward_invoice_ids || [],
+        line_items: entry.line_items || []
+      });
+
+      // If PI-based, fetch available quantities
+      if (entry.pi_ids && entry.pi_ids.length > 0 && entry.warehouse_id) {
+        await handlePISelect(entry.pi_ids);
+      }
+
+      setDialogOpen(true);
+    } catch (error) {
+      console.error('Error loading entry for edit:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load entry for editing',
+        variant: 'destructive'
+      });
+    }
   };
 
   if (loading) {
@@ -977,7 +1029,13 @@ const OutwardStockNew = () => {
 
         {/* Export Invoice Tab */}
         <TabsContent value="export">
-          <h2 className="text-xl font-semibold mb-4">Export Invoices</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">Export Invoices</h2>
+            <Button disabled={!selectedWarehouseId} onClick={() => openCreateDialog('export_invoice')} className="bg-green-600 hover:bg-green-700">
+              <Plus size={16} className="mr-2" />
+              Create Export Invoice
+            </Button>
+          </div>
 
           {/* Export Invoice Note */}
           <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-3 mb-4">
@@ -1007,7 +1065,7 @@ const OutwardStockNew = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredDispatch.length === 0 ? (
+                  {displayedPendingPlans.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center text-slate-500 py-8">
                         {searchTerm || filters.dateFrom || filters.dateTo || filters.mode !== 'all' || filters.warehouse !== 'all'
@@ -1016,7 +1074,7 @@ const OutwardStockNew = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredDispatch.map(entry => (
+                    displayedPendingPlans.map(entry => (
                       <TableRow key={entry.id} className="bg-orange-50">
                         <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
                         <TableCell className="font-medium">{entry.export_invoice_no}</TableCell>
@@ -1038,6 +1096,15 @@ const OutwardStockNew = () => {
                         </TableCell>
                         <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2) || '0.00'}</TableCell>
                         <TableCell className="text-right space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                            onClick={() => handleEdit(entry)}
+                          >
+                            <Edit size={14} className="mr-1" />
+                            Edit
+                          </Button>
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700"
@@ -1107,7 +1174,10 @@ const OutwardStockNew = () => {
                         </TableCell>
                         <TableCell>{entry.line_items_count || entry.line_items?.length || 0}</TableCell>
                         <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2) || '0.00'}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right space-x-2">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(entry)}>
+                            <Edit size={16} className="text-blue-600" />
+                          </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleView(entry)}>
                             <Eye size={16} className="text-blue-600" />
                           </Button>
@@ -1177,7 +1247,10 @@ const OutwardStockNew = () => {
                       <TableCell>{entry.mode}</TableCell>
                       <TableCell>{entry.line_items_count || entry.line_items?.length || 0}</TableCell>
                       <TableCell>₹{entry.total_amount?.toFixed(2) || '0.00'}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-2">
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(entry)}>
+                          <Edit size={16} className="text-blue-600" />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleView(entry)}>
                           <Eye size={16} className="text-blue-600" />
                         </Button>
@@ -1373,6 +1446,7 @@ const OutwardStockNew = () => {
                   <SelectContent>
                     {(pis || [])
                       .filter(pi => !formData.pi_ids.includes(pi.id))
+                      .filter(pi => !formData.company_id || pi.company_id === formData.company_id)
                       .map(pi => (
                         <SelectItem key={pi.id} value={pi.id}>
                           {pi.voucher_no} | {new Date(pi.date).toLocaleDateString()}
@@ -1535,6 +1609,19 @@ const OutwardStockNew = () => {
                           </div>
                         )}
 
+                        {/* Dispatched Quantity (Already Dispatched) */}
+                        {formData.dispatch_type !== 'direct_export' && item.dispatched_quantity !== undefined && (
+                          <div>
+                            <Label>Dispatched Quantity</Label>
+                            <Input
+                              value={item.dispatched_quantity || 0}
+                              readOnly
+                              className="bg-orange-50 font-semibold text-orange-700 border-orange-300"
+                              title="Already dispatched from this PI"
+                            />
+                          </div>
+                        )}
+
                         {/* Show Inward Quantity for Direct Export when invoice is selected */}
                         {formData.dispatch_type === 'direct_export' && item.inward_quantity !== undefined && (
                           <div>
@@ -1591,7 +1678,7 @@ const OutwardStockNew = () => {
                               : 'text-slate-500'
                               }`}>
                               Max: {availableQuantities[item.id]}
-                              {item.dispatch_quantity > availableQuantities[item.product_id] &&
+                              {item.dispatch_quantity > availableQuantities[item.id] &&
                                 ' ⚠️ Exceeds available!'}
                             </p>
                           )}
@@ -1650,7 +1737,7 @@ const OutwardStockNew = () => {
                 Cancel
               </Button>
               <Button type="button" onClick={handleSubmit} className="bg-blue-600 hover:bg-blue-700">
-                {editingEntry ? 'Update' : 'Create mamf'}
+                {editingEntry ? 'Update' : 'Create'}
               </Button>
             </div>
           </div>
@@ -1707,11 +1794,16 @@ const OutwardStockNew = () => {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-600 mb-2">PI References</h3>
                   <div className="flex flex-wrap gap-2">
-                    {viewingEntry.pi_ids.map((piId, idx) => (
-                      <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
-                        PI #{idx + 1}
-                      </span>
-                    ))}
+                    {viewingEntry.pi_ids.map((piId, idx) => {
+                      // Try to find full PI details either in pre-resolved 'pis' array or global 'pis' state
+                      const piDetail = (viewingEntry.pis || []).find(p => p.id === piId) ||
+                        pis.find(p => p.id === piId);
+                      return (
+                        <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                          {piDetail ? piDetail.voucher_no : `PI #${idx + 1}`}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               )}

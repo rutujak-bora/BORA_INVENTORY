@@ -78,7 +78,7 @@ async def seed_data():
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
-        await db.performa_invoices.insert_one(pi_doc)
+        await db.proforma_invoices.insert_one(pi_doc)
         pis_created.append(pi_doc)
         print(f"✅ Created PI: {pi_number} with {len(line_items)} items, Total: ₹{total_amount:.2f}")
     

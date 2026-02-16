@@ -1,0 +1,37 @@
+PI Found: BMLP/25/PI/320 (ID: ea3b9d65-489c-4064-b3bb-eaf37c2ff1f2)
+
+Products in PI:
+ - Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 2000.0
+ - Canon Pixma MG2577S | SKU: Canon Pixma MG2577S (320) | ID:  | Qty: 600.0
+
+Inward Entries for PI ea3b9d65-489c-4064-b3bb-eaf37c2ff1f2:
+ - ID: e94ef61c-c6ae-44cc-bbaf-36b5301141f8 | Date: 2025-11-10 | Type: warehouse
+   * Epson EcoTank L1250  | SKU: Epson EcoTank L1250  | ID:  | Qty: 20.0
+ - ID: 2eac5413-f19b-4a15-9e81-8cb6786d63e7 | Date: 2025-11-15 | Type: warehouse
+   * Epson L8050 | SKU: Epson L8050 (304) | ID:  | Qty: 200.0
+ - ID: 3d472d84-63e1-449b-b127-6bc978e7fda8 | Date: 2026-02-12 | Type: warehouse
+   * Epson L8050 | SKU: Epson L8050 (304) | ID:  | Qty: 200.0
+ - ID: 6c301cff-275a-4a4b-ae7a-cab66986f608 | Date: 2026-02-13 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 10.0
+   * Epson L8050 | SKU: Epson L8050 (304) | ID:  | Qty: 10.0
+   * Epson EcoTank L1250  | SKU: Epson EcoTank L1250  | ID:  | Qty: 10.0
+ - ID: 559f9afe-a452-4e1e-a124-031c65fd56db | Date: 2025-11-04 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 510.0
+ - ID: 2c08a998-c714-4cce-82f9-789ef0fcc07a | Date: 2025-11-04 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 190.0
+ - ID: 391710ca-66de-4c8b-9aa6-994bee6667f2 | Date: 2025-11-14 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 420.0
+ - ID: e746fbcc-f957-4f2d-85e5-f13688cbf6ad | Date: 2025-11-14 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 80.0
+ - ID: 65a969f8-a2aa-42cc-b897-34e1655a91d2 | Date: 2025-11-27 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 405.0
+ - ID: d46bf1fe-86dd-4891-9cc7-0aea1b7245b2 | Date: 2026-02-13 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 95.0
+ - ID: 5ade1f9e-92a0-4e6f-9ee4-ec031f40487f | Date: 2025-12-11 | Type: warehouse
+   * Epson L130 | SKU: Epson L130 (320) | ID:  | Qty: 300.0
+
+Inward Entries for 'Canon Pixma MG2577S' (Global Search):
+ - ID: d0fce37a-5742-4cdc-92ba-ad3125be156e | PI: None | PIs: None | PO: 7058786f-394e-491f-81aa-f9b81762bb80
+   * Name: Canon Pixma MG2577S | Qty: 450.0 | SKU: Canon Pixma MG2577S (320) | ID: 
+
+Outward Entries for PI ea3b9d65-489c-4064-b3bb-eaf37c2ff1f2:

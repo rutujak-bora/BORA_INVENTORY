@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatNumber } from '../utils/formatters';
 import { Building2, Warehouse, FileText, ShoppingCart, TrendingDown, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { useToast } from '../hooks/use-toast';
@@ -39,7 +40,7 @@ const Dashboard = () => {
   const statCards = [
     {
       title: 'Total Companies',
-      value: stats?.total_companies || 0,
+      value: formatNumber(stats?.total_companies) || 0,
       icon: Building2,
       color: 'from-blue-500 to-blue-600',
       bgColor: 'bg-blue-50',
@@ -47,15 +48,15 @@ const Dashboard = () => {
     },
     {
       title: 'Total Warehouses',
-      value: stats?.total_warehouses || 0,
+      value: formatNumber(stats?.total_warehouses) || 0,
       icon: Warehouse,
       color: 'from-purple-500 to-purple-600',
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
     },
     {
-      title: 'Performa Invoices',
-      value: stats?.total_pis || 0,
+      title: 'proforma Invoices',
+      value: formatNumber(stats?.total_pis) || 0,
       icon: FileText,
       color: 'from-emerald-500 to-emerald-600',
       bgColor: 'bg-emerald-50',
@@ -63,7 +64,7 @@ const Dashboard = () => {
     },
     {
       title: 'Purchase Orders',
-      value: stats?.total_pos || 0,
+      value: formatNumber(stats?.total_pos) || 0,
       icon: ShoppingCart,
       color: 'from-amber-500 to-amber-600',
       bgColor: 'bg-amber-50',
@@ -71,7 +72,7 @@ const Dashboard = () => {
     },
     {
       title: 'Total Stock Inward',
-      value: stats?.total_stock_inward?.toFixed(2) || 0,
+      value: formatNumber(stats?.total_stock_inward) || 0,
       icon: TrendingDown,
       color: 'from-teal-500 to-teal-600',
       bgColor: 'bg-teal-50',
@@ -79,7 +80,7 @@ const Dashboard = () => {
     },
     {
       title: 'Total Stock Outward',
-      value: stats?.total_stock_outward?.toFixed(2) || 0,
+      value: formatNumber(stats?.total_stock_outward) || 0,
       icon: TrendingUp,
       color: 'from-rose-500 to-rose-600',
       bgColor: 'bg-rose-50',
@@ -87,7 +88,7 @@ const Dashboard = () => {
     },
     {
       title: 'Pending PIs',
-      value: stats?.pending_pis || 0,
+      value: formatNumber(stats?.pending_pis) || 0,
       icon: Clock,
       color: 'from-orange-500 to-orange-600',
       bgColor: 'bg-orange-50',
@@ -95,7 +96,7 @@ const Dashboard = () => {
     },
     {
       title: 'Pending POs',
-      value: stats?.pending_pos || 0,
+      value: formatNumber(stats?.pending_pos) || 0,
       icon: AlertCircle,
       color: 'from-red-500 to-red-600',
       bgColor: 'bg-red-50',

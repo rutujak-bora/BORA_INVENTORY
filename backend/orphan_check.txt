@@ -1,0 +1,20 @@
+Searching for products with non-zero outward quantities in Stock Summary...
+Product: Epson L8050 | SKU: Epson L8050 (304)
+  Inward Invoice: INW-1770806316355
+  Outward Qty: 30.0
+  Tracking ID: d8114a20-7286-4d5c-b515-e93c8de8c27f
+--------------------
+Product: Epson EcoTank L1250  | SKU: Epson EcoTank L1250 
+  Inward Invoice: INW-1770806862036
+  Outward Qty: 20.0
+  Tracking ID: d8be78b2-fd5c-4c70-96f0-3d65a4b6c73a
+--------------------
+Product: Epson L130 | SKU: Epson L130 (304)
+  Inward Invoice: INW-1770896867623
+  Outward Qty: 20.0
+  Tracking ID: 9c81aa7a-2a33-40c4-b08d-f48fc125875e
+--------------------
+Total outward units in tracking: 70.0
+
+Checking active outward_stock entries...
+No active outward stock entries found.

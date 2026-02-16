@@ -223,6 +223,7 @@ class POLineItemCreate(BaseModel):
     category: Optional[str] = None
     brand: Optional[str] = None
     hsn_sac: Optional[str] = None
+    pi_voucher_no: Optional[str] = None  # Track which PI this product belongs to
     quantity: float
     rate: float
     amount: float
@@ -239,6 +240,7 @@ class POLineItemResponse(BaseModel):
     category: Optional[str] = None
     brand: Optional[str] = None
     hsn_sac: Optional[str] = None
+    pi_voucher_no: Optional[str] = None
     quantity: float
     rate: float
     amount: float
@@ -478,12 +480,17 @@ class ExpenseResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
 
+class MappingUpdate(BaseModel):
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
 # Dashboard Stats
 class DashboardStats(BaseModel):
     total_companies: int
     total_warehouses: int
     total_pis: int
     total_pos: int
+    total_products: int
     total_stock_inward: float
     total_stock_outward: float
     pending_pis: int

@@ -1,0 +1,17 @@
+[
+  {
+    "voucher": "BMLP/25/PI/408",
+    "id": "f36a2c11-03ab-4365-9c74-c4a5006a9927",
+    "company_id": "Bora Mobility LLP",
+    "pos_referencing": [
+      {
+        "voucher": "PO-100",
+        "id": "32c72924-e9c2-42ee-bea4-c47319eeec71",
+        "reference_pi_id": "f36a2c11-03ab-4365-9c74-c4a5006a9927",
+        "reference_pi_ids": [
+          "f36a2c11-03ab-4365-9c74-c4a5006a9927"
+        ]
+      }
+    ]
+  }
+]

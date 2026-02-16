@@ -183,7 +183,7 @@ await api.post('/inward-stock', formData);
 
 #### **Other Modules:**
 - ✅ Purchase Orders - Untouched
-- ✅ Performa Invoices - Untouched
+- ✅ proforma Invoices - Untouched
 - ✅ Stock Summary - Untouched
 - ✅ Purchase Analysis - Untouched
 - ✅ Customer Management - Untouched

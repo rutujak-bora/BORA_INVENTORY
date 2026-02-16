@@ -13,7 +13,7 @@ across the entire inventory management system.
 3. Verify Warehouses exist
 4. Verify Banks exist
 
-**Phase 2: Performa Invoice Module**
+**Phase 2: proforma Invoice Module**
 Test Flow: Create PI → Verify data saved correctly
 - Create new PI with company, buyer, multiple products (2-3 products)
 - Verify PI saved with correct total amount, line items
@@ -393,10 +393,10 @@ class ComprehensiveBusinessLogicTestSuite:
             bank = response.json()
             self.test_data["bank_id"] = bank["id"]
 
-    # ==================== PHASE 2: PERFORMA INVOICE MODULE ====================
+    # ==================== PHASE 2: proforma INVOICE MODULE ====================
     
-    def test_phase_2_performa_invoice_module(self):
-        """Phase 2: Performa Invoice Module - Create PI → Verify data saved correctly"""
+    def test_phase_2_proforma_invoice_module(self):
+        """Phase 2: proforma Invoice Module - Create PI → Verify data saved correctly"""
         try:
             # Create new PI with company, buyer, multiple products (2-3 products)
             pi_data = {
@@ -517,7 +517,7 @@ class ComprehensiveBusinessLogicTestSuite:
             
         except Exception as e:
             self.log_result(
-                "Phase 2 - Performa Invoice Module", 
+                "Phase 2 - proforma Invoice Module", 
                 False, 
                 f"Error in PI module testing: {str(e)}"
             )
@@ -934,7 +934,7 @@ class ComprehensiveBusinessLogicTestSuite:
         
         test_phases = [
             ("Phase 1: Master Data Verification", self.test_phase_1_master_data_verification),
-            ("Phase 2: Performa Invoice Module", self.test_phase_2_performa_invoice_module),
+            ("Phase 2: proforma Invoice Module", self.test_phase_2_proforma_invoice_module),
             ("Phase 3: Purchase Order Module with PI Linking", self.test_phase_3_purchase_order_module),
             ("Phase 4: Stock Management - Inward Flow", self.test_phase_4_stock_management_inward_flow),
             ("Phase 5: Stock Management - Outward Flow", self.test_phase_5_stock_management_outward_flow)

@@ -7,7 +7,7 @@
 
 ## Overview
 
-A brand-new PI → PO Mapping feature has been implemented from scratch in the Customer Management module. This feature provides comprehensive tracking of Performa Invoices (PIs) with their linked Purchase Orders (POs), including SKU-level quantity and rate details.
+A brand-new PI → PO Mapping feature has been implemented from scratch in the Customer Management module. This feature provides comprehensive tracking of proforma Invoices (PIs) with their linked Purchase Orders (POs), including SKU-level quantity and rate details.
 
 ---
 
@@ -280,7 +280,7 @@ A brand-new PI → PO Mapping feature has been implemented from scratch in the C
 
 ---
 
-## Security & Performance
+## Security & proformance
 
 ### Security
 - ✅ All endpoints protected by `get_current_active_user` middleware
@@ -288,7 +288,7 @@ A brand-new PI → PO Mapping feature has been implemented from scratch in the C
 - ✅ Input validation on all parameters
 - ✅ Soft delete instead of hard delete (maintains audit trail)
 
-### Performance
+### proformance
 - ✅ Server-side pagination (reduces payload size)
 - ✅ Indexed fields: `pi_number`, `consignee`, `date`, `is_active`
 - ✅ Efficient MongoDB queries using `$or`, `$regex` with indexes

@@ -1,0 +1,11 @@
+Checking stock_tracking for Epson L130...
+ID: 9c81aa7a-2a33-40c4-b08d-f48fc125875e, Invoice: INW-1770896867623, Inward: 510.0, Outward: 10.0, Remaining: 500.0
+ID: 69609415-1f58-4d69-9a28-d8af3129a4fa, Invoice: INW-1770900046009, Inward: 210.0, Outward: 0.0, Remaining: 210.0
+ID: 8978a912-0898-4d75-9547-7ed0aa07e4a2, Invoice: INW-1770900343515, Inward: 280.0, Outward: 0.0, Remaining: 280.0
+ID: f77c346b-314d-43ea-898b-96f642a535ab, Invoice: INW-1770975588356, Inward: 510.0, Outward: 0.0, Remaining: 510.0
+ID: 93b8995c-3c8f-4ca8-989d-a24697280a1b, Invoice: INW-1770975633660, Inward: 190.0, Outward: 0.0, Remaining: 190.0
+ID: 09e366e7-3351-44a7-a5fc-e6818e37c6b9, Invoice: INW-1770975765973, Inward: 420.0, Outward: 0.0, Remaining: 420.0
+ID: de466d51-7a7b-489e-84c9-f2daa0cc506b, Invoice: INW-1770975806995, Inward: 80.0, Outward: 0.0, Remaining: 80.0
+ID: 80b404fa-2a35-4fa5-9f83-bf9a6714dcb7, Invoice: INW-1770975889220, Inward: 405.0, Outward: 0, Remaining: 405.0
+ID: 18a9b3c3-f6fd-4c84-9aff-41a5e1e3dc38, Invoice: INW-1770975963254, Inward: 95.0, Outward: 0, Remaining: 95.0
+ID: 31835500-b1eb-4eb5-b561-ffe70e1d2cdd, Invoice: INW-1770976048244, Inward: 300.0, Outward: 0, Remaining: 300.0

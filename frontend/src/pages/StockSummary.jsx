@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -20,7 +21,7 @@ const StockSummary = () => {
   const [products, setProducts] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     warehouse_id: 'all',
@@ -66,10 +67,10 @@ const StockSummary = () => {
       setViewingTransactions(item);
       setViewTransactionsDialog(true);
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to fetch transaction history', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch transaction history',
+        variant: 'destructive'
       });
     }
   };
@@ -82,10 +83,10 @@ const StockSummary = () => {
   const handleDeleteStock = async (item) => {
     // Validate required fields
     if (!item.product_id) {
-      toast({ 
-        title: 'Error', 
-        description: 'Product ID is missing. Cannot fetch transactions.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Product ID is missing. Cannot fetch transactions.',
+        variant: 'destructive'
       });
       return;
     }
@@ -98,19 +99,19 @@ const StockSummary = () => {
       setDeleteDialogOpen(true);
     } catch (error) {
       console.error('Error fetching transactions:', error);
-      toast({ 
-        title: 'Error', 
-        description: error.response?.data?.detail || 'Failed to fetch transactions. Please try again.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'Failed to fetch transactions. Please try again.',
+        variant: 'destructive'
       });
     }
   };
-  
+
   const confirmDeleteTransaction = async (transaction) => {
     if (!window.confirm(`Are you sure you want to delete this ${transaction.type} transaction? This action cannot be undone.`)) {
       return;
     }
-    
+
     try {
       // Delete based on transaction type
       if (transaction.type === 'inward') {
@@ -118,20 +119,20 @@ const StockSummary = () => {
       } else if (transaction.type === 'outward') {
         await api.delete(`/outward-stock/${transaction.transaction_id}`);
       }
-      
-      toast({ 
-        title: 'Success', 
-        description: 'Transaction deleted successfully' 
+
+      toast({
+        title: 'Success',
+        description: 'Transaction deleted successfully'
       });
-      
+
       // Refresh data
       setDeleteDialogOpen(false);
       fetchStockSummary();
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: error.response?.data?.detail || 'Failed to delete transaction', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'Failed to delete transaction',
+        variant: 'destructive'
       });
     }
   };
@@ -169,25 +170,25 @@ const StockSummary = () => {
           params.append(key, value.toString());
         }
       });
-      
+
       const response = await api.get(`/stock-summary?${params.toString()}`);
       const data = response.data || [];
       setStockData(data);
-      
+
       // Calculate summary statistics
       const stats = data.reduce((acc, item) => {
         acc.totalProducts += 1;
         acc.totalInward += item.quantity_inward || 0;
         acc.totalOutward += item.quantity_outward || 0;
         acc.totalStock += item.remaining_stock || 0;
-        
+
         if (item.stock_status === 'Low Stock' || item.stock_status === 'Running Low') {
           acc.lowStockCount += 1;
         }
         if (item.stock_status === 'Out of Stock') {
           acc.outOfStockCount += 1;
         }
-        
+
         return acc;
       }, {
         totalProducts: 0,
@@ -197,7 +198,7 @@ const StockSummary = () => {
         lowStockCount: 0,
         outOfStockCount: 0
       });
-      
+
       setSummaryStats(stats);
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to fetch stock summary', variant: 'destructive' });
@@ -268,7 +269,7 @@ const StockSummary = () => {
           <h1 className="text-3xl font-bold text-slate-900">Stock Summary</h1>
           <p className="text-slate-600 mt-1">Consolidated view of current inventory across all warehouses</p>
         </div>
-        <Button 
+        <Button
           onClick={() => { fetchStockSummary(); fetchAlerts(); }}
           variant="outline"
           className="flex items-center gap-2"
@@ -289,19 +290,19 @@ const StockSummary = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs">Total Inward</CardDescription>
-            <CardTitle className="text-2xl text-green-600">{summaryStats.totalInward.toFixed(0)}</CardTitle>
+            <CardTitle className="text-2xl text-green-600">{formatNumber(summaryStats.totalInward)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs">Total Outward</CardDescription>
-            <CardTitle className="text-2xl text-orange-600">{summaryStats.totalOutward.toFixed(0)}</CardTitle>
+            <CardTitle className="text-2xl text-orange-600">{formatNumber(summaryStats.totalOutward)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="text-xs">Current Stock</CardDescription>
-            <CardTitle className="text-2xl text-purple-600">{summaryStats.totalStock.toFixed(0)}</CardTitle>
+            <CardTitle className="text-2xl text-purple-600">{formatNumber(summaryStats.totalStock)}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -339,7 +340,7 @@ const StockSummary = () => {
                     </div>
                   </div>
                   <Badge variant={alert.alert_level === 'critical' ? 'destructive' : 'secondary'}>
-                    {alert.current_stock} left
+                    {formatNumber(alert.current_stock)} left
                   </Badge>
                 </div>
               ))}
@@ -359,9 +360,9 @@ const StockSummary = () => {
         <div className="flex items-start gap-3">
           <div className="mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="16" x2="12" y2="12"/>
-              <line x1="12" y1="8" x2="12.01" y2="8"/>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
           </div>
           <div>
@@ -373,11 +374,11 @@ const StockSummary = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="font-semibold bg-red-100 text-red-800 px-2 py-0.5 rounded">📤 OUTWARD</span>
-                <span>Only Export Invoices reduce stock (Dispatch Plans don't affect stock)</span>
+                <span>Both Export Invoices and Dispatch Plans reduce stock for better planning.</span>
               </div>
               <div className="flex items-center gap-2 mt-2">
                 <span className="font-semibold text-purple-800">🔢 Formula:</span>
-                <span className="font-mono bg-purple-50 px-2 py-0.5 rounded">Remaining Stock = Total Inward - Total Export Invoices</span>
+                <span className="font-mono bg-purple-50 px-2 py-0.5 rounded">Remaining Stock = Total Inward - Total Dispatched (Invoices + Plans)</span>
               </div>
             </div>
           </div>
@@ -534,7 +535,7 @@ const StockSummary = () => {
                 {!stockData || stockData.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={12} className="text-center text-slate-500 py-8">
-                      {filters.low_stock_only 
+                      {filters.low_stock_only
                         ? 'No low stock items found.'
                         : 'No stock data found. Try adjusting your filters.'
                       }
@@ -552,22 +553,21 @@ const StockSummary = () => {
                       <TableCell className="text-right text-green-600 font-semibold">
                         <div className="flex items-center justify-end gap-1">
                           <TrendingUp size={12} />
-                          {item.quantity_inward}
+                          {formatNumber(item.quantity_inward)}
                         </div>
                       </TableCell>
                       <TableCell className="text-right text-orange-600 font-semibold">
                         <div className="flex items-center justify-end gap-1">
                           <TrendingDown size={12} />
-                          {item.quantity_outward}
+                          {formatNumber(item.quantity_outward)}
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-bold">
-                        <span className={`${
-                          item.remaining_stock === 0 ? 'text-red-600' :
+                        <span className={`${item.remaining_stock === 0 ? 'text-red-600' :
                           item.remaining_stock <= filters.low_stock_threshold ? 'text-yellow-600' :
-                          'text-green-600'
-                        }`}>
-                          {item.remaining_stock}
+                            'text-green-600'
+                          }`}>
+                          {formatNumber(item.remaining_stock)}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -604,7 +604,7 @@ const StockSummary = () => {
           <DialogHeader>
             <DialogTitle>Transaction History</DialogTitle>
           </DialogHeader>
-          
+
           {viewingTransactions && (
             <div className="space-y-4">
               {/* Product & Warehouse Info */}
@@ -631,7 +631,7 @@ const StockSummary = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Current Stock</Label>
                     <div className="mt-1 p-2 bg-white rounded border font-bold text-green-700">
-                      {viewingTransactions.remaining_stock} units
+                      {formatNumber(viewingTransactions.remaining_stock)} units
                     </div>
                   </div>
                 </div>
@@ -675,10 +675,10 @@ const StockSummary = () => {
                               {txn.type === 'inward' ? txn.inward_type : txn.dispatch_type}
                             </TableCell>
                             <TableCell className={`text-right font-semibold ${txn.type === 'inward' ? 'text-green-600' : 'text-orange-600'}`}>
-                              {txn.type === 'inward' ? '+' : '-'}{txn.quantity}
+                              {txn.type === 'inward' ? '+' : '-'}{formatNumber(txn.quantity)}
                             </TableCell>
-                            <TableCell className="text-right">₹{txn.rate?.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-semibold">₹{txn.amount?.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">₹{formatCurrency(txn.rate)}</TableCell>
+                            <TableCell className="text-right font-semibold">₹{formatCurrency(txn.amount)}</TableCell>
                           </TableRow>
                         ))
                       )}
@@ -691,15 +691,15 @@ const StockSummary = () => {
               <div className="grid grid-cols-3 gap-4 p-4 bg-slate-50 rounded-lg">
                 <div className="text-center">
                   <div className="text-sm text-slate-600">Total Inward</div>
-                  <div className="text-2xl font-bold text-green-600">{viewingTransactions.quantity_inward}</div>
+                  <div className="text-2xl font-bold text-green-600">{formatNumber(viewingTransactions.quantity_inward)}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-sm text-slate-600">Total Outward</div>
-                  <div className="text-2xl font-bold text-orange-600">{viewingTransactions.quantity_outward}</div>
+                  <div className="text-2xl font-bold text-orange-600">{formatNumber(viewingTransactions.quantity_outward)}</div>
                 </div>
                 <div className="text-center">
                   <div className="text-sm text-slate-600">Remaining</div>
-                  <div className="text-2xl font-bold text-blue-600">{viewingTransactions.remaining_stock}</div>
+                  <div className="text-2xl font-bold text-blue-600">{formatNumber(viewingTransactions.remaining_stock)}</div>
                 </div>
               </div>
 
@@ -720,7 +720,7 @@ const StockSummary = () => {
           <DialogHeader>
             <DialogTitle>Manual Stock Adjustment</DialogTitle>
           </DialogHeader>
-          
+
           {editingStock && (
             <div className="space-y-4">
               <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
@@ -744,7 +744,7 @@ const StockSummary = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Current Stock</Label>
                     <div className="mt-1 p-2 bg-white rounded border font-bold text-green-700">
-                      {editingStock.remaining_stock} units
+                      {formatNumber(editingStock.remaining_stock)} units
                     </div>
                   </div>
                 </div>
@@ -772,7 +772,7 @@ const StockSummary = () => {
           <DialogHeader>
             <DialogTitle>Delete Transaction</DialogTitle>
           </DialogHeader>
-          
+
           {deletingStock && (
             <div className="space-y-4">
               <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded">
@@ -837,31 +837,31 @@ const StockSummary = () => {
                       {deleteTransactions
                         .filter(txn => selectedTransactionType === 'all' || txn.type === selectedTransactionType)
                         .map((txn, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <Badge variant={txn.type === 'inward' ? 'default' : 'secondary'} className="flex items-center gap-1 w-fit">
-                              {txn.type === 'inward' ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
-                              {txn.type === 'inward' ? 'Inward' : 'Outward'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{new Date(txn.date).toLocaleDateString()}</TableCell>
-                          <TableCell className="font-mono text-sm">{txn.reference_no}</TableCell>
-                          <TableCell className={`text-right font-semibold ${txn.type === 'inward' ? 'text-green-600' : 'text-orange-600'}`}>
-                            {txn.type === 'inward' ? '+' : '-'}{txn.quantity}
-                          </TableCell>
-                          <TableCell className="text-right">₹{txn.amount?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">
-                            <Button 
-                              variant="destructive" 
-                              size="sm" 
-                              onClick={() => confirmDeleteTransaction(txn)}
-                            >
-                              <Trash2 size={14} className="mr-1" />
-                              Delete
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                          <TableRow key={index}>
+                            <TableCell>
+                              <Badge variant={txn.type === 'inward' ? 'default' : 'secondary'} className="flex items-center gap-1 w-fit">
+                                {txn.type === 'inward' ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
+                                {txn.type === 'inward' ? 'Inward' : 'Outward'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(txn.date).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-mono text-sm">{txn.reference_no}</TableCell>
+                            <TableCell className={`text-right font-semibold ${txn.type === 'inward' ? 'text-green-600' : 'text-orange-600'}`}>
+                              {txn.type === 'inward' ? '+' : '-'}{formatNumber(txn.quantity)}
+                            </TableCell>
+                            <TableCell className="text-right">₹{formatCurrency(txn.amount)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => confirmDeleteTransaction(txn)}
+                              >
+                                <Trash2 size={14} className="mr-1" />
+                                Delete
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       {deleteTransactions.filter(txn => selectedTransactionType === 'all' || txn.type === selectedTransactionType).length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-slate-500 py-8">

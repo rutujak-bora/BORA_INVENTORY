@@ -35,7 +35,7 @@ const Layout = ({ children }) => {
     ? [
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/products', label: 'Product Master', icon: Package },
-        { path: '/pi', label: 'Performa Invoice', icon: FileText },
+        { path: '/pi', label: 'proforma Invoice', icon: FileText },
         { path: '/po', label: 'Purchase Order', icon: ShoppingCart },
         { path: '/payments', label: 'Payment Tracking', icon: CreditCard },
       ]
@@ -53,7 +53,7 @@ const Layout = ({ children }) => {
         {
           label: 'Transactions',
           children: [
-            { path: '/pi', label: 'Performa Invoice', icon: FileText },
+            { path: '/pi', label: 'proforma Invoice', icon: FileText },
             { path: '/po', label: 'Purchase Order', icon: ShoppingCart },
           ],
         },

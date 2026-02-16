@@ -1,6 +1,7 @@
 // Updated: 2025-01-04 - PI to PO Mapping section removed
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -16,7 +17,7 @@ const CustomerTracking = () => {
   const [loading, setLoading] = useState(true);
   const [trackingData, setTrackingData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     customer_name: '',
@@ -24,22 +25,22 @@ const CustomerTracking = () => {
     sku: '',
     status: 'all'
   });
-  
+
   // Dialog states
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [viewingItem, setViewingItem] = useState(null);
-  
+
   const { toast } = useToast();
   useResizeObserverErrorFix();
-  
+
   useEffect(() => {
     fetchTrackingData();
   }, []);
-  
+
   useEffect(() => {
     applyFilters();
   }, [trackingData, filters]);
-  
+
   const fetchTrackingData = async () => {
     setLoading(true);
     try {
@@ -47,52 +48,52 @@ const CustomerTracking = () => {
       setTrackingData(response.data || []);
     } catch (error) {
       console.error('Error fetching customer tracking:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to fetch customer tracking data', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch customer tracking data',
+        variant: 'destructive'
       });
     } finally {
       setLoading(false);
     }
   };
-  
+
   const applyFilters = () => {
     let filtered = [...trackingData];
-    
+
     if (filters.customer_name) {
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.customer_name.toLowerCase().includes(filters.customer_name.toLowerCase())
       );
     }
-    
+
     if (filters.pi_number) {
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.pi_number.toLowerCase().includes(filters.pi_number.toLowerCase())
       );
     }
-    
+
     if (filters.sku) {
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.sku.toLowerCase().includes(filters.sku.toLowerCase())
       );
     }
-    
+
     if (filters.status !== 'all') {
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.status.toLowerCase() === filters.status.toLowerCase()
       );
     }
-    
+
     setFilteredData(filtered);
   };
-  
+
   const handleView = (item) => {
     console.log('View clicked for item:', item);
     setViewingItem(item);
     setViewDialogOpen(true);
   };
-  
+
   const resetFilters = () => {
     setFilters({
       customer_name: '',
@@ -101,7 +102,7 @@ const CustomerTracking = () => {
       status: 'all'
     });
   };
-  
+
   // Calculate summary stats
   const summaryStats = {
     totalPIs: new Set(trackingData.map(item => item.pi_number)).size,
@@ -113,7 +114,7 @@ const CustomerTracking = () => {
     totalInwarded: trackingData.reduce((sum, item) => sum + item.inwarded_quantity, 0),
     totalDispatched: trackingData.reduce((sum, item) => sum + item.dispatched_quantity, 0)
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -121,7 +122,7 @@ const CustomerTracking = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -130,7 +131,7 @@ const CustomerTracking = () => {
           <h1 className="text-3xl font-bold text-slate-900">Customer Tracking</h1>
           <p className="text-slate-600 mt-1">Track customer orders from PI to Dispatch - Updated v2.0</p>
         </div>
-        <Button 
+        <Button
           onClick={fetchTrackingData}
           variant="outline"
           className="flex items-center gap-2"
@@ -274,21 +275,21 @@ const CustomerTracking = () => {
                         <div className="font-medium">{item.product_name}</div>
                         <div className="text-xs text-slate-500">{item.sku}</div>
                       </TableCell>
-                      <TableCell className="text-right font-semibold">{item.pi_quantity}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatNumber(item.pi_quantity)}</TableCell>
                       <TableCell className="text-right text-green-600 font-semibold bg-green-50">
-                        {item.inwarded_quantity}
+                        {formatNumber(item.inwarded_quantity)}
                       </TableCell>
                       <TableCell className="text-right font-semibold bg-green-50">
                         <span className={item.remaining_quantity_inward > 0 ? 'text-orange-600' : 'text-green-600'}>
-                          {item.remaining_quantity_inward}
+                          {formatNumber(item.remaining_quantity_inward)}
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-orange-600 font-semibold bg-orange-50">
-                        {item.dispatched_quantity}
+                        {formatNumber(item.dispatched_quantity)}
                       </TableCell>
                       <TableCell className="text-right font-semibold bg-orange-50">
                         <span className={item.remaining_quantity_dispatch > 0 ? 'text-orange-600' : 'text-green-600'}>
-                          {item.remaining_quantity_dispatch}
+                          {formatNumber(item.remaining_quantity_dispatch)}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -309,19 +310,19 @@ const CustomerTracking = () => {
                   <TableRow className="bg-blue-50 border-t-2 border-blue-400 font-bold">
                     <TableCell colSpan={3} className="text-right text-blue-900">TOTALS:</TableCell>
                     <TableCell className="text-right text-blue-900">
-                      {filteredData.reduce((sum, item) => sum + item.pi_quantity, 0)}
+                      {formatNumber(filteredData.reduce((sum, item) => sum + item.pi_quantity, 0))}
                     </TableCell>
                     <TableCell className="text-right text-green-900 bg-green-50">
-                      {filteredData.reduce((sum, item) => sum + item.inwarded_quantity, 0)}
+                      {formatNumber(filteredData.reduce((sum, item) => sum + item.inwarded_quantity, 0))}
                     </TableCell>
                     <TableCell className="text-right text-orange-900 bg-green-50">
-                      {filteredData.reduce((sum, item) => sum + item.remaining_quantity_inward, 0)}
+                      {formatNumber(filteredData.reduce((sum, item) => sum + item.remaining_quantity_inward, 0))}
                     </TableCell>
                     <TableCell className="text-right text-orange-900 bg-orange-50">
-                      {filteredData.reduce((sum, item) => sum + item.dispatched_quantity, 0)}
+                      {formatNumber(filteredData.reduce((sum, item) => sum + item.dispatched_quantity, 0))}
                     </TableCell>
                     <TableCell className="text-right text-orange-900 bg-orange-50">
-                      {filteredData.reduce((sum, item) => sum + item.remaining_quantity_dispatch, 0)}
+                      {formatNumber(filteredData.reduce((sum, item) => sum + item.remaining_quantity_dispatch, 0))}
                     </TableCell>
                     <TableCell className="text-blue-900">
                       {filteredData.length} Records
@@ -341,7 +342,7 @@ const CustomerTracking = () => {
           <DialogHeader>
             <DialogTitle>Customer Tracking Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewingItem && (
             <div className="space-y-6">
               {/* PI and Customer Info */}
@@ -364,7 +365,7 @@ const CustomerTracking = () => {
                 </div>
                 <div>
                   <Label className="text-sm font-semibold text-slate-600">PI Total Quantity</Label>
-                  <p className="text-slate-900 font-bold text-lg">{viewingItem.pi_quantity}</p>
+                  <p className="text-slate-900 font-bold text-lg">{formatNumber(viewingItem.pi_quantity)}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-semibold text-slate-600">Status</Label>
@@ -398,11 +399,11 @@ const CustomerTracking = () => {
                 <div className="grid grid-cols-3 gap-4 mb-4 p-4 bg-green-50 rounded-lg">
                   <div>
                     <Label className="text-xs text-green-700">Total Inwarded</Label>
-                    <p className="text-2xl font-bold text-green-700">{viewingItem.inwarded_quantity}</p>
+                    <p className="text-2xl font-bold text-green-700">{formatNumber(viewingItem.inwarded_quantity)}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-orange-700">Remaining to Inward</Label>
-                    <p className="text-2xl font-bold text-orange-700">{viewingItem.remaining_quantity_inward}</p>
+                    <p className="text-2xl font-bold text-orange-700">{formatNumber(viewingItem.remaining_quantity_inward)}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-600">Inward %</Label>
@@ -411,7 +412,7 @@ const CustomerTracking = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 {viewingItem.inward_details && viewingItem.inward_details.length > 0 && (
                   <Table>
                     <TableHeader>
@@ -428,7 +429,7 @@ const CustomerTracking = () => {
                           <TableCell className="font-mono">{detail.po_number}</TableCell>
                           <TableCell className="font-mono">{detail.inward_invoice_no}</TableCell>
                           <TableCell>{new Date(detail.date).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">{detail.quantity}</TableCell>
+                          <TableCell className="text-right font-semibold text-green-600">{formatNumber(detail.quantity)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -445,11 +446,11 @@ const CustomerTracking = () => {
                 <div className="grid grid-cols-3 gap-4 mb-4 p-4 bg-orange-50 rounded-lg">
                   <div>
                     <Label className="text-xs text-orange-700">Total Dispatched</Label>
-                    <p className="text-2xl font-bold text-orange-700">{viewingItem.dispatched_quantity}</p>
+                    <p className="text-2xl font-bold text-orange-700">{formatNumber(viewingItem.dispatched_quantity)}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-orange-700">Remaining to Dispatch</Label>
-                    <p className="text-2xl font-bold text-orange-700">{viewingItem.remaining_quantity_dispatch}</p>
+                    <p className="text-2xl font-bold text-orange-700">{formatNumber(viewingItem.remaining_quantity_dispatch)}</p>
                   </div>
                   <div>
                     <Label className="text-xs text-slate-600">Dispatch %</Label>
@@ -458,7 +459,7 @@ const CustomerTracking = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 {viewingItem.dispatch_details && viewingItem.dispatch_details.length > 0 && (
                   <Table>
                     <TableHeader>
@@ -477,7 +478,7 @@ const CustomerTracking = () => {
                           <TableCell>
                             <Badge variant="outline">{detail.dispatch_type}</Badge>
                           </TableCell>
-                          <TableCell className="text-right font-semibold text-orange-600">{detail.quantity}</TableCell>
+                          <TableCell className="text-right font-semibold text-orange-600">{formatNumber(detail.quantity)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

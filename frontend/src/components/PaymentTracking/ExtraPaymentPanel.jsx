@@ -15,12 +15,12 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
-  
+
   useEffect(() => {
     fetchExtraPayments();
     fetchBanks();
   }, [piNumber]);
-  
+
   const fetchExtraPayments = async () => {
     try {
       const response = await api.get(`/extra-payments?pi_number=${encodeURIComponent(piNumber)}`);
@@ -39,13 +39,13 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       setLoading(false);
     }
   };
-  
+
   const fetchBanks = async () => {
     try {
       const response = await api.get('/banks');
       const activeBanks = response.data.filter(bank => bank.is_active);
       setBanks(activeBanks);
-      
+
       if (activeBanks.length === 0) {
         toast({
           title: 'Warning',
@@ -62,7 +62,7 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       });
     }
   };
-  
+
   const addNewRow = () => {
     const newPayment = {
       id: `temp-${Date.now()}`,
@@ -71,29 +71,30 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       bank_id: '',
       bank_name: '',
       amount: 0,
+      note: '',
       isEditing: true,
       isNew: true
     };
     setExtraPayments([newPayment, ...extraPayments]);
   };
-  
+
   const handleFieldChange = (id, field, value) => {
     setExtraPayments(extraPayments.map(payment => {
       if (payment.id === id) {
         const updated = { ...payment, [field]: value };
-        
+
         // Update bank_name when bank_id changes
         if (field === 'bank_id') {
           const selectedBank = banks.find(bank => bank.id === value);
           updated.bank_name = selectedBank ? selectedBank.bank_name : '';
         }
-        
+
         return updated;
       }
       return payment;
     }));
   };
-  
+
   const validatePayment = (payment) => {
     if (!payment.date) {
       toast({
@@ -103,7 +104,7 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       });
       return false;
     }
-    
+
     if (!payment.bank_id) {
       toast({
         title: 'Validation Error',
@@ -112,7 +113,7 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       });
       return false;
     }
-    
+
     if (!payment.amount || payment.amount <= 0) {
       toast({
         title: 'Validation Error',
@@ -121,39 +122,40 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       });
       return false;
     }
-    
+
     return true;
   };
-  
+
   const savePayment = async (payment) => {
     if (!validatePayment(payment)) {
       return;
     }
-    
+
     setSaving(true);
-    
+
     try {
       const paymentData = {
         date: payment.date,
         receipt: payment.receipt || '',
         bank_id: payment.bank_id,
-        amount: parseFloat(payment.amount)
+        amount: parseFloat(payment.amount),
+        note: payment.note || ''
       };
-      
+
       if (payment.isNew) {
         // Create new payment
         const response = await api.post(
           `/extra-payments?pi_number=${encodeURIComponent(piNumber)}`,
           paymentData
         );
-        
+
         // Replace the temporary entry with the saved one
-        setExtraPayments(extraPayments.map(p => 
-          p.id === payment.id 
-            ? { ...response.data, isEditing: false, isNew: false } 
+        setExtraPayments(extraPayments.map(p =>
+          p.id === payment.id
+            ? { ...response.data, isEditing: false, isNew: false }
             : p
         ));
-        
+
         // After a short delay, refetch all data to ensure consistency
         setTimeout(() => {
           fetchExtraPayments();
@@ -164,20 +166,20 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
           `/extra-payments/${payment.id}?pi_number=${encodeURIComponent(piNumber)}`,
           paymentData
         );
-        
+
         // Update the entry in view mode
-        setExtraPayments(extraPayments.map(p => 
-          p.id === payment.id 
-            ? { ...response.data, isEditing: false, isNew: false } 
+        setExtraPayments(extraPayments.map(p =>
+          p.id === payment.id
+            ? { ...response.data, isEditing: false, isNew: false }
             : p
         ));
       }
-      
+
       toast({
         title: 'Success',
         description: 'Extra payment saved successfully'
       });
-      
+
       // Notify parent component
       if (onSave) {
         onSave();
@@ -192,14 +194,14 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       setSaving(false);
     }
   };
-  
+
   const deletePayment = async (payment) => {
     if (!confirm('Are you sure you want to delete this extra payment?')) {
       return;
     }
-    
+
     setSaving(true);
-    
+
     try {
       if (payment.isNew) {
         // Just remove from local state if not saved yet
@@ -209,12 +211,12 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
         await api.delete(`/extra-payments/${payment.id}?pi_number=${encodeURIComponent(piNumber)}`);
         setExtraPayments(extraPayments.filter(p => p.id !== payment.id));
       }
-      
+
       toast({
         title: 'Success',
         description: 'Extra payment deleted successfully'
       });
-      
+
       // Notify parent component
       if (onSave) {
         onSave();
@@ -229,13 +231,13 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       setSaving(false);
     }
   };
-  
+
   const enableEdit = (payment) => {
-    setExtraPayments(extraPayments.map(p => 
+    setExtraPayments(extraPayments.map(p =>
       p.id === payment.id ? { ...p, isEditing: true } : p
     ));
   };
-  
+
   const cancelEdit = (payment) => {
     if (payment.isNew) {
       // Remove unsaved new payment
@@ -245,13 +247,13 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       fetchExtraPayments();
     }
   };
-  
+
   const getTotalAmount = () => {
     return extraPayments.reduce((sum, payment) => {
       return sum + (parseFloat(payment.amount) || 0);
     }, 0);
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -259,7 +261,7 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -273,23 +275,24 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
           Add Row
         </Button>
       </div>
-      
+
       {/* Table */}
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[150px]">Date</TableHead>
-              <TableHead className="w-[200px]">Receipt</TableHead>
-              <TableHead className="w-[250px]">Bank</TableHead>
-              <TableHead className="w-[150px] text-right">Amount</TableHead>
-              <TableHead className="w-[150px] text-right">Actions</TableHead>
+              <TableHead className="w-[180px]">Receipt</TableHead>
+              <TableHead className="w-[200px]">Bank</TableHead>
+              <TableHead className="w-[120px] text-right">Amount</TableHead>
+              <TableHead className="w-[220px]">Note</TableHead>
+              <TableHead className="w-[120px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {extraPayments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                <TableCell colSpan={6} className="text-center text-slate-500 py-8">
                   No extra payments added yet. Click "Add Row" to add one.
                 </TableCell>
               </TableRow>
@@ -364,6 +367,19 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
                       <span className="font-semibold">₹{parseFloat(payment.amount).toFixed(2)}</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    {payment.isEditing ? (
+                      <Input
+                        type="text"
+                        value={payment.note || ''}
+                        onChange={(e) => handleFieldChange(payment.id, 'note', e.target.value)}
+                        placeholder="Add note..."
+                        className="h-8"
+                      />
+                    ) : (
+                      <span className="text-slate-600 text-sm whitespace-pre-wrap">{payment.note || '-'}</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
                       {payment.isEditing ? (
@@ -417,7 +433,7 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
           </TableBody>
         </Table>
       </div>
-      
+
       {/* Summary */}
       {extraPayments.length > 0 && (
         <div className="flex justify-end items-center gap-4 p-4 bg-slate-50 rounded-lg">
@@ -425,7 +441,7 @@ const ExtraPaymentPanel = ({ piNumber, onClose, onSave }) => {
           <span className="text-lg font-bold text-green-600">₹{getTotalAmount().toFixed(2)}</span>
         </div>
       )}
-      
+
       {/* Footer */}
       <div className="flex justify-end gap-2 pt-4 border-t">
         <Button variant="outline" onClick={onClose}>

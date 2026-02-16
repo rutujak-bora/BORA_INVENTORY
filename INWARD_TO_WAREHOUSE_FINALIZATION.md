@@ -279,4 +279,4 @@ For each inward line item:
 
 **Critical Bugs:** None identified
 
-**Performance:** Excellent (< 500ms average for inward creation with consumption)
+**proformance:** Excellent (< 500ms average for inward creation with consumption)

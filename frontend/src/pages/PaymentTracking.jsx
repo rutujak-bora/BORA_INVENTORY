@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -120,12 +121,13 @@ const PaymentTracking = () => {
 
     try {
       // Fetch PI details
-      const piResponse = await api.get(`/pI/${piId}`);
+      const piResponse = await api.get(`/pi/${piId}`);
       const pi = piResponse.data;
 
       // Calculate total amount and quantity
-      const totalAmount = pi.line_items.reduce((sum, item) => sum + (item.amount || 0), 0);
-      const totalQuantity = pi.line_items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const lineItems = pi.line_items || [];
+      const totalAmount = lineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+      const totalQuantity = lineItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
       // Fetch dispatch quantities from outward stock
       const outwardResponse = await api.get(`/outward-stock`);
@@ -162,7 +164,7 @@ const PaymentTracking = () => {
 
       toast({
         title: 'PI Details Loaded',
-        description: `Total Amount: ₹${totalAmount.toFixed(2)}, Quantity: ${totalQuantity}`
+        description: `Total Amount: ₹${formatCurrency(totalAmount)}, Quantity: ${formatNumber(totalQuantity)}`
       });
 
     } catch (error) {
@@ -206,6 +208,8 @@ const PaymentTracking = () => {
       setFormData({
         pi_id: fullPayment.data.pi_id,
         date: fullPayment.data.date.split('T')[0],
+        total_amount: fullPayment.data.total_amount || 0,
+        total_quantity: fullPayment.data.total_quantity || 0,
         advance_payment: fullPayment.data.advance_payment || 0,
         received_amount: fullPayment.data.received_amount || 0,
         bank_name: fullPayment.data.bank_name || '',
@@ -286,6 +290,47 @@ const PaymentTracking = () => {
     }
   };
 
+  const handleDeleteEntry = async (entryId) => {
+    if (!viewingPayment) return;
+
+    if (window.confirm('Are you sure you want to delete this payment entry? Data will be adjusted in the Remaining section.')) {
+      try {
+        await api.delete(`/payments/${viewingPayment.id}/entries/${entryId}`);
+        toast({ title: 'Success', description: 'Payment entry deleted successfully' });
+
+        // Find the entry being deleted to update local state
+        const deletedEntry = viewingPayment.payment_entries.find(e => e.id === entryId);
+        const amountToSubtract = deletedEntry?.received_amount || 0;
+
+        // Update local viewingPayment state
+        setViewingPayment(prev => {
+          const updatedEntries = prev.payment_entries.filter(e => e.id !== entryId);
+          const newReceivedVal = (prev.received_amount || 0) - amountToSubtract;
+          const newTotalReceived = (prev.total_received || 0) - amountToSubtract;
+          const newRemaining = (prev.remaining_payment || 0) + amountToSubtract;
+
+          return {
+            ...prev,
+            payment_entries: updatedEntries,
+            received_amount: newReceivedVal,
+            total_received: newTotalReceived,
+            remaining_payment: newRemaining,
+            is_fully_paid: newRemaining <= 0
+          };
+        });
+
+        // Refresh all payments
+        fetchData();
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: error.response?.data?.detail || 'Failed to delete payment entry',
+          variant: 'destructive'
+        });
+      }
+    }
+  };
+
   const handleBankSelect = async (bankId) => {
     setFormData(prev => ({ ...prev, bank_id: bankId }));
 
@@ -337,7 +382,7 @@ const PaymentTracking = () => {
     setSelectedPaymentForEntry(payment);
     setPaymentEntryForm({
       date: new Date().toISOString().split('T')[0],
-      received_amount: 0,
+      received_amount: payment.remaining_payment || 0,
       receipt_number: '',
       bank_id: '',
       notes: ''
@@ -473,7 +518,7 @@ const PaymentTracking = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Payment Tracking</h1>
-          <p className="text-slate-600 mt-1">Track payments against Performa Invoices</p>
+          <p className="text-slate-600 mt-1">Track payments against proforma Invoices</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={fetchData} variant="outline">
@@ -538,21 +583,21 @@ const PaymentTracking = () => {
                       <TableCell className="font-medium">{payment.manual_entry}</TableCell>
                       <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
                       <TableCell>{payment.company_name || 'N/A'}</TableCell>
-                      <TableCell className="text-right font-semibold">₹{payment.total_amount?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right text-blue-600">₹{payment.advance_payment?.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-semibold">₹{formatCurrency(payment.total_amount)}</TableCell>
+                      <TableCell className="text-right text-blue-600">₹{formatCurrency(payment.advance_payment)}</TableCell>
                       <TableCell className="text-right text-green-600">
                         <div>
-                          ₹{(payment.total_received || (payment.advance_payment || 0) + (payment.received_amount || 0))?.toFixed(2)}
+                          ₹{formatCurrency(payment.total_received || (payment.advance_payment || 0) + (payment.received_amount || 0))}
                         </div>
                         {payment.extra_payments_total > 0 && (
                           <div className="text-xs text-slate-500">
-                            (incl. ₹{payment.extra_payments_total?.toFixed(2)} extra)
+                            (incl. ₹{formatCurrency(payment.extra_payments_total)} extra)
                           </div>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-semibold">
                         <span className={payment.remaining_payment < 0 ? 'text-red-600' : 'text-orange-600'}>
-                          ₹{payment.remaining_payment?.toFixed(2)}
+                          ₹{formatCurrency(payment.remaining_payment)}
                         </span>
                         {payment.remaining_payment < 0 && (
                           <div className="text-xs text-red-500">Overpaid</div>
@@ -627,7 +672,7 @@ const PaymentTracking = () => {
             {/* PI Selection */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Performa Invoice (PI) *</Label>
+                <Label>proforma Invoice (PI) *</Label>
                 <Select
                   value={formData.pi_id}
                   onValueChange={(value) => {
@@ -703,7 +748,7 @@ const PaymentTracking = () => {
                   <Label>Remaining Payment (Auto)</Label>
                   <Input
                     type="text"
-                    value={`₹${(formData.total_amount - formData.advance_payment - formData.received_amount).toFixed(2)}`}
+                    value={`₹${formatCurrency(formData.total_amount - formData.advance_payment - formData.received_amount)}`}
                     disabled
                     className="bg-gray-100"
                   />
@@ -882,20 +927,20 @@ const PaymentTracking = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Total Amount</div>
-                    <div className="text-2xl font-bold text-slate-900">₹{viewingPayment.total_amount?.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900">₹{formatCurrency(viewingPayment.total_amount)}</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Advance Payment</div>
-                    <div className="text-2xl font-bold text-blue-600">₹{viewingPayment.advance_payment?.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-blue-600">₹{formatCurrency(viewingPayment.advance_payment)}</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Payments Received</div>
                     <div className="text-2xl font-bold text-green-600">
-                      ₹{(viewingPayment.received_amount || 0).toFixed(2)}
+                      ₹{formatCurrency(viewingPayment.received_amount || 0)}
                     </div>
                     {viewingPayment.payment_entries && viewingPayment.payment_entries.length > 0 && (
                       <div className="text-xs text-slate-500 mt-1">
@@ -908,7 +953,7 @@ const PaymentTracking = () => {
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Remaining</div>
                     <div className={`text-2xl font-bold ${viewingPayment.remaining_payment < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                      ₹{viewingPayment.remaining_payment?.toFixed(2)}
+                      ₹{formatCurrency(viewingPayment.remaining_payment)}
                     </div>
                     {viewingPayment.is_fully_paid && (
                       <div className="text-xs text-green-600 mt-1 font-semibold">✓ Fully Paid</div>
@@ -926,27 +971,27 @@ const PaymentTracking = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600">Total Amount:</span>
-                    <span className="font-semibold">₹{viewingPayment.total_amount?.toFixed(2)}</span>
+                    <span className="font-semibold">₹{formatCurrency(viewingPayment.total_amount)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600">Less: Advance Payment:</span>
-                    <span className="font-semibold text-blue-600">- ₹{(viewingPayment.advance_payment || 0).toFixed(2)}</span>
+                    <span className="font-semibold text-blue-600">- ₹{formatCurrency(viewingPayment.advance_payment || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-slate-600">Less: Received Payments:</span>
-                    <span className="font-semibold text-green-600">- ₹{(viewingPayment.received_amount || 0).toFixed(2)}</span>
+                    <span className="font-semibold text-green-600">- ₹{formatCurrency(viewingPayment.received_amount || 0)}</span>
                   </div>
                   {viewingPayment.extra_payments_total > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-slate-600">Less: Extra Payments:</span>
-                      <span className="font-semibold text-orange-600">- ₹{viewingPayment.extra_payments_total.toFixed(2)}</span>
+                      <span className="font-semibold text-orange-600">- ₹{formatCurrency(viewingPayment.extra_payments_total)}</span>
                     </div>
                   )}
                   <div className="border-t border-slate-300 pt-2 mt-2">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-slate-700">Remaining Payment:</span>
                       <span className={`text-lg font-bold ${viewingPayment.remaining_payment < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                        ₹{viewingPayment.remaining_payment?.toFixed(2)}
+                        ₹{formatCurrency(viewingPayment.remaining_payment)}
                       </span>
                     </div>
                   </div>
@@ -991,7 +1036,7 @@ const PaymentTracking = () => {
                   </div>
                   <div>
                     <Label className="text-sm text-slate-600">Goods Value</Label>
-                    <div className="font-semibold">₹{viewingPayment.dispatch_goods_value?.toFixed(2)}</div>
+                    <div className="font-semibold">₹{formatCurrency(viewingPayment.dispatch_goods_value)}</div>
                   </div>
                 </div>
                 {viewingPayment.export_invoice_no && (
@@ -1030,9 +1075,9 @@ const PaymentTracking = () => {
                           <TableRow key={index}>
                             <TableCell className="font-mono">{item.sku}</TableCell>
                             <TableCell>{item.product_name}</TableCell>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right">₹{item.rate?.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-semibold">₹{item.amount?.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{formatNumber(item.quantity)}</TableCell>
+                            <TableCell className="text-right">₹{formatCurrency(item.rate)}</TableCell>
+                            <TableCell className="text-right font-semibold">₹{formatCurrency(item.amount)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1054,6 +1099,7 @@ const PaymentTracking = () => {
                           <TableHead className="text-right">Received Amount</TableHead>
                           <TableHead>Bank</TableHead>
                           <TableHead>Notes</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1062,18 +1108,29 @@ const PaymentTracking = () => {
                             <TableCell>{entry.date ? new Date(entry.date).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="font-mono">{entry.receipt_number || '-'}</TableCell>
                             <TableCell className="text-right font-semibold text-green-600">
-                              ₹{entry.received_amount?.toFixed(2)}
+                              ₹{formatCurrency(entry.received_amount)}
                             </TableCell>
                             <TableCell>{entry.bank_id ? banks.find(b => b.id === entry.bank_id)?.bank_name : '-'}</TableCell>
                             <TableCell className="text-slate-600 text-sm">{entry.notes || '-'}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteEntry(entry.id)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                title="Delete Entry"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                         <TableRow className="bg-slate-100">
                           <TableCell colSpan={2} className="font-semibold">Total Received</TableCell>
                           <TableCell className="text-right font-bold text-green-600">
-                            ₹{viewingPayment.payment_entries.reduce((sum, e) => sum + (e.received_amount || 0), 0).toFixed(2)}
+                            ₹{formatCurrency(viewingPayment.payment_entries.reduce((sum, e) => sum + (e.received_amount || 0), 0))}
                           </TableCell>
-                          <TableCell colSpan={2}></TableCell>
+                          <TableCell colSpan={3}></TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -1112,15 +1169,15 @@ const PaymentTracking = () => {
                   </div>
                   <div>
                     <span className="text-slate-600">Total Amount:</span>
-                    <span className="font-semibold ml-2">₹{selectedPaymentForEntry.total_amount?.toFixed(2)}</span>
+                    <span className="font-semibold ml-2">₹{formatCurrency(selectedPaymentForEntry.total_amount)}</span>
                   </div>
                   <div>
                     <span className="text-slate-600">Already Received:</span>
-                    <span className="font-semibold ml-2 text-green-600">₹{((selectedPaymentForEntry.advance_payment || 0) + (selectedPaymentForEntry.total_received || 0)).toFixed(2)}</span>
+                    <span className="font-semibold ml-2 text-green-600">₹{formatCurrency((selectedPaymentForEntry.advance_payment || 0) + (selectedPaymentForEntry.total_received || 0))}</span>
                   </div>
                   <div>
                     <span className="text-slate-600">Remaining:</span>
-                    <span className="font-semibold ml-2 text-orange-600">₹{selectedPaymentForEntry.remaining_payment?.toFixed(2)}</span>
+                    <span className="font-semibold ml-2 text-orange-600">₹{formatCurrency(selectedPaymentForEntry.remaining_payment)}</span>
                   </div>
                 </div>
               </div>
@@ -1217,19 +1274,19 @@ const PaymentTracking = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">PI Total Quantity</div>
-                    <div className="text-2xl font-bold text-slate-900">{exportDetails.pi_total_quantity}</div>
+                    <div className="text-2xl font-bold text-slate-900">{formatNumber(exportDetails.pi_total_quantity)}</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Total Exported</div>
-                    <div className="text-2xl font-bold text-green-600">{exportDetails.total_exported}</div>
+                    <div className="text-2xl font-bold text-green-600">{formatNumber(exportDetails.total_exported)}</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Remaining for Export</div>
-                    <div className="text-2xl font-bold text-orange-600">{exportDetails.remaining_for_export}</div>
+                    <div className="text-2xl font-bold text-orange-600">{formatNumber(exportDetails.remaining_for_export)}</div>
                   </CardContent>
                 </Card>
               </div>
@@ -1264,12 +1321,12 @@ const PaymentTracking = () => {
                                 {invoice.status || 'N/A'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right">{invoice.pi_total_quantity}</TableCell>
+                            <TableCell className="text-right">{formatNumber(invoice.pi_total_quantity)}</TableCell>
                             <TableCell className="text-right font-semibold text-green-600">
-                              {invoice.exported_quantity}
+                              {formatNumber(invoice.exported_quantity)}
                             </TableCell>
                             <TableCell className="text-right font-semibold text-orange-600">
-                              {invoice.remaining_for_export}
+                              {formatNumber(invoice.remaining_for_export)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1339,19 +1396,19 @@ const PaymentTracking = () => {
                 <div>
                   <Label className="text-sm font-medium text-slate-600">Total Amount</Label>
                   <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold">
-                    ₹{selectedPaymentForShort.total_amount?.toFixed(2)}
+                    ₹{formatCurrency(selectedPaymentForShort.total_amount)}
                   </div>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-600">Total Received</Label>
                   <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold text-green-600">
-                    ₹{((selectedPaymentForShort.advance_payment || 0) + (selectedPaymentForShort.received_amount || 0) + (selectedPaymentForShort.extra_payments_total || 0)).toFixed(2)}
+                    ₹{formatCurrency((selectedPaymentForShort.advance_payment || 0) + (selectedPaymentForShort.received_amount || 0) + (selectedPaymentForShort.extra_payments_total || 0))}
                   </div>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-600">Remaining</Label>
                   <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold text-orange-600">
-                    ₹{selectedPaymentForShort.remaining_payment?.toFixed(2)}
+                    ₹{formatCurrency(selectedPaymentForShort.remaining_payment)}
                   </div>
                 </div>
               </div>

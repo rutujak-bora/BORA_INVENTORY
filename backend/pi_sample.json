@@ -1,0 +1,57 @@
+{
+  "id": "d588cbfa-8890-4a3b-baad-ec8456892e3b",
+  "company_id": "40bfd72f-fdf9-4763-ade7-914685ed8faf",
+  "voucher_no": "BMLP/25/PI/304",
+  "date": "2025-10-31",
+  "consignee": "DNS LOGISTIC LLC",
+  "buyer": "DNS LOGISTIC LLC",
+  "status": "Pending",
+  "is_active": true,
+  "created_at": "2026-02-08T08:54:15.796505+00:00",
+  "updated_at": "2026-02-08T08:55:34.637324+00:00",
+  "created_by": "643af8ff-f50b-4d19-89de-032a2872dd39",
+  "line_items": [
+    {
+      "id": "d5864bf1-db03-4776-bbad-47cbd5653ac6",
+      "product_id": "nan",
+      "product_name": "Epson L8050 [A4 5760x1440dpi 22ppm [6 \u0445 Wi-Fi USB2.0]",
+      "sku": "L8050",
+      "category": "PRINTER",
+      "brand": "EPSON ",
+      "hsn_sac": "nan",
+      "made_in": "nan",
+      "quantity": 344.0,
+      "rate": 19475.0,
+      "amount": 6699400.0
+    },
+    {
+      "id": "74aee505-4cee-4ad2-afb2-855ba9fd8899",
+      "product_id": "nan",
+      "product_name": "Epson EcoTank L1250 Single Function A4 Wi-Fi Ink Tank Printer",
+      "sku": "L1250",
+      "category": "PRINTER",
+      "brand": "EPSON ",
+      "hsn_sac": "nan",
+      "made_in": "nan",
+      "quantity": 728.0,
+      "rate": 10685.0,
+      "amount": 7778680.0
+    },
+    {
+      "id": "084d6850-f5ee-469e-952e-517de24641b3",
+      "product_id": "nan",
+      "product_name": "Epson L130 [A4 5760x1440dpi 27ppm",
+      "sku": "Epson L130 [A4 5760x1440dpi 27ppm ",
+      "category": "PRINTER",
+      "brand": "EPSON ",
+      "hsn_sac": "nan",
+      "made_in": "nan",
+      "quantity": 250.0,
+      "rate": 8230.0,
+      "amount": 2057500.0
+    }
+  ],
+  "updated_by": "643af8ff-f50b-4d19-89de-032a2872dd39",
+  "total_amount": 16535580.0,
+  "line_items_count": 3
+}

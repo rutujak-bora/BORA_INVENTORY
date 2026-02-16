@@ -61,7 +61,7 @@ const ModeSelection = () => {
             </div>
             <h2 className="text-2xl font-bold text-slate-900 mb-4">DNS Documentary</h2>
             <p className="text-slate-600 mb-6">
-              Limited access focused on core operations: Performa Invoice, Purchase Order, and Payment
+              Limited access focused on core operations: proforma Invoice, Purchase Order, and Payment
               Tracking modules.
             </p>
             <Button className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white">

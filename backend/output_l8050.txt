@@ -1,0 +1,10 @@
+Checking stock_tracking for Epson L8050...
+ID: d8114a20-7286-4d5c-b515-e93c8de8c27f, Invoice: INW-1770806316355, Inward: 160.0, Outward: 20.0, Remaining: 140.0
+ID: aec65281-e806-4f4d-8491-276510b9b56e, Invoice: INW-1770806529887, Inward: 150.0, Outward: 0.0, Remaining: 150.0
+ID: bb508c74-e586-4d29-a5ce-2fcff9ad89bf, Invoice: INW-1770897340268, Inward: 200.0, Outward: 0.0, Remaining: 200.0
+ID: 96f5c87d-78bb-4cc4-9a5f-dec0228f6e8e, Invoice: INW-1770901793270, Inward: 60.0, Outward: 0.0, Remaining: 60.0
+ID: e1a923b3-2915-4e77-8a42-0a110d353e78, Invoice: INW-1770902226104, Inward: 150.0, Outward: 0.0, Remaining: 150.0
+ID: 100fce16-dbf0-413c-8edf-f8bf1b96f424, Invoice: INW-1770902811650, Inward: 200.0, Outward: 0.0, Remaining: 200.0
+ID: 4110c596-1071-4ce6-9c2b-255eab7d96c1, Invoice: INW-1770903368257, Inward: 400.0, Outward: 0.0, Remaining: 400.0
+ID: 6c4cf781-2e7b-4088-98f8-a125e8adf6e9, Invoice: INW-1770903649427, Inward: 100.0, Outward: 0.0, Remaining: 100.0
+ID: 0b4c878d-b569-4c4a-a4f0-1da67c05f8d0, Invoice: INW-1770903693642, Inward: 80.0, Outward: 0.0, Remaining: 80.0

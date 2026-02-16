@@ -59,7 +59,7 @@ This account has full access to all features and is recommended for testing.
 
 ### DNS Documentary
 - Product Master Management
-- Performa Invoice & Purchase Orders
+- proforma Invoice & Purchase Orders
 - Payment Tracking & Reports
 
 ---

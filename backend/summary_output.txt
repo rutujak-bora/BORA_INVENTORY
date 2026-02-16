@@ -1,0 +1,22 @@
+Fetching Stock Summary...
+Product: Epson L8050
+  SKU: Epson L8050 (304)
+  Inward: 160.0
+  Outward: 20.0
+  Remaining: 140.0
+  Last Updated: 2026-02-16T04:53:20.682369+00:00
+--------------------
+Product: Epson EcoTank L1250 
+  SKU: Epson EcoTank L1250 
+  Inward: 20.0
+  Outward: 10.0
+  Remaining: 10.0
+  Last Updated: 2026-02-16T04:53:20.787961+00:00
+--------------------
+Product: Epson L130
+  SKU: Epson L130 (304)
+  Inward: 510.0
+  Outward: 10.0
+  Remaining: 500.0
+  Last Updated: 2026-02-16T04:53:20.581904+00:00
+--------------------

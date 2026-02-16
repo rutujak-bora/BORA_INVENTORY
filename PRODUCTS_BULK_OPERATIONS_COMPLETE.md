@@ -196,7 +196,7 @@
 **Products Cannot Be Deleted If Referenced In:**
 
 1. **Proforma Invoices (PI)**
-   - Check: `performa_invoices.line_items.product_id`
+   - Check: `proforma_invoices.line_items.product_id`
    - Error: "Referenced in X PI(s)"
 
 2. **Purchase Orders (PO)**
@@ -296,7 +296,7 @@ Cannot delete product. It is referenced in 2 PI(s), 3 PO(s), 5 Inward(s), and 1 
 - Export success toasts could be more prominent (downloads work, but toast timing could improve)
 - Consider adding batch size limits for very large bulk operations
 
-**Performance:**
+**proformance:**
 - Tested with 32 products - performs excellently
 - Bulk operations process quickly
 - No noticeable lag in UI

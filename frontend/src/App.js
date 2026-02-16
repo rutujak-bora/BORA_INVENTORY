@@ -31,7 +31,7 @@ const suppressResizeObserverErrors = () => {
   // Store original methods
   const originalError = console.error;
   const originalWarn = console.warn;
-  
+
   // Override console.error - MORE AGGRESSIVE
   console.error = (...args) => {
     // Check first argument (most common case)
@@ -48,7 +48,7 @@ const suppressResizeObserverErrors = () => {
         return;
       }
     }
-    
+
     // Check if any argument mentions ResizeObserver
     const hasResizeObserverError = args.some(arg => {
       if (arg && typeof arg === 'object') {
@@ -61,14 +61,14 @@ const suppressResizeObserverErrors = () => {
       }
       return false;
     });
-    
+
     if (hasResizeObserverError) {
       return; // Suppress completely
     }
-    
+
     originalError(...args);
   };
-  
+
   // Override console.warn for ResizeObserver warnings
   console.warn = (...args) => {
     const hasResizeObserverWarning = args.some(arg => {
@@ -78,14 +78,14 @@ const suppressResizeObserverErrors = () => {
       }
       return false;
     });
-    
+
     if (hasResizeObserverWarning) {
       return; // Suppress completely
     }
-    
+
     originalWarn(...args);
   };
-  
+
   // Global error event handler - HIGHEST PRIORITY
   const handleError = (event) => {
     if (event.error) {
@@ -112,7 +112,7 @@ const suppressResizeObserverErrors = () => {
       }
     }
   };
-  
+
   // Global unhandled promise rejection handler
   const handleRejection = (event) => {
     if (event.reason) {
@@ -127,12 +127,12 @@ const suppressResizeObserverErrors = () => {
       }
     }
   };
-  
+
   // Add global event listeners with capture phase (HIGHEST PRIORITY)
   window.addEventListener('error', handleError, true);
   window.addEventListener('unhandledrejection', handleRejection, true);
   document.addEventListener('error', handleError, true);
-  
+
   return () => {
     // Cleanup function
     console.error = originalError;

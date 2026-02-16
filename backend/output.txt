@@ -1,0 +1,30 @@
+Searching for outward entries on 2026-02-16...
+Found 1 entries.
+ID: b28f2a22-4ecc-48ca-a40e-fc98762ee656, Invoice: BMLEXRP26-41, Type: dispatch_plan, Created: 2026-02-16T04:53:20.149705+00:00
+  - Epson L130: Qty 10.0
+  - Epson L8050: Qty 10.0
+  - Epson EcoTank L1250 : Qty 10.0
+
+Checking latest tracking for target SKUs...
+
+SKU: Epson L130 (304)
+
+SKU: Epson L8050 (304)
+
+SKU: Epson EcoTank L1250
+  ID: d8be78b2-fd5c-4c70-96f0-3d65a4b6c73a, Warehouse: Pisoli WH
+  Inward: 20.0, Outward: 10.0, Remaining: 10.0
+  ID: af584342-c9d2-4e95-9959-6c87378f2c06, Warehouse: Pisoli WH
+  Inward: 44.0, Outward: 0.0, Remaining: 44.0
+  ID: 8cdcd7e7-7082-4ebc-9805-4ad9de7864c8, Warehouse: Pisoli WH
+  Inward: 50.0, Outward: 0.0, Remaining: 50.0
+  ID: 770ad4b3-122d-4cde-a387-fc8ad76df09f, Warehouse: Pisoli WH
+  Inward: 40.0, Outward: 0.0, Remaining: 40.0
+  ID: 953a03cf-9ff8-4581-a63d-9b7ab077fef7, Warehouse: Pisoli WH
+  Inward: 22.0, Outward: 0, Remaining: 22.0
+  ID: e5d6de8d-4184-4b4c-b661-25fc8ae96d0d, Warehouse: Pisoli WH
+  Inward: 53.0, Outward: 0, Remaining: 53.0
+  ID: 9cc95035-b618-4195-ba0d-676c250d2140, Warehouse: Pisoli WH
+  Inward: 70.0, Outward: 0, Remaining: 70.0
+  ID: 61618d71-78cf-4e89-b236-1591ea1c8abc, Warehouse: Pisoli WH
+  Inward: 80.0, Outward: 0, Remaining: 80.0

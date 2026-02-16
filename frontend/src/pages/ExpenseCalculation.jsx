@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -22,7 +23,7 @@ const ExpenseCalculation = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [viewingExpense, setViewingExpense] = useState(null);
   const [dateFilter, setDateFilter] = useState({ from: '', to: '' });
-  
+
   const [formData, setFormData] = useState({
     expense_reference_no: '',
     date: new Date().toISOString().split('T')[0],
@@ -37,15 +38,15 @@ const ExpenseCalculation = () => {
     payment_status: 'Pending',
     notes: ''
   });
-  
+
   const { toast } = useToast();
   useResizeObserverErrorFix();
-  
+
   useEffect(() => {
     fetchData();
     fetchExportInvoices();
   }, []);
-  
+
   const fetchData = async (fromDate = '', toDate = '') => {
     setLoading(true);
     try {
@@ -61,12 +62,12 @@ const ExpenseCalculation = () => {
       setLoading(false);
     }
   };
-  
+
   const fetchExportInvoices = async () => {
     try {
       const response = await api.get('/outward-stock');
       // Filter only Export Invoice and Direct Export types
-      const filtered = response.data.filter(o => 
+      const filtered = response.data.filter(o =>
         ['export_invoice', 'direct_export'].includes(o.dispatch_type)
       );
       setExportInvoices(filtered);
@@ -74,12 +75,12 @@ const ExpenseCalculation = () => {
       console.error('Failed to fetch export invoices:', error);
     }
   };
-  
+
   const handleExportInvoiceToggle = (invoiceId) => {
     setFormData(prev => {
       const currentIds = prev.export_invoice_ids;
       const isSelected = currentIds.includes(invoiceId);
-      
+
       if (isSelected) {
         return {
           ...prev,
@@ -93,27 +94,27 @@ const ExpenseCalculation = () => {
       }
     });
   };
-  
+
   const calculateTotal = () => {
     return (
       parseFloat(formData.freight_charges) +
       parseFloat(formData.cha_charges) +
       parseFloat(formData.other_charges)
-    ).toFixed(2);
+    );
   };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (formData.export_invoice_ids.length === 0 && !formData.export_invoice_nos_manual) {
-      toast({ 
-        title: 'Error', 
-        description: 'Please select at least one export invoice or enter manually', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Please select at least one export invoice or enter manually',
+        variant: 'destructive'
       });
       return;
     }
-    
+
     try {
       if (editingExpense) {
         await api.put(`/expenses/${editingExpense.id}`, formData);
@@ -122,19 +123,19 @@ const ExpenseCalculation = () => {
         await api.post('/expenses', formData);
         toast({ title: 'Success', description: 'Expense record created successfully' });
       }
-      
+
       fetchData();
       setDialogOpen(false);
       resetForm();
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: error.response?.data?.detail || 'Operation failed', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'Operation failed',
+        variant: 'destructive'
       });
     }
   };
-  
+
   const handleEdit = async (expense) => {
     try {
       const fullExpense = await api.get(`/expenses/${expense.id}`);
@@ -158,7 +159,7 @@ const ExpenseCalculation = () => {
       toast({ title: 'Error', description: 'Failed to fetch expense details', variant: 'destructive' });
     }
   };
-  
+
   const handleView = async (expense) => {
     try {
       const fullExpense = await api.get(`/expenses/${expense.id}`);
@@ -168,7 +169,7 @@ const ExpenseCalculation = () => {
       toast({ title: 'Error', description: 'Failed to fetch expense details', variant: 'destructive' });
     }
   };
-  
+
   const handleDelete = async (expense) => {
     if (window.confirm('Are you sure you want to delete this expense record?')) {
       try {
@@ -180,7 +181,7 @@ const ExpenseCalculation = () => {
       }
     }
   };
-  
+
   const resetForm = () => {
     setFormData({
       expense_reference_no: '',
@@ -198,23 +199,23 @@ const ExpenseCalculation = () => {
     });
     setEditingExpense(null);
   };
-  
+
   const openCreateDialog = () => {
     resetForm();
     setDialogOpen(true);
   };
-  
+
   const handleDateFilter = () => {
     if (dateFilter.from && dateFilter.to) {
       fetchData(dateFilter.from, dateFilter.to);
     }
   };
-  
+
   const clearDateFilter = () => {
     setDateFilter({ from: '', to: '' });
     fetchData();
   };
-  
+
   const getPaymentStatusBadge = (status) => {
     const colors = {
       'Paid': 'bg-green-100 text-green-800',
@@ -223,7 +224,7 @@ const ExpenseCalculation = () => {
     };
     return <Badge className={colors[status] || 'bg-gray-100 text-gray-800'}>{status}</Badge>;
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -231,7 +232,7 @@ const ExpenseCalculation = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -251,7 +252,7 @@ const ExpenseCalculation = () => {
           </Button>
         </div>
       </div>
-      
+
       {/* Date Filter */}
       <Card>
         <CardContent className="pt-6">
@@ -282,7 +283,7 @@ const ExpenseCalculation = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Expenses Table */}
       <Card>
         <CardHeader>
@@ -334,10 +335,10 @@ const ExpenseCalculation = () => {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">₹{expense.freight_charges?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">₹{expense.cha_charges?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">₹{expense.other_charges?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-bold text-blue-600">₹{expense.total_expense?.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">₹{formatCurrency(expense.freight_charges)}</TableCell>
+                      <TableCell className="text-right">₹{formatCurrency(expense.cha_charges)}</TableCell>
+                      <TableCell className="text-right">₹{formatCurrency(expense.other_charges)}</TableCell>
+                      <TableCell className="text-right font-bold text-blue-600">₹{formatCurrency(expense.total_expense)}</TableCell>
                       <TableCell>{getPaymentStatusBadge(expense.payment_status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -360,14 +361,14 @@ const ExpenseCalculation = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingExpense ? 'Edit Expense Record' : 'Create Expense Record'}</DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Basic Info */}
             <div className="grid grid-cols-3 gap-4">
@@ -375,7 +376,7 @@ const ExpenseCalculation = () => {
                 <Label>Reference No</Label>
                 <Input
                   value={formData.expense_reference_no}
-                  onChange={(e) => setFormData({...formData, expense_reference_no: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, expense_reference_no: e.target.value })}
                   placeholder="Auto-generated if empty"
                 />
               </div>
@@ -384,7 +385,7 @@ const ExpenseCalculation = () => {
                 <Input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
               </div>
@@ -393,7 +394,7 @@ const ExpenseCalculation = () => {
                 <Select
                   value={formData.payment_status}
                   onValueChange={(value) => {
-                    setTimeout(() => setFormData({...formData, payment_status: value}), 0);
+                    setTimeout(() => setFormData({ ...formData, payment_status: value }), 0);
                   }}
                 >
                   <SelectTrigger>
@@ -407,7 +408,7 @@ const ExpenseCalculation = () => {
                 </Select>
               </div>
             </div>
-            
+
             {/* Export Invoice Selection */}
             <div className="bg-blue-50 rounded-lg p-4">
               <h3 className="font-semibold mb-3">Export Invoices (Select Multiple)</h3>
@@ -419,11 +420,10 @@ const ExpenseCalculation = () => {
                       <div
                         key={invoice.id}
                         onClick={() => handleExportInvoiceToggle(invoice.id)}
-                        className={`p-3 rounded border cursor-pointer transition-all ${
-                          isSelected 
-                            ? 'bg-blue-100 border-blue-500' 
+                        className={`p-3 rounded border cursor-pointer transition-all ${isSelected
+                            ? 'bg-blue-100 border-blue-500'
                             : 'bg-white border-slate-200 hover:border-blue-300'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div>
@@ -441,16 +441,16 @@ const ExpenseCalculation = () => {
                     );
                   })}
                 </div>
-                
+
                 <div>
                   <Label>Or Enter Manually (comma-separated)</Label>
                   <Input
                     value={formData.export_invoice_nos_manual}
-                    onChange={(e) => setFormData({...formData, export_invoice_nos_manual: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, export_invoice_nos_manual: e.target.value })}
                     placeholder="e.g., EXP-001, EXP-002"
                   />
                 </div>
-                
+
                 {formData.export_invoice_ids.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     <Label className="w-full">Selected: </Label>
@@ -459,9 +459,9 @@ const ExpenseCalculation = () => {
                       return invoice ? (
                         <Badge key={id} variant="outline" className="flex items-center gap-1">
                           {invoice.export_invoice_no}
-                          <X 
-                            size={14} 
-                            className="cursor-pointer hover:text-red-600" 
+                          <X
+                            size={14}
+                            className="cursor-pointer hover:text-red-600"
                             onClick={() => handleExportInvoiceToggle(id)}
                           />
                         </Badge>
@@ -471,7 +471,7 @@ const ExpenseCalculation = () => {
                 )}
               </div>
             </div>
-            
+
             {/* Expense Details */}
             <div className="bg-slate-50 rounded-lg p-4">
               <h3 className="font-semibold mb-3">Expense Breakdown</h3>
@@ -483,19 +483,19 @@ const ExpenseCalculation = () => {
                       type="number"
                       step="0.01"
                       value={formData.freight_charges}
-                      onChange={(e) => setFormData({...formData, freight_charges: parseFloat(e.target.value) || 0})}
+                      onChange={(e) => setFormData({ ...formData, freight_charges: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div>
                     <Label>Freight Vendor</Label>
                     <Input
                       value={formData.freight_vendor}
-                      onChange={(e) => setFormData({...formData, freight_vendor: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, freight_vendor: e.target.value })}
                       placeholder="Enter vendor name"
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>CHA Charges (₹)</Label>
@@ -503,19 +503,19 @@ const ExpenseCalculation = () => {
                       type="number"
                       step="0.01"
                       value={formData.cha_charges}
-                      onChange={(e) => setFormData({...formData, cha_charges: parseFloat(e.target.value) || 0})}
+                      onChange={(e) => setFormData({ ...formData, cha_charges: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div>
                     <Label>CHA Vendor</Label>
                     <Input
                       value={formData.cha_vendor}
-                      onChange={(e) => setFormData({...formData, cha_vendor: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, cha_vendor: e.target.value })}
                       placeholder="Enter vendor name"
                     />
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Other Charges (₹)</Label>
@@ -523,39 +523,39 @@ const ExpenseCalculation = () => {
                       type="number"
                       step="0.01"
                       value={formData.other_charges}
-                      onChange={(e) => setFormData({...formData, other_charges: parseFloat(e.target.value) || 0})}
+                      onChange={(e) => setFormData({ ...formData, other_charges: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div>
                     <Label>Other Charges Description</Label>
                     <Input
                       value={formData.other_charges_description}
-                      onChange={(e) => setFormData({...formData, other_charges_description: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, other_charges_description: e.target.value })}
                       placeholder="e.g., Documentation, Handling"
                     />
                   </div>
                 </div>
-                
+
                 <div className="bg-blue-100 p-4 rounded">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold text-lg">Total Expense:</span>
-                    <span className="font-bold text-2xl text-blue-700">₹{calculateTotal()}</span>
+                    <span className="font-bold text-2xl text-blue-700">₹{formatCurrency(calculateTotal())}</span>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             {/* Notes */}
             <div>
               <Label>Notes</Label>
               <textarea
                 value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 className="w-full min-h-[80px] p-2 border rounded-md"
                 placeholder="Enter any additional notes..."
               />
             </div>
-            
+
             {/* Actions */}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
@@ -568,14 +568,14 @@ const ExpenseCalculation = () => {
           </form>
         </DialogContent>
       </Dialog>
-      
+
       {/* View Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Expense Details - {viewingExpense?.expense_reference_no}</DialogTitle>
           </DialogHeader>
-          
+
           {viewingExpense && (
             <div className="space-y-4">
               {/* Header */}
@@ -595,17 +595,17 @@ const ExpenseCalculation = () => {
                   </div>
                   <div>
                     <Label className="text-sm text-slate-600">Total Expense</Label>
-                    <div className="font-bold text-blue-600 text-xl">₹{viewingExpense.total_expense?.toFixed(2)}</div>
+                    <div className="font-bold text-blue-600 text-xl">₹{formatCurrency(viewingExpense.total_expense)}</div>
                   </div>
                 </div>
               </div>
-              
+
               {/* Expense Breakdown */}
               <div className="grid grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Freight Charges</div>
-                    <div className="text-2xl font-bold text-slate-900">₹{viewingExpense.freight_charges?.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900">₹{formatCurrency(viewingExpense.freight_charges)}</div>
                     {viewingExpense.freight_vendor && (
                       <div className="text-xs text-slate-500 mt-1">Vendor: {viewingExpense.freight_vendor}</div>
                     )}
@@ -614,7 +614,7 @@ const ExpenseCalculation = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">CHA Charges</div>
-                    <div className="text-2xl font-bold text-slate-900">₹{viewingExpense.cha_charges?.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900">₹{formatCurrency(viewingExpense.cha_charges)}</div>
                     {viewingExpense.cha_vendor && (
                       <div className="text-xs text-slate-500 mt-1">Vendor: {viewingExpense.cha_vendor}</div>
                     )}
@@ -623,14 +623,14 @@ const ExpenseCalculation = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-slate-600">Other Charges</div>
-                    <div className="text-2xl font-bold text-slate-900">₹{viewingExpense.other_charges?.toFixed(2)}</div>
+                    <div className="text-2xl font-bold text-slate-900">₹{formatCurrency(viewingExpense.other_charges)}</div>
                     {viewingExpense.other_charges_description && (
                       <div className="text-xs text-slate-500 mt-1">{viewingExpense.other_charges_description}</div>
                     )}
                   </CardContent>
                 </Card>
               </div>
-              
+
               {/* Export Invoices and Stock Items */}
               {viewingExpense.export_invoice_details?.length > 0 && (
                 <div>
@@ -646,10 +646,10 @@ const ExpenseCalculation = () => {
                         </div>
                         <div className="text-right">
                           <div className="text-sm text-slate-600">Stock Value</div>
-                          <div className="font-bold text-green-700">₹{invoice.items_total_value?.toFixed(2)}</div>
+                          <div className="font-bold text-green-700">₹{formatCurrency(invoice.items_total_value)}</div>
                         </div>
                       </div>
-                      
+
                       <div className="border rounded-lg overflow-hidden bg-white">
                         <Table>
                           <TableHeader>
@@ -666,9 +666,9 @@ const ExpenseCalculation = () => {
                               <TableRow key={itemIdx}>
                                 <TableCell className="font-mono">{item.sku}</TableCell>
                                 <TableCell>{item.product_name}</TableCell>
-                                <TableCell className="text-right">{item.quantity}</TableCell>
-                                <TableCell className="text-right">₹{item.rate?.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-semibold">₹{item.amount?.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{formatNumber(item.quantity)}</TableCell>
+                                <TableCell className="text-right">₹{formatCurrency(item.rate)}</TableCell>
+                                <TableCell className="text-right font-semibold">₹{formatCurrency(item.amount)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -676,23 +676,23 @@ const ExpenseCalculation = () => {
                       </div>
                     </div>
                   ))}
-                  
+
                   <div className="bg-blue-100 p-4 rounded-lg mt-4">
                     <div className="flex justify-between items-center">
                       <span className="font-semibold">Total Stock Value (All Invoices):</span>
-                      <span className="font-bold text-xl text-blue-700">₹{viewingExpense.total_stock_value?.toFixed(2)}</span>
+                      <span className="font-bold text-xl text-blue-700">₹{formatCurrency(viewingExpense.total_stock_value)}</span>
                     </div>
                   </div>
                 </div>
               )}
-              
+
               {viewingExpense.export_invoice_nos_manual && (
                 <div className="bg-yellow-50 rounded-lg p-4">
                   <Label className="text-sm text-slate-600">Manual Export Invoice Numbers</Label>
                   <div className="font-mono mt-1">{viewingExpense.export_invoice_nos_manual}</div>
                 </div>
               )}
-              
+
               {/* Notes */}
               {viewingExpense.notes && (
                 <div className="bg-slate-50 rounded-lg p-4">
@@ -700,7 +700,7 @@ const ExpenseCalculation = () => {
                   <p className="text-sm">{viewingExpense.notes}</p>
                 </div>
               )}
-              
+
               {/* Close Button */}
               <div className="flex justify-end">
                 <Button variant="outline" onClick={() => setViewDialogOpen(false)}>

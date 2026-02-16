@@ -164,8 +164,8 @@ WDS_SOCKET_PORT=443
 
 ## Known Issues & Warnings
 
-### Performance Warnings (Not Blockers):
-The deployment agent identified several performance concerns:
+### proformance Warnings (Not Blockers):
+The deployment agent identified several proformance concerns:
 - **Unbounded MongoDB queries**: 10+ endpoints fetch all records without `.limit()`
 - **Missing indexes**: No indexes on frequently queried fields
 - **No pagination**: List endpoints don't implement pagination

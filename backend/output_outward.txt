@@ -1,0 +1,6 @@
+Checking outward_stock for BMLEXRP26-41...
+Found 1 entries.
+ID: b28f2a22-4ecc-48ca-a40e-fc98762ee656, Created: 2026-02-16T04:53:20.149705+00:00
+  - Epson L130: Qty 10.0
+  - Epson L8050: Qty 10.0
+  - Epson EcoTank L1250 : Qty 10.0

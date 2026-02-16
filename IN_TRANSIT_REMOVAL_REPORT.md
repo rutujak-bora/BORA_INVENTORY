@@ -211,7 +211,7 @@ tail /var/log/supervisor/frontend.out.log | grep "compiled"
 1. Inward to Warehouse workflow - **Fully functional**
 2. Direct Inward workflow - **Fully functional**
 3. Purchase Order module - **Functional** (only removed status option)
-4. Performa Invoice module - **Untouched**
+4. proforma Invoice module - **Untouched**
 5. Stock tracking (except in-transit) - **Functional**
 
 ---

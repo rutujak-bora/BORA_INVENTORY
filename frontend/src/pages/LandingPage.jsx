@@ -105,7 +105,7 @@ const LandingPage = () => {
                   </div>
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>
-                    <p className="text-slate-700">Performa Invoice & Purchase Orders</p>
+                    <p className="text-slate-700">proforma Invoice & Purchase Orders</p>
                   </div>
                   <div className="flex items-start gap-2">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>

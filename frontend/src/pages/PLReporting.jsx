@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -22,22 +23,22 @@ const PLReporting = () => {
   const [plReport, setPlReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingReport, setLoadingReport] = useState(false);
-  
+
   const [filters, setFilters] = useState({
     from_date: '',
     to_date: '',
     company_id: 'all',
     sku: ''
   });
-  
+
   const { toast } = useToast();
   useResizeObserverErrorFix();
-  
+
   useEffect(() => {
     fetchExportInvoices();
     fetchCompanies();
   }, []);
-  
+
   const fetchExportInvoices = async (fromDate = '', toDate = '') => {
     setLoading(true);
     try {
@@ -53,7 +54,7 @@ const PLReporting = () => {
       setLoading(false);
     }
   };
-  
+
   const fetchCompanies = async () => {
     try {
       const response = await api.get('/companies');
@@ -62,7 +63,7 @@ const PLReporting = () => {
       console.error('Failed to fetch companies:', error);
     }
   };
-  
+
   const handleInvoiceToggle = (invoiceId) => {
     setSelectedInvoices(prev => {
       if (prev.includes(invoiceId)) {
@@ -72,13 +73,13 @@ const PLReporting = () => {
       }
     });
   };
-  
+
   const handleCalculatePL = async () => {
     if (selectedInvoices.length === 0) {
       toast({ title: 'Error', description: 'Please select at least one export invoice', variant: 'destructive' });
       return;
     }
-    
+
     setLoadingReport(true);
     try {
       const response = await api.post('/pl-report/calculate', {
@@ -91,52 +92,52 @@ const PLReporting = () => {
       setPlReport(response.data);
       toast({ title: 'Success', description: 'P&L Report generated successfully' });
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: error.response?.data?.detail || 'Failed to generate P&L report', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: error.response?.data?.detail || 'Failed to generate P&L report',
+        variant: 'destructive'
       });
     } finally {
       setLoadingReport(false);
     }
   };
-  
+
   const handleDownloadPDF = () => {
     if (!plReport) return;
-    
+
     try {
       const doc = new jsPDF();
-      
+
       // Title
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text('PROFIT & LOSS REPORT', 105, 20, { align: 'center' });
-      
+
       // Date
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 105, 28, { align: 'center' });
-      
+
       // Summary Section
       let yPos = 40;
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('SUMMARY', 15, yPos);
-      
+
       yPos += 10;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      
+
       const summary = [
-        ['Export Invoice Value', `Rs ${plReport.summary.total_export_value.toFixed(2)}`],
-        ['Purchase Order Cost', `Rs ${plReport.summary.total_purchase_cost.toFixed(2)}`],
-        ['Total Expenses', `Rs ${plReport.summary.total_expenses.toFixed(2)}`],
-        ['Gross Total', `Rs ${plReport.summary.gross_total.toFixed(2)}`],
-        ['GST (18%)', `Rs ${plReport.summary.gst_amount.toFixed(2)}`],
-        ['Net Profit', `Rs ${plReport.summary.net_profit.toFixed(2)}`],
+        ['Export Invoice Value', `Rs ${formatCurrency(plReport.summary.total_export_value)}`],
+        ['Purchase Order Cost', `Rs ${formatCurrency(plReport.summary.total_purchase_cost)}`],
+        ['Total Expenses', `Rs ${formatCurrency(plReport.summary.total_expenses)}`],
+        ['Gross Total', `Rs ${formatCurrency(plReport.summary.gross_total)}`],
+        ['GST (18%)', `Rs ${formatCurrency(plReport.summary.gst_amount)}`],
+        ['Net Profit', `Rs ${formatCurrency(plReport.summary.net_profit)}`],
         ['Net Profit %', `${plReport.summary.net_profit_percentage.toFixed(2)}%`]
       ];
-      
+
       doc.autoTable({
         startY: yPos,
         head: [['Description', 'Amount']],
@@ -148,25 +149,25 @@ const PLReporting = () => {
           1: { halign: 'right', fontStyle: 'bold' }
         }
       });
-      
+
       // Item Breakdown
       yPos = doc.lastAutoTable.finalY + 15;
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('ITEM-WISE BREAKDOWN', 15, yPos);
-      
+
       yPos += 5;
       const itemData = plReport.item_breakdown.map(item => [
         item.export_invoice_no,
         item.sku,
         item.product_name,
-        item.export_qty,
-        `Rs ${item.export_rate.toFixed(2)}`,
-        `Rs ${item.export_value.toFixed(2)}`,
-        `Rs ${item.purchase_cost.toFixed(2)}`,
-        `Rs ${item.item_gross.toFixed(2)}`
+        formatNumber(item.export_qty),
+        `Rs ${formatCurrency(item.export_rate)}`,
+        `Rs ${formatCurrency(item.export_value)}`,
+        `Rs ${formatCurrency(item.purchase_cost)}`,
+        `Rs ${formatCurrency(item.item_gross)}`
       ]);
-      
+
       doc.autoTable({
         startY: yPos,
         head: [['Invoice No', 'SKU', 'Product', 'Qty', 'Rate', 'Export Value', 'Purchase Cost', 'Gross']],
@@ -182,7 +183,7 @@ const PLReporting = () => {
           7: { halign: 'right' }
         }
       });
-      
+
       doc.save(`PL_Report_${new Date().toISOString().split('T')[0]}.pdf`);
       toast({ title: 'Success', description: 'PDF downloaded successfully' });
     } catch (error) {
@@ -190,10 +191,10 @@ const PLReporting = () => {
       toast({ title: 'Error', description: 'Failed to generate PDF', variant: 'destructive' });
     }
   };
-  
+
   const handleDownloadExcel = () => {
     if (!plReport) return;
-    
+
     try {
       // Summary worksheet
       const summaryData = [
@@ -202,43 +203,49 @@ const PLReporting = () => {
         [],
         ['SUMMARY'],
         ['Description', 'Amount'],
-        ['Export Invoice Value', plReport.summary.total_export_value.toFixed(2)],
-        ['Purchase Order Cost', plReport.summary.total_purchase_cost.toFixed(2)],
-        ['Total Expenses', plReport.summary.total_expenses.toFixed(2)],
-        ['Gross Total', plReport.summary.gross_total.toFixed(2)],
-        ['GST (18%)', plReport.summary.gst_amount.toFixed(2)],
-        ['Net Profit', plReport.summary.net_profit.toFixed(2)],
+        ['Export Invoice Value', formatCurrency(plReport.summary.total_export_value)],
+        ['Purchase Order Cost', formatCurrency(plReport.summary.total_purchase_cost)],
+        ['Total Expenses', formatCurrency(plReport.summary.total_expenses)],
+        ['Gross Total', formatCurrency(plReport.summary.gross_total)],
+        ['GST (18%)', formatCurrency(plReport.summary.gst_amount)],
+        ['Net Profit', formatCurrency(plReport.summary.net_profit)],
         ['Net Profit %', plReport.summary.net_profit_percentage.toFixed(2) + '%']
       ];
-      
+
       // Item breakdown worksheet
       const breakdownData = [
         ['ITEM-WISE BREAKDOWN'],
         [],
         ['Invoice No', 'SKU', 'Product', 'Quantity', 'Rate', 'Export Value', 'Purchase Cost', 'Gross']
       ];
-      
+
       plReport.item_breakdown.forEach(item => {
         breakdownData.push([
           item.export_invoice_no,
           item.sku,
           item.product_name,
-          item.export_qty,
-          item.export_rate.toFixed(2),
-          item.export_value.toFixed(2),
-          item.purchase_cost.toFixed(2),
-          item.item_gross.toFixed(2)
+          formatNumber(item.export_qty),
+          formatCurrency(item.export_rate),
+          formatCurrency(item.export_value),
+          formatCurrency(item.purchase_cost),
+          formatCurrency(item.item_gross)
         ]);
       });
-      
+
+      // Combine data into a single sheet
+      const combinedData = [
+        ...summaryData,
+        [],
+        [],
+        ...breakdownData
+      ];
+
       // Create workbook
       const wb = XLSX.utils.book_new();
-      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-      const wsBreakdown = XLSX.utils.aoa_to_sheet(breakdownData);
-      
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
-      XLSX.utils.book_append_sheet(wb, wsBreakdown, 'Item Breakdown');
-      
+      const ws = XLSX.utils.aoa_to_sheet(combinedData); // Single sheet
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Profit & Loss Report'); // Renamed sheet
+
       XLSX.writeFile(wb, `PL_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast({ title: 'Success', description: 'Excel downloaded successfully' });
     } catch (error) {
@@ -246,7 +253,7 @@ const PLReporting = () => {
       toast({ title: 'Error', description: 'Failed to generate Excel', variant: 'destructive' });
     }
   };
-  
+
   const handleApplyFilters = () => {
     if (filters.from_date && filters.to_date) {
       fetchExportInvoices(filters.from_date, filters.to_date);
@@ -254,7 +261,7 @@ const PLReporting = () => {
       fetchExportInvoices();
     }
   };
-  
+
   const clearFilters = () => {
     setFilters({
       from_date: '',
@@ -264,7 +271,7 @@ const PLReporting = () => {
     });
     fetchExportInvoices();
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -272,7 +279,7 @@ const PLReporting = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -286,7 +293,7 @@ const PLReporting = () => {
           Refresh
         </Button>
       </div>
-      
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -350,7 +357,7 @@ const PLReporting = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Export Invoice Selection */}
       <Card>
         <CardHeader>
@@ -364,11 +371,10 @@ const PLReporting = () => {
                 <div
                   key={invoice.id}
                   onClick={() => handleInvoiceToggle(invoice.id)}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                    isSelected 
-                      ? 'bg-blue-50 border-blue-500 shadow-md' 
-                      : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow'
-                  }`}
+                  className={`p-4 rounded-lg border cursor-pointer transition-all ${isSelected
+                    ? 'bg-blue-50 border-blue-500 shadow-md'
+                    : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow'
+                    }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -378,7 +384,7 @@ const PLReporting = () => {
                       )}
                       <div className="text-sm text-slate-600">{new Date(invoice.date).toLocaleDateString()}</div>
                       <div className="text-xs text-slate-500 mt-1">{invoice.dispatch_type}</div>
-                      <div className="font-semibold text-green-700 mt-2">₹{invoice.total_value?.toFixed(2)}</div>
+                      <div className="font-semibold text-green-700 mt-2">₹{formatCurrency(invoice.total_value)}</div>
                     </div>
                     {isSelected && (
                       <Badge className="bg-blue-500">✓</Badge>
@@ -388,7 +394,7 @@ const PLReporting = () => {
               );
             })}
           </div>
-          
+
           {selectedInvoices.length > 0 && (
             <div className="mt-4 pt-4 border-t">
               <div className="flex items-center justify-between">
@@ -398,9 +404,9 @@ const PLReporting = () => {
                     return invoice ? (
                       <Badge key={id} variant="outline" className="flex items-center gap-1">
                         {invoice.export_invoice_no}
-                        <X 
-                          size={14} 
-                          className="cursor-pointer hover:text-red-600" 
+                        <X
+                          size={14}
+                          className="cursor-pointer hover:text-red-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleInvoiceToggle(id);
@@ -428,7 +434,7 @@ const PLReporting = () => {
           )}
         </CardContent>
       </Card>
-      
+
       {/* P&L Report Results */}
       {plReport && (
         <>
@@ -437,40 +443,40 @@ const PLReporting = () => {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-slate-600">Export Value</div>
-                <div className="text-2xl font-bold text-blue-600">₹{plReport.summary.total_export_value.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-blue-600">₹{formatCurrency(plReport.summary.total_export_value)}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-slate-600">Purchase Cost</div>
-                <div className="text-2xl font-bold text-orange-600">₹{plReport.summary.total_purchase_cost.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-orange-600">₹{formatCurrency(plReport.summary.total_purchase_cost)}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-slate-600">Total Expenses</div>
-                <div className="text-2xl font-bold text-red-600">₹{plReport.summary.total_expenses.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-red-600">₹{formatCurrency(plReport.summary.total_expenses)}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-slate-600">Gross Total</div>
-                <div className="text-2xl font-bold text-green-600">₹{plReport.summary.gross_total.toFixed(2)}</div>
+                <div className="text-2xl font-bold text-green-600">₹{formatCurrency(plReport.summary.gross_total)}</div>
               </CardContent>
             </Card>
           </div>
-          
+
           {/* Net Profit Section */}
           <Card className="bg-gradient-to-r from-green-50 to-blue-50">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm text-slate-600">GST (18%)</div>
-                  <div className="text-lg font-semibold text-slate-700">₹{plReport.summary.gst_amount.toFixed(2)}</div>
+                  <div className="text-lg font-semibold text-slate-700">₹{formatCurrency(plReport.summary.gst_amount)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-slate-600">Net Profit</div>
-                  <div className="text-4xl font-bold text-green-700">₹{plReport.summary.net_profit.toFixed(2)}</div>
+                  <div className="text-4xl font-bold text-green-700">₹{formatCurrency(plReport.summary.net_profit)}</div>
                   <div className="text-sm text-green-600 font-semibold mt-1">
                     {plReport.summary.net_profit_percentage.toFixed(2)}% margin
                   </div>
@@ -488,7 +494,7 @@ const PLReporting = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Item Breakdown Table */}
           <Card>
             <CardHeader>
@@ -520,11 +526,11 @@ const PLReporting = () => {
                         </TableCell>
                         <TableCell className="font-mono text-sm">{item.sku}</TableCell>
                         <TableCell>{item.product_name}</TableCell>
-                        <TableCell className="text-right">{item.export_qty}</TableCell>
-                        <TableCell className="text-right">₹{item.export_rate.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-semibold text-blue-600">₹{item.export_value.toFixed(2)}</TableCell>
-                        <TableCell className="text-right text-orange-600">₹{item.purchase_cost.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-bold text-green-600">₹{item.item_gross.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{formatNumber(item.export_qty)}</TableCell>
+                        <TableCell className="text-right">₹{formatCurrency(item.export_rate)}</TableCell>
+                        <TableCell className="text-right font-semibold text-blue-600">₹{formatCurrency(item.export_value)}</TableCell>
+                        <TableCell className="text-right text-orange-600">₹{formatCurrency(item.purchase_cost)}</TableCell>
+                        <TableCell className="text-right font-bold text-green-600">₹{formatCurrency(item.item_gross)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

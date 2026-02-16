@@ -1,0 +1,812 @@
+
+[2026-02-14T10:27:59.877256+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 27621dd8-d155-4730-bea7-2f2b7dfef2da
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 750 (Product ID: )
+   Item 2: Epson L8050 - Qty: 300 (Product ID: )
+================================================================================
+  🔄 Updating stock tracking for outward: BMLEXRP26-42
+     Warehouse ID: 27621dd8-d155-4730-bea7-2f2b7dfef2da
+     Number of line items: 2
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 750.0)
+       ❌ ERROR: No product_id found for Epson L130
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 300.0)
+       ❌ ERROR: No product_id found for Epson L8050
+  ✅ Outward stock tracking update completed (FIFO)
+
+[2026-02-14T10:28:31.843988+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: export_invoice
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 27621dd8-d155-4730-bea7-2f2b7dfef2da
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 750 (Product ID: )
+   Item 2: Epson L8050 - Qty: 300 (Product ID: )
+================================================================================
+
+[2026-02-14T10:48:31.116219+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+
+[2026-02-14T10:48:39.653559+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+
+[2026-02-14T10:48:49.341081+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+
+[2026-02-14T10:50:09.405958+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+
+[2026-02-14T10:54:03.746197+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+
+[2026-02-14T10:55:01.395893+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+  📝 Processing 2 line items...
+     🔍 Validating stock: Epson L8050 (856.0 units)
+     📊 Available: 0.0, Requested: 856.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:11:14.752653+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 2
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 856 (Product ID: )
+   Item 2: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+  📝 Processing 2 line items...
+     🔍 Validating stock: Epson L8050 (856.0 units)
+     📊 Available: 0.0, Requested: 856.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:17:27.089682+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 1
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 10 (Product ID: None)
+================================================================================
+  📝 Processing 1 line items...
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     📊 Available: 0.0, Requested: 10.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:18:49.821065+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 1
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 10 (Product ID: None)
+================================================================================
+  📝 Processing 1 line items...
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     📊 Available: 0.0, Requested: 10.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:20:21.243006+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 1
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 10 (Product ID: None)
+================================================================================
+  📝 Processing 1 line items...
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     📊 Available: 0.0, Requested: 10.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:21:03.387055+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 1
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 10 (Product ID: None)
+================================================================================
+  📝 Processing 1 line items...
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     📊 Available: 0.0, Requested: 10.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:21:50.071963+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 1
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 10 (Product ID: None)
+================================================================================
+  📝 Processing 1 line items...
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^\\s*Epson L8050\\s*$', '$options': 'i'}}
+     [DEBUG] Total Found: 0.0
+     📊 Available: 0.0, Requested: 10.0
+     ❌ INSUFFICIENT STOCK!
+
+[2026-02-14T11:24:44.070929+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 1
+📥 User: rutuja@bora.tech
+   Item 1: Epson L8050 - Qty: 10 (Product ID: None)
+================================================================================
+  📝 Processing 1 line items...
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 160.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1500.0
+     📊 Available: 1500.0, Requested: 10.0
+  💾 Saved outward entry: EXP-59FA6483
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: EXP-59FA6483
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 1
+     - Processing: Epson L8050 (Product ID: None, Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 0.0 → 10.0, Remaining: 150.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T04:50:02.630228+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 100 (Product ID: )
+   Item 2: Epson L8050 - Qty: 100 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 100 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+     🔍 Validating stock: Epson L130 (100.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 510.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 1000.0
+     📊 Available: 1000.0, Requested: 100.0
+     🔍 Validating stock: Epson L8050 (100.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1490.0
+     📊 Available: 1490.0, Requested: 100.0
+     🔍 Validating stock: Epson EcoTank L1250  (100.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 20.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 44.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 50.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 40.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 22.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 53.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 70.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 379.0
+     📊 Available: 379.0, Requested: 100.0
+  💾 Saved outward entry: BMLEXRP26-41
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP26-41
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 3
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 100.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 0.0 → 100.0, Remaining: 410.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 100.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 10.0 → 110.0, Remaining: 50.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 100.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 8 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806862036): Outward 0.0 → 20.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770897065681): Outward 0.0 → 44.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770973814989): Outward 0.0 → 36.0, Remaining: 14.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T04:51:29.833030+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 10 (Product ID: )
+   Item 2: Epson L8050 - Qty: 10 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 10 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+     🔍 Validating stock: Epson L130 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 510.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 1000.0
+     📊 Available: 1000.0, Requested: 10.0
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1490.0
+     📊 Available: 1490.0, Requested: 10.0
+     🔍 Validating stock: Epson EcoTank L1250  (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 20.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 44.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 50.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 40.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 22.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 53.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 70.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 379.0
+     📊 Available: 379.0, Requested: 10.0
+  💾 Saved outward entry: BMLEXRP26-41
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP26-41
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 3
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 0.0 → 10.0, Remaining: 500.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 10.0 → 20.0, Remaining: 140.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 8 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806862036): Outward 0.0 → 10.0, Remaining: 10.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T04:53:20.065500+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 10 (Product ID: )
+   Item 2: Epson L8050 - Qty: 10 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 10 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+     🔍 Validating stock: Epson L130 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 510.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 1000.0
+     📊 Available: 1000.0, Requested: 10.0
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1490.0
+     📊 Available: 1490.0, Requested: 10.0
+     🔍 Validating stock: Epson EcoTank L1250  (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 20.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 44.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 50.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 40.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 22.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 53.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 70.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 379.0
+     📊 Available: 379.0, Requested: 10.0
+  💾 Saved outward entry: BMLEXRP26-41
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP26-41
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 3
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 0.0 → 10.0, Remaining: 500.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 10.0 → 20.0, Remaining: 140.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 8 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806862036): Outward 0.0 → 10.0, Remaining: 10.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T05:16:32.004116+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 10 (Product ID: )
+   Item 2: Epson L8050 - Qty: 10 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 10 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+     🔍 Validating stock: Epson L130 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 500.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 990.0
+     📊 Available: 990.0, Requested: 10.0
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 140.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1480.0
+     📊 Available: 1480.0, Requested: 10.0
+     🔍 Validating stock: Epson EcoTank L1250  (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 10.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 44.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 50.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 40.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 22.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 53.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 70.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 369.0
+     📊 Available: 369.0, Requested: 10.0
+  💾 Saved outward entry: BMLEXRP26-41
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP26-41
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 3
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 10.0 → 20.0, Remaining: 490.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 20.0 → 30.0, Remaining: 130.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 8 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806862036): Outward 10.0 → 20.0, Remaining: 0.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T05:33:07.320264+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 10 (Product ID: )
+   Item 2: Epson L8050 - Qty: 10 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 10 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+     🔍 Validating stock: Epson L130 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 510.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 1000.0
+     📊 Available: 1000.0, Requested: 10.0
+     🔍 Validating stock: Epson L8050 (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 160.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1500.0
+     📊 Available: 1500.0, Requested: 10.0
+     🔍 Validating stock: Epson EcoTank L1250  (10.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 20.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 44.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 50.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 40.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 22.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 53.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 70.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 379.0
+     📊 Available: 379.0, Requested: 10.0
+  💾 Saved outward entry: BMLEXRP26-41
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP26-41
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 3
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 0.0 → 10.0, Remaining: 500.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 0.0 → 10.0, Remaining: 150.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 10.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 8 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806862036): Outward 0.0 → 10.0, Remaining: 10.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T05:52:08.130460+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 500 (Product ID: )
+   Item 2: Epson L8050 - Qty: 752 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+     🔍 Validating stock: Epson L130 (500.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 510.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 1000.0
+     📊 Available: 1000.0, Requested: 500.0
+     🔍 Validating stock: Epson L8050 (752.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 160.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 60.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 150.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 200.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 1500.0
+     📊 Available: 1500.0, Requested: 752.0
+     🔍 Validating stock: Epson EcoTank L1250  (272.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 20.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 44.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 50.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 40.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 22.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 53.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 70.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 379.0
+     📊 Available: 379.0, Requested: 272.0
+  💾 Saved outward entry: BMLEXRP25-41
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP25-41
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 3
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 500.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 0.0 → 500.0, Remaining: 10.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 752.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 9 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806316355): Outward 0.0 → 160.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770806529887): Outward 0.0 → 150.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770897340268): Outward 0.0 → 200.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770901793270): Outward 0.0 → 60.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770902226104): Outward 0.0 → 150.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770902811650): Outward 0.0 → 32.0, Remaining: 168.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 272.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 8 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770806862036): Outward 0.0 → 20.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770897065681): Outward 0.0 → 44.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770973814989): Outward 0.0 → 50.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770974633079): Outward 0.0 → 40.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: GST/3202/225-26): Outward 0 → 22.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: GST/3589/25-26): Outward 0 → 53.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: GST/3298/25-26): Outward 0 → 43.0, Remaining: 27.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T05:53:32.410082+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: dispatch_plan
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 5
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 500 (Product ID: )
+   Item 2: Epson L8050 - Qty: 300 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 50 (Product ID: )
+   Item 4: Epson L130 - Qty: 1525 (Product ID: )
+   Item 5: Canon Pixma MG2577S - Qty: 450 (Product ID: )
+================================================================================
+  📝 Processing 5 line items...
+     🔍 Validating stock: Epson L130 (500.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 10.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 210.0
+     [DEBUG] Found Item: Epson L130 (304) | Qty: 280.0
+     [DEBUG] Total Found: 500.0
+     📊 Available: 500.0, Requested: 500.0
+     🔍 Validating stock: Epson L8050 (300.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L8050\\ \\(304\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 168.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 400.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 100.0
+     [DEBUG] Found Item: Epson L8050 (304) | Qty: 80.0
+     [DEBUG] Total Found: 748.0
+     📊 Available: 748.0, Requested: 300.0
+     🔍 Validating stock: Epson EcoTank L1250  (50.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ EcoTank\\ L1250', '$options': 'i'}}
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 27.0
+     [DEBUG] Found Item: Epson EcoTank L1250  | Qty: 80.0
+     [DEBUG] Total Found: 107.0
+     📊 Available: 107.0, Requested: 50.0
+     🔍 Validating stock: Epson L130 (1525.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Epson\\ L130\\ \\(320\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 510.0
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 190.0
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 420.0
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 80.0
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 405.0
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 95.0
+     [DEBUG] Found Item: Epson L130 (320) | Qty: 300.0
+     [DEBUG] Total Found: 2000.0
+     📊 Available: 2000.0, Requested: 1525.0
+     🔍 Validating stock: Canon Pixma MG2577S (450.0 units)
+     [DEBUG] Stock Query: {'warehouse_id': '62898362-34fa-4578-8291-4c413247ac98', 'remaining_stock': {'$gt': 0}, 'sku': {'$regex': '^Canon\\ Pixma\\ MG2577S\\ \\(320\\)', '$options': 'i'}}
+     [DEBUG] Found Item: Canon Pixma MG2577S (320) | Qty: 450.0
+     [DEBUG] Total Found: 450.0
+     📊 Available: 450.0, Requested: 450.0
+  💾 Saved outward entry: BMLEXRP25-43
+  🔄 Updating stock tracking...
+  🔄 Updating stock tracking for outward: BMLEXRP25-43
+     Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+     Number of line items: 5
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 500.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (304)
+       📦 Found 3 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770896867623): Outward 500.0 → 510.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770900046009): Outward 0.0 → 210.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770900343515): Outward 0.0 → 280.0, Remaining: 0.0
+     - Processing: Epson L8050 (Product ID: , Dispatch Qty: 300.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L8050 (304)
+       📦 Found 4 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770902811650): Outward 32.0 → 200.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770903368257): Outward 0.0 → 132.0, Remaining: 268.0
+     - Processing: Epson EcoTank L1250  (Product ID: , Dispatch Qty: 50.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson EcoTank L1250
+       📦 Found 2 stock entries with available stock
+       ✅ Updated entry (Invoice: GST/3298/25-26): Outward 43.0 → 70.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: GST/2520/25-26): Outward 0 → 23.0, Remaining: 57.0
+     - Processing: Epson L130 (Product ID: , Dispatch Qty: 1525.0)
+       ℹ️ No product_id, falling back to flexible SKU: Epson L130 (320)
+       📦 Found 7 stock entries with available stock
+       ✅ Updated entry (Invoice: INW-1770975588356): Outward 0.0 → 510.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770975633660): Outward 0.0 → 190.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770975765973): Outward 0.0 → 420.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770975806995): Outward 0.0 → 80.0, Remaining: 0.0
+       ✅ Updated entry (Invoice: INW-1770975889220): Outward 0 → 325.0, Remaining: 80.0
+     - Processing: Canon Pixma MG2577S (Product ID: , Dispatch Qty: 450.0)
+       ℹ️ No product_id, falling back to flexible SKU: Canon Pixma MG2577S (320)
+       📦 Found 1 stock entries with available stock
+       ✅ Updated entry (Invoice: LE/73711): Outward 0 → 450.0, Remaining: 0.0
+  ✅ Outward stock tracking update completed (FIFO)
+  ✨ SUCCESS!
+
+[2026-02-16T06:32:24.804977+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: export_invoice
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 3
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 500 (Product ID: )
+   Item 2: Epson L8050 - Qty: 752 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 272 (Product ID: )
+================================================================================
+  📝 Processing 3 line items...
+  💾 Saved outward entry: BMLEXRP25-41
+  ℹ️  Linked to plan, updating plan status...
+  ✨ SUCCESS!
+
+[2026-02-16T06:32:33.017760+00:00]
+
+================================================================================
+🚀 CREATE OUTWARD STOCK REQUEST RECEIVED
+================================================================================
+📥 Dispatch Type: export_invoice
+📥 Company ID: e9f558f5-870a-4b33-9898-96bbf1aed177
+📥 Warehouse ID: 62898362-34fa-4578-8291-4c413247ac98
+📥 Line Items Count: 5
+📥 User: rutuja@bora.tech
+   Item 1: Epson L130 - Qty: 500 (Product ID: )
+   Item 2: Epson L8050 - Qty: 300 (Product ID: )
+   Item 3: Epson EcoTank L1250  - Qty: 50 (Product ID: )
+   Item 4: Epson L130 - Qty: 1525 (Product ID: )
+   Item 5: Canon Pixma MG2577S - Qty: 450 (Product ID: )
+================================================================================
+  📝 Processing 5 line items...
+  💾 Saved outward entry: BMLEXRP25-43
+  ℹ️  Linked to plan, updating plan status...
+  ✨ SUCCESS!

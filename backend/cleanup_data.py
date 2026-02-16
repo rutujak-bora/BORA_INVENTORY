@@ -20,7 +20,7 @@ async def cleanup_data():
     
     # Collections to clear (transactional data)
     collections_to_clear = [
-        "performa_invoices",
+        "proforma_invoices",
         "purchase_orders",
         "inward_stock",
         "outward_stock",

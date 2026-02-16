@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -7,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Plus, Trash2, Eye, X, Package, Truck, Warehouse as WarehouseIcon, Search, Filter, Save, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Eye, X, Package, Truck, Warehouse as WarehouseIcon, Search, Filter, Save, RefreshCw, Edit, Check, ChevronsUpDown } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useResizeObserverErrorFix } from '../hooks/useResizeObserverErrorFix';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -15,19 +16,143 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import BulkActionToolbar from '../components/BulkActionToolbar';
 import DeleteConfirmDialog from '../components/DeleteConfirmDialog';
 import { exportToCSV, exportToExcel, formatDataForExport } from '../utils/exportUtils';
+import { Badge } from '../components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '../components/ui/command';
+import { cn } from '../lib/utils';
+
+const MultiSelectPO = ({ selectedItems, options, onSelectionChange, placeholder = "Select POs", valueKey = "id", labelKey = "voucher_no" }) => {
+  const [open, setOpen] = useState(false);
+
+  const removeItem = (itemValue) => {
+    onSelectionChange(selectedItems.filter(v => v !== itemValue));
+  };
+
+  return (
+    <div className="space-y-3">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between h-auto min-h-[42px] px-3 py-2 bg-white text-left hover:bg-gray-50 border-gray-300 focus:ring-2 focus:ring-blue-500 transition-all"
+          >
+            <div className="flex items-center">
+              <span className={cn("text-sm", selectedItems.length === 0 ? "text-gray-400" : "text-gray-900 font-medium")}>
+                {selectedItems.length > 0
+                  ? `${selectedItems.length} POs Selected`
+                  : placeholder}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedItems.length > 0 && (
+                <X
+                  className="h-4 w-4 text-gray-400 hover:text-red-500 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectionChange([]);
+                  }}
+                  title="Clear all"
+                />
+              )}
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            </div>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[450px] p-0 shadow-xl border-gray-200" align="start">
+          <Command className="rounded-lg">
+            <CommandInput placeholder="Search PO number or supplier..." className="h-11" />
+            <CommandEmpty className="py-6 text-center text-sm text-gray-500">No PO found.</CommandEmpty>
+            <CommandGroup className="max-h-72 overflow-y-auto p-1">
+              {options.map((po) => {
+                const itemValue = po[valueKey];
+                const isSelected = selectedItems.includes(itemValue);
+                return (
+                  <CommandItem
+                    key={po.id}
+                    onSelect={() => {
+                      const newItems = isSelected
+                        ? selectedItems.filter(v => v !== itemValue)
+                        : [...selectedItems, itemValue];
+                      onSelectionChange(newItems);
+                    }}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2 cursor-pointer rounded-md mb-1 transition-colors",
+                      isSelected ? "bg-blue-50 text-blue-700" : "hover:bg-gray-100"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <div className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded border transition-colors",
+                        isSelected ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300 bg-white"
+                      )}>
+                        {isSelected && <Check className="h-3.5 w-3.5" />}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-semibold text-sm truncate">{po.voucher_no}</span>
+                        <span className="text-xs text-gray-500 truncate">{po.supplier}</span>
+                      </div>
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {/* Selected Items List - Clear and Easy to Remove */}
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {selectedItems.map((itemValue) => {
+            const po = options.find(o => o[valueKey] === itemValue);
+            return (
+              <div
+                key={itemValue}
+                className="group flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-sm font-medium animate-in fade-in zoom-in duration-200"
+              >
+                <span>{po ? po[labelKey] : itemValue}</span>
+                <button
+                  type="button"
+                  onClick={() => removeItem(itemValue)}
+                  className="p-0.5 hover:bg-blue-200 rounded-full text-blue-400 hover:text-red-600 transition-all"
+                  title="Remove this PO"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
+          {selectedItems.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onSelectionChange([])}
+              className="px-3 py-1.5 text-xs text-red-600 hover:text-red-700 hover:underline font-medium"
+            >
+              Remove All
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const InwardStock = () => {
   const [inwardEntries, setInwardEntries] = useState([]);
   const [pos, setPos] = useState([]);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pickup');
 
   // Pick-up (In-Transit) state
-  const [selectedPo, setSelectedPo] = useState('');
+  const [selectedPo, setSelectedPo] = useState([]); // Array for multiple POs
   const [poLineStats, setPoLineStats] = useState(null);
   const [pickupEntries, setPickupEntries] = useState([]);
+  const [editingPickupId, setEditingPickupId] = useState(null);
   // console.log("this is pickupEntries", pickupEntries);
   const [pickupFormData, setPickupFormData] = useState({
     pickup_date: new Date().toISOString().split('T')[0],
@@ -38,7 +163,7 @@ const InwardStock = () => {
 
 
   // Warehouse Inward state
-  const [selectedWarehousePo, setSelectedWarehousePo] = useState('');
+  const [selectedWarehousePo, setSelectedWarehousePo] = useState([]); // Array for multiple POs
   const [warehousePoLineStats, setWarehousePoLineStats] = useState(null);
   const [warehouseEntries, setWarehouseEntries] = useState([]);
   const [warehouseInwardFormData, setWarehouseInwardFormData] = useState({
@@ -48,7 +173,6 @@ const InwardStock = () => {
     manual: '',
     line_items: []
   });
-  const [warehouseFilter, setWarehouseFilter] = useState('all');
 
   // Search and Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,6 +183,7 @@ const InwardStock = () => {
     inwardType: 'all'
   });
   const [filteredInward, setFilteredInward] = useState([]);
+  const [filteredPickups, setFilteredPickups] = useState([]);
 
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -81,6 +206,7 @@ const InwardStock = () => {
 
   const [formData, setFormData] = useState({
     inward_invoice_no: '',
+    company_id: '',
     date: new Date().toISOString().split('T')[0],
     po_id: '',
     po_ids: [], // Array for multiple PO selection
@@ -109,13 +235,15 @@ const InwardStock = () => {
 
   // Apply search and filters
   useEffect(() => {
-    let filtered = [...inwardEntries];
+    // Filter Inward Entries (Warehouse and Direct)
+    let filteredIn = [...inwardEntries];
 
-    // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(item =>
+      filteredIn = filteredIn.filter(item =>
         item.inward_invoice_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.po_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.po_voucher_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.manual?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.line_items?.some(li =>
           li.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           li.sku?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -123,30 +251,45 @@ const InwardStock = () => {
       );
     }
 
-    // Date range filter
     if (filters.dateFrom) {
-      filtered = filtered.filter(item => new Date(item.date) >= new Date(filters.dateFrom));
+      filteredIn = filteredIn.filter(item => new Date(item.date) >= new Date(filters.dateFrom));
     }
     if (filters.dateTo) {
-      filtered = filtered.filter(item => new Date(item.date) <= new Date(filters.dateTo));
+      filteredIn = filteredIn.filter(item => new Date(item.date) <= new Date(filters.dateTo));
     }
-
-    // Warehouse filter
-    if (filters.warehouse !== 'all') {
-      filtered = filtered.filter(item => item.warehouse_id === filters.warehouse);
+    if (filters.warehouse !== 'all' && filters.warehouse) {
+      filteredIn = filteredIn.filter(item => item.warehouse_id === filters.warehouse);
     }
+    setFilteredInward(filteredIn);
 
-    // Inward Type filter
-    if (filters.inwardType !== 'all') {
-      filtered = filtered.filter(item => item.inward_type === filters.inwardType);
+    // Filter Pickup Entries
+    let filteredP = [...pickupEntries];
+    if (searchTerm) {
+      filteredP = filteredP.filter(item =>
+        item.manual?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.po_voucher_no?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.line_items?.some(li =>
+          li.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          li.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
     }
+    if (filters.dateFrom) {
+      filteredP = filteredP.filter(item => new Date(item.pickup_date) >= new Date(filters.dateFrom));
+    }
+    if (filters.dateTo) {
+      filteredP = filteredP.filter(item => new Date(item.pickup_date) <= new Date(filters.dateTo));
+    }
+    if (filters.warehouse !== 'all' && filters.warehouse) {
+      filteredP = filteredP.filter(item => item.warehouse_id === filters.warehouse);
+    }
+    setFilteredPickups(filteredP);
 
-    setFilteredInward(filtered);
-  }, [inwardEntries, searchTerm, filters]);
+  }, [inwardEntries, pickupEntries, searchTerm, filters]);
 
   const fetchData = async () => {
     try {
-      const [inwardRes, posRes, productsRes, warehousesRes, pickupsRes] = await Promise.all([
+      const [inwardRes, posRes, productsRes, warehousesRes, pickupsRes, companiesRes] = await Promise.all([
         api.get('/inward-stock').catch(err => {
           console.error('Failed to fetch inward stock:', err);
           return { data: [] };
@@ -166,6 +309,10 @@ const InwardStock = () => {
         api.get('/pickups').catch(err => {
           console.error('Failed to fetch pickups:', err);
           return { data: [] };
+        }),
+        api.get('/companies').catch(err => {
+          console.error('Failed to fetch companies:', err);
+          return { data: [] };
         })
       ]);
 
@@ -175,6 +322,7 @@ const InwardStock = () => {
       setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
       setWarehouses(Array.isArray(warehousesRes.data) ? warehousesRes.data : []);
       setPickupEntries(Array.isArray(pickupsRes.data) ? pickupsRes.data : []);
+      setCompanies(Array.isArray(companiesRes.data) ? companiesRes.data : []);
 
       // Show warning if any critical data is missing
       if (!Array.isArray(posRes.data) || posRes.data.length === 0) {
@@ -197,6 +345,7 @@ const InwardStock = () => {
       setProducts([]);
       setWarehouses([]);
       setPickupEntries([]);
+      setCompanies([]);
     } finally {
       setLoading(false);
     }
@@ -259,9 +408,9 @@ const InwardStock = () => {
   //   }
   // };
 
-  const handlePoSelection = async (voucher_no) => {
-    if (!voucher_no) {
-      setSelectedPo('');
+  const handlePoSelection = async (voucherNos) => {
+    if (!Array.isArray(voucherNos) || voucherNos.length === 0) {
+      setSelectedPo([]);
       setPoLineStats(null);
       setPickupFormData({
         pickup_date: new Date().toISOString().split('T')[0],
@@ -273,8 +422,9 @@ const InwardStock = () => {
     }
 
     try {
-      setSelectedPo(voucher_no);
-      const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
+      setSelectedPo(voucherNos);
+      const voucherQuery = voucherNos.join(',');
+      const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucherQuery)}`);
       setPoLineStats(response.data);
 
       // 🔍 DEBUG: Check what the API returns
@@ -334,6 +484,11 @@ const InwardStock = () => {
 
     const updatedLineItems = [...pickupFormData.line_items];
     updatedLineItems[index].quantity = newQuantity;
+    setPickupFormData(prev => ({ ...prev, line_items: updatedLineItems }));
+  };
+
+  const handleRemovePickupLineItem = (index) => {
+    const updatedLineItems = pickupFormData.line_items.filter((_, i) => i !== index);
     setPickupFormData(prev => ({ ...prev, line_items: updatedLineItems }));
   };
 
@@ -429,12 +584,14 @@ const InwardStock = () => {
 
     try {
       const pickupData = {
-        po_id: poLineStats.po_id,
+        po_ids: poLineStats.po_ids, // Multiple PO IDs
         pickup_date: pickupFormData.pickup_date,
+        warehouse_id: pickupFormData.warehouse_id,
         manual: pickupFormData.manual,
         notes: pickupFormData.notes,
         line_items: validLineItems.map(item => ({
-          id: item.id, // ✅ PO line item ID (not product_id)
+          id: item.id, // ✅ PO line item ID
+          product_id: item.product_id, // ✅ Essential for backend validation
           product_name: item.product_name,
           sku: item.sku,
           quantity: item.quantity,
@@ -446,16 +603,25 @@ const InwardStock = () => {
       console.log('Pickup Data Being Sent:', pickupData);
       console.log('Line Items in Payload:', pickupData.line_items);
 
-      await api.post('/pickups', pickupData);
-
-      toast({
-        title: 'Success',
-        description: 'Pickup (In-Transit) entry created successfully',
-        variant: 'default'
-      });
+      if (editingPickupId) {
+        await api.put(`/pickups/${editingPickupId}`, pickupData);
+        toast({
+          title: 'Success',
+          description: 'Pickup entry updated successfully',
+          variant: 'default'
+        });
+      } else {
+        await api.post('/pickups', pickupData);
+        toast({
+          title: 'Success',
+          description: 'Pickup (In-Transit) entry created successfully',
+          variant: 'default'
+        });
+      }
 
       // Reset form and refresh data
-      setSelectedPo('');
+      setEditingPickupId(null);
+      setSelectedPo([]);
       setPoLineStats(null);
       setPickupFormData({
         pickup_date: new Date().toISOString().split('T')[0],
@@ -474,6 +640,44 @@ const InwardStock = () => {
     }
   };
 
+  const handleEditPickup = async (entry) => {
+    try {
+      setEditingPickupId(entry.id);
+      setSelectedPo(entry.po_ids || (entry.po_voucher_no ? [entry.po_voucher_no] : []));
+
+      // Fetch PO details to populate stats
+      const po = pos.find(p => p.voucher_no === entry.po_voucher_no);
+      if (po) {
+        const response = await api.get(`/po/${po.id}`);
+        const fullPo = response.data;
+
+        setPoLineStats({
+          po_id: fullPo.id,
+          po_voucher_no: fullPo.voucher_no,
+          po_date: new Date(fullPo.date).toLocaleDateString(),
+          supplier: fullPo.supplier,
+          line_items: fullPo.line_items
+        });
+
+        // Set form data
+        setPickupFormData({
+          pickup_date: entry.pickup_date,
+          manual: entry.manual || '',
+          notes: entry.notes || '',
+          warehouse_id: entry.warehouse_id || '',
+          line_items: entry.line_items.map(item => ({
+            ...item,
+            // Ensure available_for_pickup allows editing (logic logic: current qty + whatever remains)
+            available_for_pickup: 999999
+          }))
+        });
+      }
+    } catch (error) {
+      console.error('Failed to prepare edit:', error);
+      toast({ title: 'Error', description: 'Failed to load entry for editing', variant: 'destructive' });
+    }
+  };
+
   const handleDeletePickup = async (pickupId) => {
     if (!window.confirm('Are you sure you want to delete this pickup entry?')) {
       return;
@@ -488,8 +692,8 @@ const InwardStock = () => {
       });
       fetchPickupEntries();
 
-      // Refresh PO line stats if a PO is selected
-      if (selectedPo) {
+      // Refresh PO line stats if POs are selected
+      if (selectedPo && selectedPo.length > 0) {
         handlePoSelection(selectedPo);
       }
     } catch (error) {
@@ -559,9 +763,9 @@ const InwardStock = () => {
     }
   };
 
-  const handleWarehousePoSelection = async (voucher_no) => {
-    if (!voucher_no) {
-      setSelectedWarehousePo('');
+  const handleWarehousePoSelection = async (voucherNos) => {
+    if (!Array.isArray(voucherNos) || voucherNos.length === 0) {
+      setSelectedWarehousePo([]);
       setWarehousePoLineStats(null);
       setWarehouseInwardFormData({
         warehouse_id: '',
@@ -573,8 +777,9 @@ const InwardStock = () => {
     }
 
     try {
-      setSelectedWarehousePo(voucher_no);
-      const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
+      setSelectedWarehousePo(voucherNos);
+      const voucherQuery = voucherNos.join(',');
+      const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucherQuery)}`);
       console.log("this is the posline with stats ", response);
 
       setWarehousePoLineStats(response.data);
@@ -677,7 +882,7 @@ const InwardStock = () => {
       const inwardData = {
         manual: warehouseInwardFormData.manual,
         po_voucher_no: warehousePoLineStats.po_voucher_no,
-        po_id: warehousePoLineStats.po_id,
+        po_ids: warehousePoLineStats.po_ids, // Using multiple PO IDs
         warehouse_id: warehouseInwardFormData.warehouse_id,
         date: warehouseInwardFormData.inward_date,
         inward_invoice_no: warehouseInwardFormData.inward_invoice_no || `INW-${Date.now()}`,
@@ -701,7 +906,7 @@ const InwardStock = () => {
       });
 
       // Reset form and refresh data
-      setSelectedWarehousePo('');
+      setSelectedWarehousePo([]);
       setWarehousePoLineStats(null);
       setWarehouseInwardFormData({
         warehouse_id: '',
@@ -733,7 +938,7 @@ const InwardStock = () => {
       return sum + itemTotal;
     }, 0);
 
-    return { totalQuantity, totalAmount: totalAmount.toFixed(2) };
+    return { totalQuantity: formatNumber(totalQuantity), totalAmount: formatCurrency(totalAmount) };
   };
 
   const resetFilters = () => {
@@ -765,126 +970,53 @@ const InwardStock = () => {
         return;
       }
 
-      // Aggregate data from all selected POs
-      const aggregatedProducts = new Map();
-      const piQuantitiesMap = new Map();
-      const alreadyInwardedMap = new Map();
-      const allLinkedPIs = [];
+      // Map IDs to voucher numbers for the API
+      const selectedPoVouchers = selectedPoIds.map(id => {
+        const po = pos.find(p => p.id === id);
+        return po ? po.voucher_no : null;
+      }).filter(Boolean);
 
-      // Process each selected PO
-      for (const poId of selectedPoIds) {
-        try {
-          const fullPO = await api.get(`/po/${poId}`);
-          const poData = fullPO.data;
-
-          // Get linked PIs (support both single and multiple)
-          const linkedPIs = poData.reference_pis || [];
-          allLinkedPIs.push(...linkedPIs);
-
-          // Fetch all PIs to get PI quantities
-          if (Array.isArray(linkedPIs) && linkedPIs.length > 0) {
-            for (const linkedPI of linkedPIs) {
-              try {
-                const piResponse = await api.get(`/pi/${linkedPI.id}`);
-                const piData = piResponse.data || {};
-
-                // Aggregate PI quantities by product
-                piData.line_items?.forEach(item => {
-                  const productKey = item.product_id;
-                  if (piQuantitiesMap.has(productKey)) {
-                    piQuantitiesMap.set(productKey, piQuantitiesMap.get(productKey) + (item.quantity || 0));
-                  } else {
-                    piQuantitiesMap.set(productKey, item.quantity || 0);
-                  }
-                });
-              } catch (err) {
-                console.error('Error fetching PI:', err);
-              }
-            }
-          }
-
-          // Fetch already inwarded quantities for this PO
-          try {
-            const inwardResponse = await api.get('/inward-stock');
-            const inwardEntries = inwardResponse.data.filter(entry => entry.po_id === poId);
-
-            inwardEntries.forEach(entry => {
-              entry.line_items?.forEach(item => {
-                const productKey = item.product_id;
-                if (alreadyInwardedMap.has(productKey)) {
-                  alreadyInwardedMap.set(productKey, alreadyInwardedMap.get(productKey) + (item.quantity || 0));
-                } else {
-                  alreadyInwardedMap.set(productKey, item.quantity || 0);
-                }
-              });
-            });
-          } catch (err) {
-            console.error('Error fetching inward stock:', err);
-          }
-
-          // Aggregate line items from this PO
-          poData.line_items?.forEach(item => {
-            const productKey = item.product_id;
-            if (aggregatedProducts.has(productKey)) {
-              const existing = aggregatedProducts.get(productKey);
-              existing.po_quantity += item.quantity || 0;
-              // Keep the rate from first PO (or could average)
-            } else {
-              aggregatedProducts.set(productKey, {
-                product_id: item.product_id,
-                product_name: item.product_name,
-                sku: item.sku,
-                po_quantity: item.quantity || 0,
-                rate: item.rate || 0
-              });
-            }
-          });
-        } catch (err) {
-          console.error(`Error fetching PO ${poId}:`, err);
-          toast({
-            title: 'Error',
-            description: `Failed to fetch PO details for ${poId}`,
-            variant: 'destructive'
-          });
-        }
+      if (selectedPoVouchers.length === 0) {
+        setFormData(prev => ({ ...prev, po_ids: selectedPoIds }));
+        return;
       }
 
-      // Convert aggregated products to line items
-      const lineItemsFromPOs = Array.from(aggregatedProducts.values()).map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        sku: item.sku,
-        pi_quantity: piQuantitiesMap.get(item.product_id) || 0,
-        po_quantity: item.po_quantity,
-        already_inwarded: alreadyInwardedMap.get(item.product_id) || 0,
-        quantity: 0,  // Manual entry (Inward Quantity)
-        rate: item.rate,  // From PO
-        amount: 0  // Will calculate based on quantity
-      }));
+      const voucherQuery = selectedPoVouchers.join(',');
+      const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucherQuery)}`);
+      const stats = response.data;
 
+      // Update form data with aggregated stats
       setFormData(prev => ({
         ...prev,
         po_ids: selectedPoIds,
-        pi_id: allLinkedPIs.length > 0 ? allLinkedPIs[0].id : '',
-        line_items: lineItemsFromPOs.length > 0 ? lineItemsFromPOs : prev.line_items
+        pi_ids: stats.pi_ids || [],
+        line_items: stats.line_items.map(item => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          sku: item.sku,
+          pi_quantity: item.pi_quantity,
+          po_quantity: item.po_quantity,
+          already_inwarded: item.already_inwarded,
+          remaining_allowed: item.po_quantity - item.already_inwarded,
+          quantity: 0, // Manual entry
+          rate: item.rate,
+          amount: 0,
+          id: item.id // PO line item ID
+        }))
       }));
 
-      // Show success message with PI info
-      if (allLinkedPIs.length > 0) {
-        const uniquePIs = [...new Set(allLinkedPIs.map(pi => pi.voucher_no))];
-        toast({
-          title: `${selectedPoIds.length} PO(s) Selected`,
-          description: `Linked to ${uniquePIs.length} PI(s): ${uniquePIs.join(', ')}. Products auto-filled with aggregated PI & PO quantities. Enter Inward Quantity manually.`
-        });
-      } else {
-        toast({
-          title: `${selectedPoIds.length} PO(s) Selected`,
-          description: 'Products aggregated from all selected POs. Enter Inward Quantity manually.'
-        });
-      }
+      toast({
+        title: `${selectedPoIds.length} PO(s) Selected`,
+        description: `Products aggregated from ${selectedPoVouchers.length} PO(s). Enter Inward Quantity manually.`
+      });
+
     } catch (error) {
-      console.error('Error in handlePOSelect:', error);
-      toast({ title: 'Error', description: 'Failed to process PO selection', variant: 'destructive' });
+      console.error('Failed to handle PO selection:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to aggregate PO products',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -972,6 +1104,7 @@ const InwardStock = () => {
       setEditingEntry(fullEntry.data);
       setFormData({
         inward_invoice_no: fullEntry.data.inward_invoice_no,
+        company_id: fullEntry.data.company_id || '',
         date: fullEntry.data.date.split('T')[0],
         po_ids: fullEntry.data.po_ids || (fullEntry.data.po_id ? [fullEntry.data.po_id] : []),  // Support both po_ids and po_id
         pi_id: fullEntry.data.pi_id || '',
@@ -1005,7 +1138,7 @@ const InwardStock = () => {
   // ===== BULK OPERATIONS HANDLERS FOR PICKUP TAB =====
   const handleSelectAllPickups = (checked) => {
     if (checked) {
-      setSelectedPickupIds(pickupEntries.map(item => item.id));
+      setSelectedPickupIds(filteredPickups.map(item => item.id));
     } else {
       setSelectedPickupIds([]);
     }
@@ -1088,7 +1221,7 @@ const InwardStock = () => {
   // ===== BULK OPERATIONS HANDLERS FOR WAREHOUSE TAB =====
   const handleSelectAllWarehouse = (checked) => {
     if (checked) {
-      setSelectedWarehouseIds(warehouseEntries.map(item => item.id));
+      setSelectedWarehouseIds(filteredWarehouseEntries.map(item => item.id));
     } else {
       setSelectedWarehouseIds([]);
     }
@@ -1108,9 +1241,10 @@ const InwardStock = () => {
       : warehouseEntries;
 
     const fieldMapping = {
-      'inward_invoice_no': 'Invoice No',
+      'po_voucher_no': 'Purchase Order',
+      'manual': 'Inward No',
       'date': 'Date',
-      'warehouse_name': 'Warehouse',
+      'warehouse.warehouseName': 'Warehouse',
       'total_amount': 'Total Amount',
       'created_at': 'Created At'
     };
@@ -1125,9 +1259,10 @@ const InwardStock = () => {
       : warehouseEntries;
 
     const fieldMapping = {
-      'inward_invoice_no': 'Invoice No',
+      'po_voucher_no': 'Purchase Order',
+      'manual': 'Inward No',
       'date': 'Date',
-      'warehouse_name': 'Warehouse',
+      'warehouse.warehouseName': 'Warehouse',
       'total_amount': 'Total Amount',
       'created_at': 'Created At'
     };
@@ -1194,6 +1329,7 @@ const InwardStock = () => {
 
     const fieldMapping = {
       'inward_invoice_no': 'Invoice No',
+      'company.name': 'Company',
       'date': 'Date',
       'warehouse.name': 'Warehouse',
       'total_amount': 'Total Amount',
@@ -1211,6 +1347,7 @@ const InwardStock = () => {
 
     const fieldMapping = {
       'inward_invoice_no': 'Invoice No',
+      'company.name': 'Company',
       'date': 'Date',
       'warehouse.name': 'Warehouse',
       'total_amount': 'Total Amount',
@@ -1258,6 +1395,7 @@ const InwardStock = () => {
   const resetForm = () => {
     setFormData({
       inward_invoice_no: '',
+      company_id: '',
       date: new Date().toISOString().split('T')[0],
       po_ids: [],  // Changed from po_id to po_ids (array)
       pi_id: '',
@@ -1287,7 +1425,7 @@ const InwardStock = () => {
   };
 
   const getTotalAmount = () => {
-    return formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2);
+    return formatCurrency(formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0));
   };
 
   if (loading) {
@@ -1300,17 +1438,9 @@ const InwardStock = () => {
 
   // Filter entries by type and warehouse (with safety checks) - AFTER loading check
 
-  const filteredWarehouseEntries = (filteredInward || []).filter(e => {
-    const matchesType = e.inward_type === 'warehouse';
-    const matchesWarehouse = !warehouseFilter || warehouseFilter === 'all' || e.warehouse_id === warehouseFilter;
-    return matchesType && matchesWarehouse;
-  });
+  const filteredWarehouseEntries = (filteredInward || []).filter(e => e.inward_type === 'warehouse');
 
-  const directEntries = (filteredInward || []).filter(e => {
-    const matchesType = e.source_type === 'direct_inward';
-    const matchesWarehouse = !warehouseFilter || warehouseFilter === 'all' || e.warehouse_id === warehouseFilter;
-    return matchesType && matchesWarehouse;
-  });
+  const directEntries = (filteredInward || []).filter(e => e.source_type === 'direct_inward');
 
   // Filter pending pickup entries by warehouse (with safety checks)
   // Note: pickup pending functionality has been removed
@@ -1325,30 +1455,80 @@ const InwardStock = () => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex-1">
-          {/* Warehouse Filter */}
-          <div className="max-w-xs">
-            <Label>Filter by Warehouse</Label>
-            <Select
-              value={warehouseFilter}
-              onValueChange={setWarehouseFilter}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All Warehouses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Warehouses</SelectItem>
-                {(warehouses || []).map(warehouse => (
-                  <SelectItem key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Search and Filters */}
+      <Card className="border-blue-100 shadow-sm mb-6">
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Search Input */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Inward No, PO, Product..."
+                  className="pl-9 h-10 border-slate-200 focus:ring-blue-500 transition-all"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Warehouse Filter */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Filter by Warehouse</Label>
+              <Select
+                value={filters.warehouse}
+                onValueChange={(v) => setFilters({ ...filters, warehouse: v })}
+              >
+                <SelectTrigger className="h-10 border-slate-200">
+                  <SelectValue placeholder="All Warehouses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Warehouses</SelectItem>
+                  {(warehouses || []).map(warehouse => (
+                    <SelectItem key={warehouse.id} value={warehouse.id}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date From */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Date From</Label>
+              <Input
+                type="date"
+                className="h-10 border-slate-200"
+                value={filters.dateFrom}
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+              />
+            </div>
+
+            {/* Date To + Reset */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-slate-700">Date To</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  className="h-10 border-slate-200 flex-1"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200"
+                  onClick={resetFilters}
+                  title="Reset all filters"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
@@ -1371,7 +1551,7 @@ const InwardStock = () => {
           {/* Create New Pickup Entry */}
           <Card>
             <CardHeader>
-              <CardTitle>Create New Pickup Entry</CardTitle>
+              <CardTitle>{editingPickupId ? 'Edit Pickup Entry' : 'Create New Pickup Entry'}</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handlePickupSubmit} className="space-y-6">
@@ -1387,19 +1567,15 @@ const InwardStock = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="po">Purchase Order *</Label>
-                    <Select value={selectedPo} onValueChange={handlePoSelection}>
-                      <SelectTrigger id="po">
-                        <SelectValue placeholder="Select PO" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pos.map((po) => (
-                          <SelectItem key={po.id} value={po.voucher_no}>
-                            {po.voucher_no} - {po.supplier}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="po_select">Purchase Orders (Multiple Selection) *</Label>
+                    <MultiSelectPO
+                      selectedItems={selectedPo}
+                      options={pos}
+                      onSelectionChange={handlePoSelection}
+                      valueKey="voucher_no"
+                      labelKey="voucher_no"
+                      placeholder="Select POs for Pickup"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -1478,6 +1654,7 @@ const InwardStock = () => {
                             <TableHead className="text-right">In-Transit</TableHead>
                             <TableHead className="text-right">Available</TableHead>
                             <TableHead className="text-right">New In-Transit Qty *</TableHead>
+                            <TableHead className="text-center">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1485,12 +1662,12 @@ const InwardStock = () => {
                             <TableRow key={item.product_id}>
                               <TableCell className="font-medium">{item.product_name}</TableCell>
                               <TableCell>{item.sku}</TableCell>
-                              <TableCell className="text-right">{item.pi_quantity}</TableCell>
-                              <TableCell className="text-right">{item.po_quantity}</TableCell>
-                              <TableCell className="text-right">{item.already_inwarded}</TableCell>
-                              <TableCell className="text-right">{item.in_transit}</TableCell>
+                              <TableCell className="text-right">{formatNumber(item.pi_quantity)}</TableCell>
+                              <TableCell className="text-right">{formatNumber(item.po_quantity)}</TableCell>
+                              <TableCell className="text-right">{formatNumber(item.already_inwarded)}</TableCell>
+                              <TableCell className="text-right">{formatNumber(item.in_transit)}</TableCell>
                               <TableCell className="text-right font-semibold text-green-600">
-                                {item.available_for_pickup}
+                                {formatNumber(item.available_for_pickup)}
                               </TableCell>
                               <TableCell>
                                 <Input
@@ -1504,6 +1681,18 @@ const InwardStock = () => {
                                   disabled={item.available_for_pickup <= 0}
                                 />
                               </TableCell>
+                              <TableCell className="text-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemovePickupLineItem(index)}
+                                  className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                  title="Remove from pickup"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1515,7 +1704,8 @@ const InwardStock = () => {
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          setSelectedPo('');
+                          setEditingPickupId(null);
+                          setSelectedPo([]);
                           setPoLineStats(null);
                           setPickupFormData({
                             pickup_date: new Date().toISOString().split('T')[0],
@@ -1526,7 +1716,7 @@ const InwardStock = () => {
                         }}
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
-                        Reset
+                        {editingPickupId ? 'Cancel Edit' : 'Reset'}
                       </Button>
                       <Button type="submit">
                         <Save className="h-4 w-4 mr-2" />
@@ -1561,7 +1751,7 @@ const InwardStock = () => {
                       <TableHead className="w-12">
                         <input
                           type="checkbox"
-                          checked={selectedPickupIds.length === pickupEntries.length && pickupEntries.length > 0}
+                          checked={selectedPickupIds.length === filteredPickups.length && filteredPickups.length > 0}
                           onChange={(e) => handleSelectAllPickups(e.target.checked)}
                           className="rounded border-gray-300"
                         />
@@ -1577,14 +1767,14 @@ const InwardStock = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pickupEntries.length === 0 ? (
+                    {filteredPickups.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                          No pickup entries found
+                        <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                          No pickup entries found matching filters
                         </TableCell>
                       </TableRow>
                     ) : (
-                      pickupEntries.map((entry) => (
+                      filteredPickups.map((entry) => (
                         <TableRow key={entry.id}>
                           <TableCell>
                             <input
@@ -1604,10 +1794,10 @@ const InwardStock = () => {
                           </TableCell>
                           {/* <TableCell>{entry?.line_items?.map(item => item.quantity)}</TableCell> */}
                           <TableCell>
-                            {entry?.line_items?.reduce(
+                            {formatNumber(entry?.line_items?.reduce(
                               (total, item) => total + (item.quantity || 0),
                               0
-                            )}
+                            ))}
                           </TableCell>
                           <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
@@ -1616,6 +1806,14 @@ const InwardStock = () => {
                               <Button variant="ghost" size="sm" onClick={() => handleViewPickup(entry)}>
                                 <Eye size={16} className="text-blue-600" />
                               </Button>
+
+                              <button
+                                onClick={() => handleEditPickup(entry)}
+                                className="text-amber-600 hover:text-amber-800 p-1"
+                                title="Edit pickup"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
 
                               <button
                                 onClick={() => handleDeletePickup(entry.id)}
@@ -1658,19 +1856,15 @@ const InwardStock = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="warehouse_po">Purchase Order *</Label>
-                    <Select value={selectedWarehousePo} onValueChange={handleWarehousePoSelection}>
-                      <SelectTrigger id="warehouse_po">
-                        <SelectValue placeholder="Select PO" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {pos.map((po) => (
-                          <SelectItem key={po.id} value={po.voucher_no}>
-                            {po.voucher_no} - {po.supplier}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="warehouse_po_select">Purchase Orders (Multiple Selection) *</Label>
+                    <MultiSelectPO
+                      selectedItems={selectedWarehousePo}
+                      options={pos}
+                      onSelectionChange={handleWarehousePoSelection}
+                      valueKey="voucher_no"
+                      labelKey="voucher_no"
+                      placeholder="Select POs for Inward"
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -1750,12 +1944,12 @@ const InwardStock = () => {
                               <TableRow key={item.product_id}>
                                 <TableCell className="font-medium">{item.product_name}</TableCell>
                                 <TableCell>{item.sku}</TableCell>
-                                <TableCell className="text-right">{item.pi_quantity}</TableCell>
-                                <TableCell className="text-right">{item.po_quantity}</TableCell>
-                                <TableCell className="text-right">{item.already_inwarded}</TableCell>
-                                <TableCell className="text-right">{item.in_transit}</TableCell>
+                                <TableCell className="text-right">{formatNumber(item.pi_quantity)}</TableCell>
+                                <TableCell className="text-right">{formatNumber(item.po_quantity)}</TableCell>
+                                <TableCell className="text-right">{formatNumber(item.already_inwarded)}</TableCell>
+                                <TableCell className="text-right">{formatNumber(item.in_transit)}</TableCell>
                                 <TableCell className="text-right font-semibold text-green-600" title={`Remaining = PO Qty (${item.po_quantity}) - Already Inwarded (${item.already_inwarded}) - In-Transit (${item.in_transit})`}>
-                                  {remainingAllowed}
+                                  {formatNumber(remainingAllowed)}
                                 </TableCell>
                                 <TableCell>
                                   <Input
@@ -1770,8 +1964,8 @@ const InwardStock = () => {
                                     title={remainingAllowed <= 0 ? "No quantity remaining to inward" : `Max allowed: ${remainingAllowed}`}
                                   />
                                 </TableCell>
-                                <TableCell className="text-right">{item.rate.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-semibold">₹{amount.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">₹{formatCurrency(item.rate)}</TableCell>
+                                <TableCell className="text-right font-semibold">₹{formatCurrency(amount)}</TableCell>
                               </TableRow>
                             );
                           })}
@@ -1782,14 +1976,14 @@ const InwardStock = () => {
                     <div className="flex justify-between items-center bg-gray-50 p-4 rounded-md">
                       <div className="text-lg font-semibold">
                         Total Amount: ₹
-                        {warehouseInwardFormData.line_items.reduce((sum, item) => sum + (item.new_inward_qty * item.rate), 0).toFixed(2)}
+                        {formatCurrency(warehouseInwardFormData.line_items.reduce((sum, item) => sum + (item.new_inward_qty * item.rate), 0))}
                       </div>
                       <div className="flex gap-2">
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => {
-                            setSelectedWarehousePo('');
+                            setSelectedWarehousePo([]);
                             setWarehousePoLineStats(null);
                             setWarehouseInwardFormData({
                               warehouse_id: '',
@@ -1836,13 +2030,13 @@ const InwardStock = () => {
                       <TableHead className="w-12">
                         <input
                           type="checkbox"
-                          checked={selectedWarehouseIds.length === warehouseEntries.length && warehouseEntries.length > 0}
+                          checked={selectedWarehouseIds.length === filteredWarehouseEntries.length && filteredWarehouseEntries.length > 0}
                           onChange={(e) => handleSelectAllWarehouse(e.target.checked)}
                           className="rounded border-gray-300"
                         />
                       </TableHead>
-                      <TableHead>Invoice No</TableHead>
-                      <TableHead>Inward Number</TableHead>
+                      <TableHead>Purchase Order</TableHead>
+                      <TableHead>Inward No</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Warehouse</TableHead>
                       <TableHead>Items</TableHead>
@@ -1869,7 +2063,7 @@ const InwardStock = () => {
                               className="rounded border-gray-300"
                             />
                           </TableCell>
-                          <TableCell className="font-medium">{entry.inward_invoice_no || 'N/A'}</TableCell>
+                          <TableCell className="font-medium text-blue-600">{entry.po_voucher_no || 'N/A'}</TableCell>
                           <TableCell className="font-medium">{entry.manual || 'N/A'}</TableCell>
                           <TableCell>{entry.date}</TableCell>
                           <TableCell>{entry?.warehouse?.warehouseName || 'Unknown'}</TableCell>
@@ -1878,7 +2072,7 @@ const InwardStock = () => {
                               {entry.line_items?.length || 0} items
                             </div>
                           </TableCell>
-                          <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
+                          <TableCell className="font-semibold">₹{formatCurrency(entry.total_amount)}</TableCell>
                           {/* <TableCell>
                             {entry?.line_items?.map((item, index) => (
                               <div key={index}>
@@ -1887,10 +2081,10 @@ const InwardStock = () => {
                             ))}
                           </TableCell> */}
                           <TableCell>
-                            {entry?.line_items?.reduce(
+                            {formatNumber(entry?.line_items?.reduce(
                               (sum, item) => sum + (item.quantity || 0),
                               0
-                            )}
+                            ))}
                           </TableCell>
 
                           <TableCell className="text-right">
@@ -1901,6 +2095,20 @@ const InwardStock = () => {
                                 title="View details"
                               >
                                 <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleEdit(entry)}
+                                className="text-amber-600 hover:text-amber-800 p-1"
+                                title="Edit entry"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(entry)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                                title="Delete entry"
+                              >
+                                <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                           </TableCell>
@@ -1927,7 +2135,7 @@ const InwardStock = () => {
                       <TableHead className="w-12">
                         <input
                           type="checkbox"
-                          checked={selectedPickupIds.length === pickupEntries.length && pickupEntries.length > 0}
+                          checked={selectedPickupIds.length === filteredPickups.length && filteredPickups.length > 0}
                           onChange={(e) => handleSelectAllPickups(e.target.checked)}
                           className="rounded border-gray-300"
                         />
@@ -1942,7 +2150,7 @@ const InwardStock = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {pickupEntries.map((entry) => (
+                    {filteredPickups.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell>
                           <input
@@ -1961,7 +2169,7 @@ const InwardStock = () => {
                           </div>
                         </TableCell>
                         <TableCell className="font-semibold">
-                          ₹{(entry.line_items?.reduce((sum, item) => sum + (item.quantity * item.rate), 0) || 0).toFixed(2)}
+                          ₹{formatCurrency(entry.line_items?.reduce((sum, item) => sum + (item.quantity * item.rate), 0) || 0)}
                         </TableCell>
                         <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right">
@@ -2035,6 +2243,7 @@ const InwardStock = () => {
                     />
                   </TableHead>
                   <TableHead>Invoice No</TableHead>
+                  <TableHead>Company</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Warehouse</TableHead>
                   <TableHead>Items</TableHead>
@@ -2062,6 +2271,7 @@ const InwardStock = () => {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{entry.inward_invoice_no}</TableCell>
+                      <TableCell>{entry.company?.name || '-'}</TableCell>
                       <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
                       <TableCell>{entry.warehouse?.name || '-'}</TableCell>
                       <TableCell>
@@ -2069,7 +2279,7 @@ const InwardStock = () => {
                           {entry.line_items_count} items
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">₹{formatCurrency(entry.total_amount)}</TableCell>
                       <TableCell>
                         <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
                           {entry.status}
@@ -2083,6 +2293,13 @@ const InwardStock = () => {
                             title="View details"
                           >
                             <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEdit(entry)}
+                            className="text-amber-600 hover:text-amber-800 p-1"
+                            title="Edit entry"
+                          >
+                            <Edit className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(entry)}
@@ -2126,6 +2343,27 @@ const InwardStock = () => {
                   required
                 />
               </div>
+              {formData.source_type === 'direct_inward' && (
+                <div>
+                  <Label>Company *</Label>
+                  <Select
+                    value={formData.company_id}
+                    onValueChange={(value) => setFormData({ ...formData, company_id: value })}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select company" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map(company => (
+                        <SelectItem key={company.id} value={company.id}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label>Date *</Label>
                 <Input
@@ -2138,72 +2376,14 @@ const InwardStock = () => {
               {formData.source_type !== 'direct_inward' && (
                 <div>
                   <Label>PO Voucher No (Multiple Selection)</Label>
-                  <div className="space-y-2">
-                    {/* Selected POs Display */}
-                    <div className="border rounded-md p-2 min-h-[40px] flex flex-wrap gap-2 bg-white">
-                      {!Array.isArray(formData.po_ids) || formData.po_ids.length === 0 ? (
-                        <span className="text-gray-400 text-sm">No PO selected</span>
-                      ) : (
-                        formData.po_ids.map(poId => {
-                          const po = Array.isArray(pos) ? pos.find(p => p?.id === poId) : null;
-                          return (
-                            <span key={poId} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm">
-                              {po?.voucher_no || poId}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newPoIds = formData.po_ids.filter(id => id !== poId);
-                                  handlePOSelect(newPoIds);
-                                }}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                <X size={14} />
-                              </button>
-                            </span>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* Dropdown to Select POs */}
-                    <div className="border rounded-md max-h-48 overflow-y-auto bg-white">
-                      {!Array.isArray(pos) || pos.length === 0 ? (
-                        <div className="p-3 text-sm text-gray-500 text-center">No POs available</div>
-                      ) : (
-                        pos.map(po => {
-                          const isSelected = Array.isArray(formData.po_ids) && formData.po_ids.includes(po?.id);
-                          return (
-                            <label
-                              key={po.id}
-                              className="flex items-center gap-3 p-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  let newPoIds;
-                                  if (e.target.checked) {
-                                    // Add PO
-                                    newPoIds = [...formData.po_ids, po.id];
-                                  } else {
-                                    // Remove PO
-                                    newPoIds = formData.po_ids.filter(id => id !== po.id);
-                                  }
-                                  handlePOSelect(newPoIds);
-                                }}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                              />
-                              <div className="flex-1 text-sm">
-                                <div className="font-medium text-gray-900">{po.voucher_no}</div>
-                                <div className="text-xs text-gray-500">{new Date(po.date).toLocaleDateString()}</div>
-                              </div>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500">Check multiple POs to select them</p>
-                  </div>
+                  <MultiSelectPO
+                    selectedItems={formData.po_ids || []}
+                    options={pos}
+                    onSelectionChange={handlePOSelect}
+                    valueKey="id"
+                    labelKey="voucher_no"
+                    placeholder="Select POs"
+                  />
                 </div>
               )}
               {(formData.inward_type === 'warehouse' || formData.source_type === 'direct_inward') && (
@@ -2294,7 +2474,7 @@ const InwardStock = () => {
                           value={item.sku}
                           onChange={(e) => handleLineItemChange(index, 'sku', e.target.value)}
                           placeholder="SKU"
-                          disabled={formData.po_id && !editingEntry}
+                          disabled={formData.po_ids && formData.po_ids.length > 0 && !editingEntry}
                         />
                       </div>
                       {/* <div>
@@ -2303,7 +2483,7 @@ const InwardStock = () => {
                           value={item.pi_quantity || 0}
                           disabled
                           className="bg-blue-50 font-semibold text-blue-700"
-                          title="Total quantity from Performa Invoice"
+                          title="Total quantity from proforma Invoice"
                         />
                       </div>
                       <div>
@@ -2365,13 +2545,13 @@ const InwardStock = () => {
                           value={item.rate || ''}
                           onChange={(e) => handleLineItemChange(index, 'rate', parseFloat(e.target.value) || 0)}
                           placeholder="Rate"
-                          disabled={formData.po_id && !editingEntry}
+                          disabled={formData.po_ids && formData.po_ids.length > 0 && !editingEntry}
                         />
                       </div>
                       <div>
                         <Label>Amount (Auto-calc)</Label>
                         <Input
-                          value={`₹${item.amount.toFixed(2)}`}
+                          value={`₹${formatCurrency(item.amount)}`}
                           disabled
                           className="bg-blue-50 font-semibold"
                         />
@@ -2461,7 +2641,7 @@ const InwardStock = () => {
                         <tr key={item.id || index} className="border-t">
                           <td className="p-3">{item.product_name}</td>
                           <td className="p-3 font-mono text-sm">{item.sku}</td>
-                          <td className="p-3 text-right">{item.quantity}</td>
+                          <td className="p-3 text-right">{formatNumber(item.quantity)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2593,8 +2773,8 @@ const InwardStock = () => {
                           <td className="p-3">{item.product_name}</td>
                           <td className="p-3 font-mono text-sm">{item.sku}</td>
                           <td className="p-3 text-right">{item.quantity}</td>
-                          <td className="p-3 text-right">₹{item.rate?.toFixed(2)}</td>
-                          <td className="p-3 text-right font-semibold">₹{item.amount?.toFixed(2)}</td>
+                          <td className="p-3 text-right">₹{formatCurrency(item.rate)}</td>
+                          <td className="p-3 text-right font-semibold">₹{formatCurrency(item.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2606,7 +2786,7 @@ const InwardStock = () => {
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">
                     <span className="text-sm text-slate-700">Total Amount: </span>
                     <span className="text-xl font-bold text-blue-900">
-                      ₹{viewingEntry.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2)}
+                      ₹{formatCurrency(viewingEntry.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0))}
                     </span>
                   </div>
                 </div>

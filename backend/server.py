@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi.encoders import jsonable_encoder
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -9,6 +10,8 @@ import uuid
 from datetime import datetime, timezone
 import pandas as pd
 import io
+import math
+from bson import ObjectId
 
 from database import mongo_db
 from schemas import (
@@ -16,7 +19,7 @@ from schemas import (
     ProductCreate, ProductUpdate,
     WarehouseCreate, WarehouseUpdate,
     BankCreate, BankUpdate,
-    DashboardStats,
+    DashboardStats, MappingUpdate,
     InwardStockCreate, InwardStockResponse, InwardStockDetailResponse,
     StockSummaryResponse, StockTrackingResponse,
     OutwardStockCreate, OutwardStockResponse, OutwardStockDetailResponse
@@ -46,10 +49,29 @@ app.add_middleware(
     max_age=86400,  # Cache preflight for 24 hours
 )
 
+@app.get("/")
+async def root():
+    return {"message": "Bora Mobility Inventory System API is running"}
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    logger.error(f"❌ HTTP Error {exc.status_code} at {request.url.path}: {exc.detail}")
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Add file handler for persistent logs
+file_handler = logging.FileHandler("backend_debug.log")
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(file_handler)
 
 # ==================== AUTH ROUTES ====================
 @api_router.post("/auth/login")
@@ -89,25 +111,41 @@ async def create_company(
     company_data: CompanyCreate,
     current_user: dict = Depends(get_current_active_user)
 ):
-    company_dict = {
-        "id": str(uuid.uuid4()),
-        **company_data.model_dump(),
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await mongo_db.companies.insert_one(company_dict)
-    
-    await mongo_db.audit_logs.insert_one({
-        "action": "company_created",
-        "user_id": current_user["id"],
-        "entity_id": company_dict["id"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    
-    company_dict.pop("_id", None)
-    return company_dict
+    try:
+        data = company_data.model_dump()
+        
+        # 🔹 map gstn -> GSTNumber for DB consistency
+        gst_value = data.pop("gstn", None)
+        
+        company_dict = {
+            "id": str(uuid.uuid4()),
+            **data,
+            "GSTNumber": gst_value,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await mongo_db.companies.insert_one(company_dict)
+        
+        await mongo_db.audit_logs.insert_one({
+            "action": "company_created",
+            "user_id": current_user["id"],
+            "entity_id": company_dict["id"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        company_dict.pop("_id", None)
+        # Convert back for response if needed (get_companies does this)
+        if "GSTNumber" in company_dict:
+            company_dict["gstn"] = company_dict.pop("GSTNumber")
+            
+        return company_dict
+    except Exception as e:
+        logger.error(f"Error creating company: {str(e)}")
+        if "E11000 duplicate key error" in str(e):
+            raise HTTPException(status_code=400, detail="Company with this Name or GSTN already exists")
+        raise HTTPException(status_code=500, detail=f"Failed to create company: {str(e)}")
 
 
 
@@ -273,7 +311,7 @@ async def update_company(
 async def delete_company(company_id: str, current_user: dict = Depends(get_current_active_user)):
     # Check if company is referenced in other modules
     po_count = await mongo_db.purchase_orders.count_documents({"company_id": company_id, "is_active": True})
-    pi_count = await mongo_db.performa_invoices.count_documents({"company_id": company_id, "is_active": True})
+    pi_count = await mongo_db.proforma_invoices.count_documents({"company_id": company_id, "is_active": True})
     
     if po_count > 0 or pi_count > 0:
         raise HTTPException(
@@ -315,7 +353,7 @@ async def bulk_delete_companies(
         try:
             # Check references
             po_count = await mongo_db.purchase_orders.count_documents({"company_id": company_id, "is_active": True})
-            pi_count = await mongo_db.performa_invoices.count_documents({"company_id": company_id, "is_active": True})
+            pi_count = await mongo_db.proforma_invoices.count_documents({"company_id": company_id, "is_active": True})
             
             if po_count > 0 or pi_count > 0:
                 failed.append({
@@ -374,18 +412,25 @@ async def create_product(
     product_data: ProductCreate,
     current_user: dict = Depends(get_current_active_user)
 ):
-    product_dict = {
-        "id": str(uuid.uuid4()),
-        **product_data.model_dump(),
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    await mongo_db.products.insert_one(product_dict)
-    product_dict.pop("_id", None)
-    return product_dict
+    try:
+        product_dict = {
+            "id": str(uuid.uuid4()),
+            **product_data.model_dump(),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        await mongo_db.products.insert_one(product_dict)
+        product_dict.pop("_id", None)
+        return product_dict
+    except Exception as e:
+        logger.error(f"Error creating product: {str(e)}")
+        if "E11000 duplicate key error" in str(e):
+            raise HTTPException(status_code=400, detail="Product with this SKU already exists")
+        raise HTTPException(status_code=500, detail=f"Failed to create product: {str(e)}")
 
-@api_router.post("/products/bulk")
+@api_router.post("/products/bulk-upload")
+@api_router.post("/products/bulk")  # Support both for compatibility
 async def bulk_upload_products(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_active_user)
@@ -480,7 +525,7 @@ async def delete_product(product_id: str, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=404, detail="Product not found")
     
     # Check referential integrity
-    pi_count = await mongo_db.performa_invoices.count_documents({
+    pi_count = await mongo_db.proforma_invoices.count_documents({
         "line_items.product_id": product_id,
         "is_active": True
     })
@@ -537,7 +582,7 @@ async def bulk_delete_products(
                 continue
             
             # Check referential integrity
-            pi_count = await mongo_db.performa_invoices.count_documents({
+            pi_count = await mongo_db.proforma_invoices.count_documents({
                 "line_items.product_id": product_id,
                 "is_active": True
             })
@@ -587,7 +632,6 @@ async def bulk_delete_products(
         "failed": failed
     }
 
-# ==================== WAREHOUSE ROUTES ====================
 @api_router.post("/warehouses")
 async def create_warehouse(
     warehouse_data: WarehouseCreate,
@@ -596,17 +640,17 @@ async def create_warehouse(
     try:
         warehouse_dict = {
             "id": str(uuid.uuid4()),
-
-            # Map to DB fields that have unique indexes
-            "warehouseName": warehouse_data.name,
-            "contactDetails": warehouse_data.contact_details,
-
             **warehouse_data.model_dump(),
-
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
+
+        # Map to legacy DB fields that have unique indexes
+        # We only set them if they are not None to avoid collisions with sparse indexes
+        warehouse_dict["warehouseName"] = warehouse_data.name
+        if warehouse_data.contact_details:
+            warehouse_dict["contactDetails"] = warehouse_data.contact_details
 
         await mongo_db.warehouses.insert_one(warehouse_dict)
         warehouse_dict.pop("_id", None)
@@ -614,6 +658,7 @@ async def create_warehouse(
         return warehouse_dict
 
     except Exception as e:
+        print(f"Error creating warehouse: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -799,16 +844,30 @@ async def create_bank(
     bank_data: BankCreate,
     current_user: dict = Depends(get_current_active_user)
 ):
-    bank_dict = {
-        "id": str(uuid.uuid4()),
-        **bank_data.model_dump(),
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    await mongo_db.banks.insert_one(bank_dict)
-    bank_dict.pop("_id", None)
-    return bank_dict
+    try:
+        bank_dict = {
+            "id": str(uuid.uuid4()),
+            **bank_data.model_dump(),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        # Map to legacy DB fields that have unique indexes
+        # We only set them if they are not None to avoid collisions with sparse indexes
+        if bank_data.ifsc_code:
+            bank_dict["IFSC_code"] = bank_data.ifsc_code
+        if bank_data.ad_code:
+            bank_dict["AD_code"] = bank_data.ad_code
+        if bank_data.account_number:
+            bank_dict["Account_Number"] = bank_data.account_number
+
+        await mongo_db.banks.insert_one(bank_dict)
+        bank_dict.pop("_id", None)
+        return bank_dict
+    except Exception as e:
+        print(f"Error creating bank: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @api_router.get("/banks")
 async def get_banks(current_user: dict = Depends(get_current_active_user)):
@@ -935,7 +994,7 @@ async def download_warehouses_template():
         headers={"Content-Disposition": "attachment; filename=Warehouses_Template.xlsx"}
     )
 
-# ==================== PERFORMA INVOICE (PI) ROUTES ====================
+# ==================== proforma INVOICE (PI) ROUTES ====================
 @api_router.post("/pi")
 async def create_pi(
     pi_data: dict,
@@ -974,7 +1033,7 @@ async def create_pi(
         }
         pi_dict["line_items"].append(line_item)
     
-    await mongo_db.performa_invoices.insert_one(pi_dict)
+    await mongo_db.proforma_invoices.insert_one(pi_dict)
     
     await mongo_db.audit_logs.insert_one({
         "action": "pi_created",
@@ -1075,7 +1134,7 @@ async def bulk_upload_pis(
 
             try:
                 print(f"📥 Inserting PI for voucher {voucher_no}")
-                await mongo_db.performa_invoices.insert_one(pi_dict)
+                await mongo_db.proforma_invoices.insert_one(pi_dict)
                 pis_created += 1
                 print(f"✅ Inserted PI #{pis_created}")
             except Exception as e:
@@ -1100,7 +1159,7 @@ async def bulk_upload_pis(
 @api_router.get("/pi")
 async def get_pis(current_user: dict = Depends(get_current_active_user)):
     pis = []
-    async for pi in mongo_db.performa_invoices.find({"is_active": True}, {"_id": 0}):
+    async for pi in mongo_db.proforma_invoices.find({"is_active": True}, {"_id": 0}):
         # Calculate total amount
         total_amount = sum(item.get("amount", 0) for item in pi.get("line_items", []))
         pi["total_amount"] = total_amount
@@ -1109,170 +1168,111 @@ async def get_pis(current_user: dict = Depends(get_current_active_user)):
         pis.append(pi)
     return pis
 
-@api_router.get("/pI/{pi_id}")
-async def get_pi(pi_id: str, current_user: dict = Depends(get_current_active_user)):
-    pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
-    if not pi:
-        raise HTTPException(status_code=404, detail="PI not found")
+# Helper functions for PI stock calculations
+async def get_inward_qty_for_pi(pi_id: str, product_sku: str, warehouse_id: str, product_id: str = None) -> float:
+    """Calculate total inward quantity for a specific PI, product SKU, and warehouse"""
+    total_inward = 0.0
     
-    # Get company details
-    if pi.get("company_id"):
-        company = await mongo_db.companies.find_one({"id": pi["company_id"]}, {"_id": 0})
-        pi["company"] = company
+    # 1. Get all PO IDs linked to this PI
+    linked_po_ids = []
+    async for po in mongo_db.purchase_orders.find({
+        "$or": [{"reference_pi_id": pi_id}, {"reference_pi_ids": pi_id}],
+        "is_active": True
+    }, {"id": 1}):
+        linked_po_ids.append(po["id"])
+
+    # 2. Build query for inward entries
+    # Match by PI ID OR by linked PO IDs
+    query = {
+        "is_active": True,
+        "warehouse_id": warehouse_id,
+        "$or": [
+            {"pi_id": pi_id},
+            {"pi_ids": pi_id}
+        ]
+    }
     
-    return pi
+    if linked_po_ids:
+        query["$or"].append({"po_id": {"$in": linked_po_ids}})
+        query["$or"].append({"po_ids": {"$in": linked_po_ids}})
 
-# async def get_dispatched_qty_for_pi(
-#     pi_id: str,
-#     line_item_id: str,  # Match by line item ID
-#     warehouse_id: str
-# ):
-#     dispatched = 0.0
+    async for inward in mongo_db.inward_stock.find(query, {"_id": 0}):
+        for item in inward.get("line_items", []):
+            matched = False
+            if product_id and item.get("product_id") == product_id:
+                matched = True
+            elif product_sku and item.get("sku") == product_sku:
+                matched = True
+                
+            if matched:
+                total_inward += float(item.get("quantity", 0))
+    
+    return total_inward
 
-#     async for outward in mongo_db.outward_stock.find(
-#         {
-#             "pi_ids": pi_id,
-#             "warehouse_id": warehouse_id,
-#             "is_active": True
-#         },
-#         {"_id": 0}
-#     ):
-#         for item in outward.get("line_items", []):
-#             if item.get("id") == line_item_id:  # Match by line item ID
-#                 dispatched += float(item.get("quantity", 0))
+async def get_dispatched_qty_for_pi(pi_id: str, product_sku: str, warehouse_id: str, product_id: str = None) -> float:
+    """Calculate total dispatched quantity for a specific PI, product SKU, and warehouse"""
+    total_dispatched = 0.0
+    
+    # 1. Get all PO IDs linked to this PI
+    linked_po_ids = []
+    async for po in mongo_db.purchase_orders.find({
+        "$or": [{"reference_pi_id": pi_id}, {"reference_pi_ids": pi_id}],
+        "is_active": True
+    }, {"id": 1}):
+        linked_po_ids.append(po["id"])
 
-#     return dispatched
+    # 2. Build query - Include dispatch_plan, export_invoice, and direct_export
+    query = {
+        "warehouse_id": warehouse_id,
+        "is_active": True,
+        "status": {"$ne": "Cancelled"},
+        "dispatch_type": {"$in": ["dispatch_plan", "export_invoice", "direct_export"]},
+        "$or": [
+            {"pi_id": pi_id},
+            {"pi_ids": pi_id}
+        ]
+    }
+    
+    if linked_po_ids:
+        query["$or"].append({"po_id": {"$in": linked_po_ids}})
+        query["$or"].append({"po_ids": {"$in": linked_po_ids}})
 
-# async def get_inward_qty_for_pi(
-#     pi_id: str,
-#     line_item_id: str,  # Match by line item ID
-#     warehouse_id: str
-# ):
-#     inward = 0.0
-
-#     async for inward_doc in mongo_db.inward_stock.find(
-#         {
-#             "pi_id": pi_id,
-#             "warehouse_id": warehouse_id,
-#             "is_active": True
-#         },
-#         {"_id": 0}
-#     ):
-#         for item in inward_doc.get("line_items", []):
-#             if item.get("id") == line_item_id:  # Match by line item ID
-#                 inward += float(item.get("quantity", 0))
-
-#     return inward
-
-
-# #i need to see this code carefully
-# @api_router.get("/pi/{pi_id}")
-# async def get_pi(
-#     pi_id: str,
-#     warehouse_id: str,  #REQUIRED
-#     current_user: dict = Depends(get_current_active_user)
-# ):
-#     # Fetch the PI
-#     pi = await mongo_db.performa_invoices.find_one(
-#         {"id": pi_id},
-#         {"_id": 0}
-#     )
-#     if not pi:
-#         raise HTTPException(status_code=404, detail="PI not found")
-
-#     # Company
-#     if pi.get("company_id"):
-#         company = await mongo_db.companies.find_one(
-#             {"id": pi["company_id"]},
-#             {"_id": 0}
-#         )
-#         pi["company"] = company
-
-#     # Inward stock (optional, reference only)
-#     inward_stocks = []
-#     async for stock in mongo_db.inward_stock.find(
-#         {"pi_id": pi_id, "warehouse_id": warehouse_id},
-#         {"_id": 0}
-#     ):
-#         inward_stocks.append(stock)
-#     pi["inward_stock"] = inward_stocks
-
-#     # ✅ CORRECT CALCULATION
-#     for item in pi.get("line_items", []):
-
-#         line_item_id = item.get("id")
-
-#         inward_qty = await get_inward_qty_for_pi(
-#             pi_id=pi_id,
-#             line_item_id=line_item_id,   #using item id the unique one
-#             warehouse_id=warehouse_id
-#         )
-
-#         dispatched_qty = await get_dispatched_qty_for_pi(
-#             pi_id=pi_id,
-#              line_item_id=line_item_id,
-#             warehouse_id=warehouse_id
-#         )
-
-#         item["pi_quantity"] = float(item.get("quantity", 0))
-#         item["inward_quantity"] = inward_qty
-#         item["dispatched_quantity"] = dispatched_qty
-#         item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
-
-#     return pi
-
-
-async def get_dispatched_qty_for_pi(
-    pi_id: str,
-    product_sku: str,  # ✅ Changed to SKU
-    warehouse_id: str
-):
-    dispatched = 0.0
-
-    async for outward in mongo_db.outward_stock.find(
-        {
-            "pi_ids": pi_id,
-            "warehouse_id": warehouse_id,
-            "is_active": True
-        },
-        {"_id": 0}
-    ):
+    # 3. Fetch all outward entries and identify linked plans to avoid double-counting
+    all_outwards = []
+    async for outward in mongo_db.outward_stock.find(query, {"_id": 0}):
+        all_outwards.append(outward)
+    
+    # Get IDs of dispatch plans that have been converted to export invoices
+    linked_plan_ids = {o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_plan_id")}
+    
+    # 4. Calculate dispatched quantity, skipping converted dispatch plans
+    for outward in all_outwards:
+        # Skip dispatch plans that have been converted to export invoices (to avoid double-counting)
+        if outward.get("dispatch_type") == "dispatch_plan" and outward.get("id") in linked_plan_ids:
+            continue
+            
         for item in outward.get("line_items", []):
-            if item.get("sku") == product_sku:  # ✅ Match by SKU
-                dispatched += float(item.get("quantity", 0))
-
-    return dispatched
-
-async def get_inward_qty_for_pi(
-    pi_id: str,
-    product_sku: str,  # ✅ Changed to SKU
-    warehouse_id: str
-):
-    inward = 0.0
-
-    async for inward_doc in mongo_db.inward_stock.find(
-        {
-            "pi_id": pi_id,
-            "warehouse_id": warehouse_id,
-            "is_active": True
-        },
-        {"_id": 0}
-    ):
-        for item in inward_doc.get("line_items", []):
-            if item.get("sku") == product_sku:  # ✅ Match by SKU
-                inward += float(item.get("quantity", 0))
-
-    return inward
+            matched = False
+            if product_id and item.get("product_id") == product_id:
+                matched = True
+            elif product_sku and item.get("sku") == product_sku:
+                matched = True
+                
+            if matched:
+                # Support both 'quantity' and 'dispatch_quantity' fields
+                qty = item.get("dispatch_quantity") or item.get("quantity", 0)
+                total_dispatched += float(qty)
+    
+    return total_dispatched
 
 
-# ✅ Update the endpoint
 @api_router.get("/pi/{pi_id}")
 async def get_pi(
     pi_id: str,
-    warehouse_id: str,
+    warehouse_id: Optional[str] = None,
     current_user: dict = Depends(get_current_active_user)
 ):
-    pi = await mongo_db.performa_invoices.find_one(
+    pi = await mongo_db.proforma_invoices.find_one(
         {"id": pi_id},
         {"_id": 0}
     )
@@ -1286,36 +1286,47 @@ async def get_pi(
         )
         pi["company"] = company
 
-    inward_stocks = []
-    async for stock in mongo_db.inward_stock.find(
-        {"pi_id": pi_id, "warehouse_id": warehouse_id},
-        {"_id": 0}
-    ):
-        inward_stocks.append(stock)
-    pi["inward_stock"] = inward_stocks
+    # Only calculate detailed stock info if a warehouse is specified (contextual detailed view)
+    if warehouse_id:
+        inward_stocks = []
+        async for stock in mongo_db.inward_stock.find(
+            {"pi_id": pi_id, "warehouse_id": warehouse_id},
+            {"_id": 0}
+        ):
+            inward_stocks.append(stock)
+        pi["inward_stock"] = inward_stocks
 
-    # ✅ Calculate quantities using SKU
-    for item in pi.get("line_items", []):
+        # Calculate quantities using Product ID and SKU
+        for item in pi.get("line_items", []):
+            product_sku = item.get("sku")
+            product_id = item.get("product_id")
+            
+            # CRITICAL FIX: If product_id is missing, look it up from products collection
+            if not product_id and product_sku:
+                product = await mongo_db.products.find_one({"sku": product_sku}, {"id": 1})
+                if product:
+                    product_id = product["id"]
+                    item["product_id"] = product_id
 
-        product_sku = item.get("sku")  # ✅ Get SKU
+            inward_qty = await get_inward_qty_for_pi(
+                pi_id=pi_id,
+                product_sku=product_sku,
+                product_id=product_id,
+                warehouse_id=warehouse_id
+            )
 
-        inward_qty = await get_inward_qty_for_pi(
-            pi_id=pi_id,
-            product_sku=product_sku,  # ✅ Pass SKU
-            warehouse_id=warehouse_id
-        )
+            dispatched_qty = await get_dispatched_qty_for_pi(
+                pi_id=pi_id,
+                product_sku=product_sku,
+                product_id=product_id,
+                warehouse_id=warehouse_id
+            )
 
-        dispatched_qty = await get_dispatched_qty_for_pi(
-            pi_id=pi_id,
-            product_sku=product_sku,  # ✅ Pass SKU
-            warehouse_id=warehouse_id
-        )
-
-        item["pi_quantity"] = float(item.get("quantity", 0))
-        item["inward_quantity"] = inward_qty
-        item["dispatched_quantity"] = dispatched_qty
-        item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
-
+            item["pi_quantity"] = float(item.get("quantity", 0))
+            item["inward_quantity"] = inward_qty
+            item["dispatched_quantity"] = dispatched_qty
+            item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
+    
     return pi
 
 
@@ -1325,7 +1336,7 @@ async def update_pi(
     pi_data: dict,
     current_user: dict = Depends(get_current_active_user)
 ):
-    pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+    pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
     
@@ -1360,18 +1371,18 @@ async def update_pi(
             line_items.append(line_item)
         update_data["line_items"] = line_items
     
-    await mongo_db.performa_invoices.update_one({"id": pi_id}, {"$set": update_data})
+    await mongo_db.proforma_invoices.update_one({"id": pi_id}, {"$set": update_data})
     
-    updated_pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+    updated_pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
     return updated_pi
 
 @api_router.delete("/pi/{pi_id}")
 async def delete_pi(pi_id: str, current_user: dict = Depends(get_current_active_user)):
-    pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+    pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
     
-    await mongo_db.performa_invoices.update_one({"id": pi_id}, {"$set": {"is_active": False}})
+    await mongo_db.proforma_invoices.update_one({"id": pi_id}, {"$set": {"is_active": False}})
     return {"message": "PI deleted successfully"}
 
 @api_router.get("/templates/pi")
@@ -1418,7 +1429,7 @@ async def export_pis(
     
     all_rows = []
     for pi_id in pi_ids:
-        pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+        pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
         if pi:
             company = await mongo_db.companies.find_one({"id": pi.get("company_id")}, {"_id": 0})
             company_name = company.get("name") if company else ""
@@ -1471,9 +1482,9 @@ async def create_po(
     # Validate all PI IDs exist
     if reference_pi_ids:
         for pi_id in reference_pi_ids:
-            pi = await mongo_db.performa_invoices.find_one({"id": pi_id, "is_active": True}, {"_id": 0})
+            pi = await mongo_db.proforma_invoices.find_one({"id": pi_id, "is_active": True}, {"_id": 0})
             if not pi:
-                raise HTTPException(status_code=404, detail=f"Performa Invoice {pi_id} not found")
+                raise HTTPException(status_code=404, detail=f"proforma Invoice {pi_id} not found")
     
     # Create PO
     po_dict = {
@@ -1526,6 +1537,7 @@ async def create_po(
             "category": item.get("category"),
             "brand": item.get("brand"),
             "hsn_sac": item.get("hsn_sac"),
+            "pi_voucher_no": item.get("pi_voucher_no"),
             "quantity": quantity,
             "rate": rate,
             "amount": amount,
@@ -1554,7 +1566,51 @@ async def create_po(
     })
     
     po_dict.pop("_id", None)
-    return po_dict
+    return jsonable_encoder(prepare_po_response(po_dict))
+
+def sanitize_mongo_obj(obj):
+    """Recursively convert ObjectId and other non-JSON types to str"""
+    if isinstance(obj, list):
+        return [sanitize_mongo_obj(v) for v in obj]
+    elif isinstance(obj, dict):
+        return {k: sanitize_mongo_obj(v) for k, v in obj.items()}
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    elif isinstance(obj, datetime):
+        return obj.isoformat() if hasattr(obj, 'isoformat') else str(obj)
+    return str(obj)
+
+def sanitize_floats(obj):
+    """Recursively convert NaN and Inf to 0.0 in a dictionary or list"""
+    if isinstance(obj, list):
+        return [sanitize_floats(v) for v in obj]
+    elif isinstance(obj, dict):
+        return {k: sanitize_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return 0.0
+        return obj
+    return obj
+
+def sanitize_po(po_dict):
+    return sanitize_floats(po_dict)
+
+def prepare_po_response(po):
+    # Safer calculation of total amount
+    total_amount = 0
+    for item in po.get("line_items", []):
+        amt = item.get("amount")
+        if amt is not None:
+            try:
+                f_amt = float(amt)
+                if not math.isnan(f_amt) and not math.isinf(f_amt):
+                    total_amount += f_amt
+            except (ValueError, TypeError):
+                pass
+    
+    po["total_amount"] = round(total_amount, 2)
+    po["line_items_count"] = len(po.get("line_items", []))
+    return sanitize_po(po)
 
 @api_router.post("/po/bulk")
 async def bulk_upload_pos(
@@ -1562,15 +1618,16 @@ async def bulk_upload_pos(
     current_user: dict = Depends(get_current_active_user)
 ):
     try:
-        print("\n====== PO BULK UPLOAD STARTED ======")
+        print("\n" + "="*50)
+        print("🚀 PO BULK UPLOAD START")
+        print("="*50)
 
         contents = await file.read()
         filename = file.filename.lower()
+        print(f"📄 Filename: {filename}")
+        print(f"📊 Size: {len(contents)} bytes")
 
-        print(f"File received: {filename}")
-        print(f"File size: {len(contents)} bytes")
-
-        # --- Read file correctly (CSV / XLS / XLSX) ---
+        # --- Read file correctly ---
         if filename.endswith(".csv"):
             try:
                 df = pd.read_csv(io.StringIO(contents.decode("utf-8")))
@@ -1581,68 +1638,96 @@ async def bulk_upload_pos(
         else:  # .xlsx
             df = pd.read_excel(io.BytesIO(contents), engine="openpyxl")
 
-        print("Original rows:", len(df))
-        print("Columns:", df.columns.tolist())
-
-        # Drop fully blank rows
-        df = df.dropna(how="all")
-        print("After dropping empty:", len(df))
+        if df.empty:
+            print("❌ Error: Dataframe is empty")
+            raise HTTPException(status_code=400, detail="The uploaded file is empty")
 
         # Normalize column names
-        df.columns = [str(c).strip().lower() for c in df.columns]
-        print("Normalized columns:", df.columns.tolist())
+        raw_cols = df.columns.tolist()
+        df.columns = [str(c).strip().lower().replace(' ', '_') for c in df.columns]
+        print(f"📝 Raw columns: {raw_cols}")
+        print(f"⚙️ Normalized columns: {df.columns.tolist()}")
 
-        # 👇 Map template fields to backend field names
-        if "input_igst" in df.columns and "gst_percentage" not in df.columns:
-            df["gst_percentage"] = df["input_igst"]
-
-        if "tds" in df.columns and "tds_percentage" not in df.columns:
-            df["tds_percentage"] = df["tds"]
-
+        # mapping
+        mapping = {
+            "invoice_no": "voucher_no",
+            "po_no": "voucher_no",
+            "po_number": "voucher_no",
+            "gst_val": "gst_percentage",
+            "input_igst": "gst_percentage",
+            "gst_%": "gst_percentage",
+            "tds_val": "tds_percentage",
+            "tds_%": "tds_percentage"
+        }
+        for old_col, new_col in mapping.items():
+            if old_col in df.columns and new_col not in df.columns:
+                print(f"🔄 Mapping column: {old_col} ➜ {new_col}")
+                df[new_col] = df[old_col]
 
         if "voucher_no" not in df.columns:
-            raise HTTPException(
-                status_code=400,
-                detail="Missing required column: voucher_no"
-            )
+            msg = f"Missing 'voucher_no'. Available: {', '.join(df.columns)}"
+            print(f"❌ Error: {msg}")
+            raise HTTPException(status_code=400, detail=msg)
+
+        def clean_str(val):
+            if pd.isna(val) or val is None: return ""
+            val = str(val).strip()
+            if val.endswith('.0'): val = val[:-2]
+            return val
+
+        def clean_float(val, default=0.0):
+            try:
+                if pd.isna(val) or val is None: return default
+                s = str(val).strip().replace(',', '').replace('$', '').replace('₹', '')
+                if s == "": return default
+                return float(s)
+            except:
+                return default
+
+        df["voucher_no"] = df["voucher_no"].apply(clean_str)
+        df = df[df["voucher_no"] != ""]
+        
+        if df.empty:
+            print("❌ Error: No valid voucher numbers found after filtering")
+            raise HTTPException(status_code=400, detail="No valid voucher numbers found in file")
 
         pos_created = 0
-        print("Voucher numbers:", df["voucher_no"].unique())
+        unique_vouchers = df["voucher_no"].unique()
+        print(f"🎯 Unique POs detected: {len(unique_vouchers)}")
 
-        # --- Group by voucher_no ---
-        for voucher_no in df["voucher_no"].unique():
-            print(f"\n---- Processing PO voucher: {voucher_no} ----")
-
+        for voucher_no in unique_vouchers:
+            print(f"📦 Processing PO: {voucher_no}")
             po_rows = df[df["voucher_no"] == voucher_no]
             first_row = po_rows.iloc[0]
 
-            # Handle multiple PI references
             reference_pi_ids = []
-            if pd.notna(first_row.get("reference_pi_ids")):
-                pi_ids_str = str(first_row.get("reference_pi_ids", "")).strip()
-                if pi_ids_str:
-                    reference_pi_ids = [pi_id.strip() for pi_id in pi_ids_str.split(",")]
-            elif pd.notna(first_row.get("reference_pi_id")):
-                reference_pi_ids = [str(first_row.get("reference_pi_id", "")).strip()]
+            pi_ids_val = first_row.get("reference_pi_ids")
+            if pd.isna(pi_ids_val): pi_ids_val = first_row.get("reference_pi_id")
+            
+            if pd.notna(pi_ids_val) and str(pi_ids_val).strip():
+                pi_ids_str = str(pi_ids_val).strip()
+                reference_pi_ids = [pid.strip() for pid in pi_ids_str.split(",") if pid.strip()]
+
+            date_val = first_row.get("date")
+            po_date = str(date_val) if pd.notna(date_val) else datetime.now(timezone.utc).isoformat()
+
+            gst_pct = clean_float(first_row.get("gst_percentage"))
+            tds_pct = clean_float(first_row.get("tds_percentage"))
 
             po_dict = {
                 "id": str(uuid.uuid4()),
-                "company_id": str(first_row.get("company_id", "")),
-                "voucher_no": str(voucher_no),
-                "date": str(first_row.get("date", datetime.now(timezone.utc).isoformat())),
-                "consignee": str(first_row.get("consignee", "")),
-                "supplier": str(first_row.get("supplier", "")),
+                "company_id": clean_str(first_row.get("company_id")),
+                "voucher_no": voucher_no,
+                "date": po_date,
+                "consignee": clean_str(first_row.get("consignee")),
+                "supplier": clean_str(first_row.get("supplier")),
                 "reference_pi_id": reference_pi_ids[0] if reference_pi_ids else None,
                 "reference_pi_ids": reference_pi_ids,
-                "reference_no_date": (
-                    str(first_row.get("reference_no_date"))
-                    if pd.notna(first_row.get("reference_no_date"))
-                    else None
-                ),
-                "dispatched_through": str(first_row.get("dispatched_through", "")),
-                "destination": str(first_row.get("destination", "")),
-                "gst_percentage": float(first_row.get("gst_percentage", 0) or 0),
-                "tds_percentage": float(first_row.get("tds_percentage", 0) or 0),
+                "reference_no_date": clean_str(first_row.get("reference_no_date")),
+                "dispatched_through": clean_str(first_row.get("dispatched_through")),
+                "destination": clean_str(first_row.get("destination")),
+                "gst_percentage": gst_pct,
+                "tds_percentage": tds_pct,
                 "status": "Pending",
                 "is_active": True,
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1651,105 +1736,72 @@ async def bulk_upload_pos(
                 "line_items": []
             }
 
-            print("PO Header:")
-            print(po_dict)
+            total_basic = 0
+            total_gst = 0
+            total_tds = 0
 
-            gst_percentage = po_dict["gst_percentage"]
-            tds_percentage = po_dict["tds_percentage"]
-
-            total_basic_amount = 0
-            total_gst_value = 0
-            total_tds_value = 0
-
-            # --- Line items ---
             for _, row in po_rows.iterrows():
-                quantity = float(row.get("quantity", 0) or 0)
-                rate = float(row.get("rate", 0) or 0)
-                amount = quantity * rate
+                qty = clean_float(row.get("quantity"))
+                rate = clean_float(row.get("rate"))
+                amount = qty * rate
+                gst_v = amount * (gst_pct / 100)
+                tds_v = amount * (tds_pct / 100)
 
-                gst_value = amount * (gst_percentage / 100) if gst_percentage else 0
-                tds_value = amount * (tds_percentage / 100) if tds_percentage else 0
-
-                line_item = {
+                po_dict["line_items"].append({
                     "id": str(uuid.uuid4()),
-                    "product_id": str(row.get("product_id", "")),
-                    "product_name": str(row.get("product_name", "")),
-                    "sku": str(row.get("sku", "")),
-                    "category": str(row.get("category", "")),
-                    "brand": str(row.get("brand", "")),
-                    "hsn_sac": str(row.get("hsn_sac", "")),
-                    "quantity": quantity,
+                    "product_id": clean_str(row.get("product_id")),
+                    "product_name": clean_str(row.get("product_name")),
+                    "sku": clean_str(row.get("sku")),
+                    "category": clean_str(row.get("category")),
+                    "brand": clean_str(row.get("brand")),
+                    "hsn_sac": clean_str(row.get("hsn_sac")),
+                    "pi_voucher_no": clean_str(row.get("pi_voucher_no", row.get("pi_no", row.get("pi_number", "")))),
+                    "quantity": qty,
                     "rate": rate,
-                    "amount": amount,
-                    "gst_value": round(gst_value, 2),
-                    "tds_value": round(tds_value, 2)
-                }
+                    "amount": round(amount, 2),
+                    "gst_value": round(gst_v, 2),
+                    "tds_value": round(tds_v, 2)
+                })
+                total_basic += amount
+                total_gst += gst_v
+                total_tds += tds_v
 
-                print(" ➜ Adding line:", line_item)
+            po_dict["total_basic_amount"] = round(total_basic, 2)
+            po_dict["total_gst_value"] = round(total_gst, 2)
+            po_dict["total_tds_value"] = round(total_tds, 2)
+            po_dict["total_amount"] = round(total_basic + total_gst - total_tds, 2)
 
-                po_dict["line_items"].append(line_item)
+            po_dict = prepare_po_response(po_dict)
+            await mongo_db.purchase_orders.insert_one(po_dict)
+            pos_created += 1
 
-                total_basic_amount += amount
-                total_gst_value += gst_value
-                total_tds_value += tds_value
-
-            # Totals
-            po_dict["total_basic_amount"] = round(total_basic_amount, 2)
-            po_dict["total_gst_value"] = round(total_gst_value, 2)
-            po_dict["total_tds_value"] = round(total_tds_value, 2)
-            po_dict["total_amount"] = round(total_basic_amount + total_gst_value - total_tds_value, 2)
-
-            print("PO Total Summary:")
-            print({
-                "basic": po_dict["total_basic_amount"],
-                "gst": po_dict["total_gst_value"],
-                "tds": po_dict["total_tds_value"],
-                "total": po_dict["total_amount"]
-            })
-
-            # Insert
-            try:
-                print(f"📥 Inserting PO voucher {voucher_no}")
-                await mongo_db.purchase_orders.insert_one(po_dict)
-                pos_created += 1
-                print(f"✅ Inserted PO #{pos_created}")
-            except Exception as e:
-                print(f"🔥 Error inserting PO {voucher_no}: {e}")
-                continue
-
-        print("\n====== PO BULK UPLOAD FINISHED ======")
-        print("Total created:", pos_created)
-
-        return {
-            "message": f"Successfully uploaded {pos_created} POs",
-            "count": pos_created
-        }
+        print(f"🏁 Successfully created {pos_created} POs")
+        return {"message": f"Successfully uploaded {pos_created} Purchase Orders", "count": pos_created}
 
     except Exception as e:
-        print("🔥 FATAL ERROR:", e)
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error processing file: {str(e)}"
-        )
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=str(e))
 
 @api_router.get("/po")
-@api_router.get("/purchase-orders")  # Alias for frontend compatibility
+@api_router.get("/purchase-orders")
 async def get_pos(current_user: dict = Depends(get_current_active_user)):
-    """Get all active Purchase Orders (accessible via /po or /purchase-orders)"""
-    logger.info(f"Fetching POs for user: {current_user.get('username')}")
+    """Get all active Purchase Orders"""
     pos = []
     try:
         async for po in mongo_db.purchase_orders.find({"is_active": True}, {"_id": 0}):
-            # Calculate total amount
-            total_amount = sum(item.get("amount", 0) for item in po.get("line_items", []))
-            po["total_amount"] = total_amount
-            po["line_items_count"] = len(po.get("line_items", []))
-            pos.append(po)
-        logger.info(f"Returning {len(pos)} purchase orders")
-        return pos
+            try:
+                prepared_po = prepare_po_response(po)
+                pos.append(prepared_po)
+            except Exception as inner_e:
+                logger.error(f"Error processing individual PO {po.get('voucher_no')}: {str(inner_e)}")
+                continue
+
+        return jsonable_encoder(pos)
     except Exception as e:
         logger.error(f"Error fetching POs: {str(e)}")
-        # Return empty array instead of raising error
+        import traceback
+        traceback.print_exc()
         return []
 
 @api_router.get("/po/{po_id}")
@@ -1772,7 +1824,7 @@ async def get_po(po_id: str, current_user: dict = Depends(get_current_active_use
     if reference_pi_ids:
         pi_details = []
         for pi_id in reference_pi_ids:
-            pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+            pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
             if pi:
                 pi_details.append(pi)
         
@@ -1780,7 +1832,7 @@ async def get_po(po_id: str, current_user: dict = Depends(get_current_active_use
         if pi_details:
             po["reference_pi"] = pi_details[0]  # For backward compatibility
     
-    return po
+    return jsonable_encoder(prepare_po_response(po))
 
 @api_router.put("/po/{po_id}")
 async def update_po(
@@ -1801,10 +1853,14 @@ async def update_po(
     # Validate all PI IDs exist if provided
     if reference_pi_ids:
         for pi_id in reference_pi_ids:
-            pi = await mongo_db.performa_invoices.find_one({"id": pi_id, "is_active": True}, {"_id": 0})
+            pi = await mongo_db.proforma_invoices.find_one({"id": pi_id, "is_active": True}, {"_id": 0})
             if not pi:
-                raise HTTPException(status_code=404, detail=f"Performa Invoice {pi_id} not found")
+                raise HTTPException(status_code=404, detail=f"proforma Invoice {pi_id} not found")
     
+    # Get GST and TDS percentages
+    gst_percentage = float(po_data.get("gst_percentage", 0))
+    tds_percentage = float(po_data.get("tds_percentage", 0))
+
     update_data = {
         "company_id": po_data.get("company_id"),
         "voucher_no": po_data.get("voucher_no"),
@@ -1817,14 +1873,29 @@ async def update_po(
         "dispatched_through": po_data.get("dispatched_through"),
         "destination": po_data.get("destination"),
         "status": po_data.get("status", po.get("status")),
+        "gst_percentage": gst_percentage,
+        "tds_percentage": tds_percentage,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "updated_by": current_user["id"]
     }
     
-    # Update line items
+    # Update line items and recalculate totals
     if "line_items" in po_data:
         line_items = []
+        total_basic_amount = 0
+        total_gst_value = 0
+        total_tds_value = 0
+
         for item in po_data["line_items"]:
+            quantity = float(item.get("quantity", 0))
+            rate = float(item.get("rate", 0))
+            amount = quantity * rate
+            
+            # Recalculate or use provided values if matched
+            # We enforce consistency with PO-level percentages
+            gst_value = amount * (gst_percentage / 100) if gst_percentage > 0 else 0
+            tds_value = amount * (tds_percentage / 100) if tds_percentage > 0 else 0
+
             line_item = {
                 "id": item.get("id", str(uuid.uuid4())),
                 "product_id": item.get("product_id"),
@@ -1833,19 +1904,29 @@ async def update_po(
                 "category": item.get("category"),
                 "brand": item.get("brand"),
                 "hsn_sac": item.get("hsn_sac"),
-                "quantity": float(item.get("quantity", 0)),
-                "rate": float(item.get("rate", 0)),
-                "amount": float(item.get("quantity", 0)) * float(item.get("rate", 0)),
-                "input_igst": float(item.get("input_igst", 0)),
-                "tds": float(item.get("tds", 0))
+                "pi_voucher_no": item.get("pi_voucher_no"),
+                "quantity": quantity,
+                "rate": rate,
+                "amount": amount,
+                "gst_value": round(gst_value, 2),
+                "tds_value": round(tds_value, 2)
             }
             line_items.append(line_item)
+            
+            total_basic_amount += amount
+            total_gst_value += gst_value
+            total_tds_value += tds_value
+        
         update_data["line_items"] = line_items
+        update_data["total_basic_amount"] = round(total_basic_amount, 2)
+        update_data["total_gst_value"] = round(total_gst_value, 2)
+        update_data["total_tds_value"] = round(total_tds_value, 2)
+        update_data["total_amount"] = round(total_basic_amount + total_gst_value - total_tds_value, 2)
     
     await mongo_db.purchase_orders.update_one({"id": po_id}, {"$set": update_data})
     
     updated_po = await mongo_db.purchase_orders.find_one({"id": po_id}, {"_id": 0})
-    return updated_po
+    return jsonable_encoder(prepare_po_response(updated_po))
 
 @api_router.delete("/po/{po_id}")
 async def delete_po(po_id: str, current_user: dict = Depends(get_current_active_user)):
@@ -1992,8 +2073,9 @@ async def create_inward_stock(
 
         # ---- QUANTITY VALIDATION ----
         for inward_item in inward_data.get("line_items", []):
-            po_line_item_id = inward_item.get("id")
             product_id = inward_item.get("product_id")
+            sku = inward_item.get("sku")
+            po_line_item_id = inward_item.get("id")
             inward_qty = float(inward_item.get("quantity", 0))
 
             if product_id in aggregated_po_quantities:
@@ -2006,15 +2088,41 @@ async def create_inward_stock(
                         {"_id": 0}
                     ):
                         for existing_item in existing_inward.get("line_items", []):
-                            if existing_item.get("id") == po_line_item_id:
+                            matched = False
+                            if po_line_item_id and existing_item.get("id") == po_line_item_id:
+                                matched = True
+                            elif sku and existing_item.get("sku") == sku:
+                                matched = True
+                            elif product_id and existing_item.get("product_id") == product_id:
+                                matched = True
+                            
+                            if matched:
                                 already_inwarded += float(existing_item.get("quantity", 0))
 
-                total_inward_after_this = already_inwarded + inward_qty
+                # Also deduct In-Transit quantities
+                in_transit = 0
+                for po_id in po_ids:
+                    async for pickup in mongo_db.pickup_in_transit.find(
+                        {"po_id": po_id, "is_active": True, "is_inwarded": {"$ne": True}},
+                        {"_id": 0}
+                    ):
+                        for p_item in pickup.get("line_items", []):
+                             matched = False
+                             if po_line_item_id and p_item.get("id") == po_line_item_id:
+                                 matched = True
+                             elif sku and p_item.get("sku") == sku:
+                                 matched = True
+                             elif product_id and p_item.get("product_id") == product_id:
+                                 matched = True
+                             
+                             if matched:
+                                 in_transit += float(p_item.get("quantity", 0))
 
-                if total_inward_after_this > total_po_qty:
+                total_unavailable = already_inwarded + in_transit
+                if (already_inwarded + in_transit + inward_qty) > total_po_qty:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Cannot inward {product_id}: total inward ({total_inward_after_this}) exceeds PO qty ({total_po_qty}). Already inwarded: {already_inwarded}"
+                        detail=f"Cannot inward {product_id}: total (inwarded+transit+new={already_inwarded + in_transit + inward_qty}) exceeds PO qty ({total_po_qty}). Already Inwarded: {already_inwarded}, In Transit: {in_transit}"
                     )
 
         all_pi_ids = list(set(all_pi_ids))
@@ -2109,7 +2217,371 @@ async def create_inward_stock(
     return inward_dict
 
 
+
+# ==================== PICKUP (IN-TRANSIT) ROUTES ====================
+
+@api_router.post("/pickups")
+async def create_pickup(
+    pickup_data: dict,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Create a pickup (in-transit) entry.
+    Validates that the quantity does not exceed PO quantity - (Already Inwarded + In Transit).
+    """
+    po_ids = pickup_data.get("po_ids", [])
+    if not po_ids and pickup_data.get("po_id"):
+        po_ids = [pickup_data["po_id"]]
+
+    logger.info(f"🚚 Creating pickup. POs: {po_ids}, Warehouse: {pickup_data.get('warehouse_id')}")
+    logger.info(f"📦 Line items count: {len(pickup_data.get('line_items', []))}")
+    
+    if not po_ids:
+        logger.error("❌ Pickup Creation Failed: Missing po_ids")
+        raise HTTPException(status_code=400, detail="PO ID(s) is required")
+
+    # 1. Aggregate PO Quantities for validation
+    aggregated_po_quantities = {}
+    po_list = []
+    company_id = None
+
+    for po_id in po_ids:
+        po = await mongo_db.purchase_orders.find_one({"id": po_id, "is_active": True}, {"_id": 0})
+        if not po:
+            logger.error(f"❌ Pickup Creation Failed: PO {po_id} not found")
+            raise HTTPException(status_code=404, detail=f"PO {po_id} not found")
+        po_list.append(po)
+        if not company_id:
+            company_id = po.get("company_id")
+        
+        for item in po.get("line_items", []):
+            product_id = item.get("product_id")
+            sku = item.get("sku")
+            key = product_id if product_id else sku
+            if key:
+                qty = float(item.get("quantity", 0))
+                aggregated_po_quantities[key] = aggregated_po_quantities.get(key, 0) + qty
+                logger.info(f"🔹 PO Item: {item.get('product_name')} (Key: {key}) Qty: {qty}")
+
+    # 2. Process and Validate Line Items
+    processed_line_items = []
+    for item in pickup_data.get("line_items", []):
+        product_id = item.get("product_id")
+        sku = item.get("sku")
+        quantity = float(item.get("quantity", 0))
+        
+        # Use product_id if available, fallback to SKU
+        key = product_id if product_id else sku
+        
+        logger.info(f"🔍 Validating Item: {item.get('product_name')} (ID: {product_id}, SKU: {sku}, Key: {key}) Qty requested: {quantity}")
+        
+        if quantity <= 0:
+            logger.info(f"⏩ Skipping item {item.get('product_name')} because quantity is {quantity}")
+            continue
+            
+        if not key:
+             logger.error(f"❌ Pickup Creation Failed: Both product_id and sku missing for item {item.get('product_name')}")
+             raise HTTPException(status_code=400, detail=f"Line item missing both product_id and sku for {item.get('product_name')}")
+
+        total_po_qty = aggregated_po_quantities.get(key, 0)
+        
+        # Calculate used quantity (Inwarded + In-Transit)
+        used_qty = 0
+        
+        # Inwarded Search
+        async for inward in mongo_db.inward_stock.find({
+            "$or": [{"po_id": {"$in": po_ids}}, {"po_ids": {"$in": po_ids}}],
+            "is_active": True
+        }):
+            for line in inward.get("line_items", []):
+                # Match by product_id OR SKU
+                inward_p_id = line.get("product_id")
+                inward_sku = line.get("sku")
+                if (product_id and inward_p_id == product_id) or (sku and inward_sku == sku):
+                    used_qty += float(line.get("quantity", 0))
+
+        # In-Transit Search (excluding current being created)
+        async for existing_pickup in mongo_db.pickup_in_transit.find({
+            "$or": [{"po_id": {"$in": po_ids}}, {"po_ids": {"$in": po_ids}}],
+            "is_active": True,
+            "is_inwarded": False
+        }):
+            for line in existing_pickup.get("line_items", []):
+                pickup_p_id = line.get("product_id")
+                pickup_sku = line.get("sku")
+                if (product_id and pickup_p_id == product_id) or (sku and pickup_sku == sku):
+                    used_qty += float(line.get("quantity", 0))
+        
+        if (used_qty + quantity) > (total_po_qty + 0.001): # Small epsilon for float comparison
+            error_msg = f"Cannot pickup {item.get('product_name')} (SKU: {item.get('sku')}). Total ({used_qty} used + {quantity} new = {used_qty + quantity}) exceeds aggregated PO Qty ({total_po_qty}) for POs {po_ids}."
+            logger.error(f"❌ Validation Error: {error_msg}")
+            logger.info(f"Payload was: {pickup_data}")
+            raise HTTPException(status_code=400, detail=error_msg)
+            
+        processed_line_items.append({
+            "id": str(uuid.uuid4()),
+            "po_line_item_id": item.get("id"),
+            "product_id": product_id,
+            "product_name": item.get("product_name"),
+            "sku": item.get("sku"),
+            "quantity": quantity,
+            "rate": float(item.get("rate", 0)),
+            "amount": quantity * float(item.get("rate", 0))
+        })
+
+    if not processed_line_items:
+         logger.error("❌ Pickup Creation Failed: No valid line items")
+         raise HTTPException(status_code=400, detail="No valid line items to pickup")
+
+    # 3. Create Entry
+    pickup_entry = {
+        "id": str(uuid.uuid4()),
+        "po_ids": po_ids,
+        "po_id": po_ids[0], 
+        "po_voucher_no": po_list[0].get("voucher_no"),
+        "pickup_date": pickup_data.get("pickup_date"),
+        "manual": pickup_data.get("manual"),
+        "notes": pickup_data.get("notes"),
+        "warehouse_id": pickup_data.get("warehouse_id"),
+        "line_items": processed_line_items,
+        "is_inwarded": False,
+        "is_active": True,
+        "company_id": company_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_user["id"]
+    }
+    
+    await mongo_db.pickup_in_transit.insert_one(pickup_entry)
+    logger.info(f"✅ Pickup created successfully: {pickup_entry['id']}")
+    
+    # Audit log
+    await mongo_db.audit_logs.insert_one({
+        "action": "pickup_created",
+        "user_id": current_user["id"],
+        "entity_id": pickup_entry["id"],
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    pickup_entry.pop("_id", None)
+    return pickup_entry
+
+@api_router.get("/pickups")
+async def list_pickups(
+    po_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Get all active pickup entries with optional PO filter"""
+    try:
+        query = {"is_active": True, "is_inwarded": {"$ne": True}}
+        if po_id:
+            query["po_id"] = po_id
+        
+        pickups = []
+        async for pickup in mongo_db.pickup_in_transit.find(query, {"_id": 0}).sort("created_at", -1):
+            pickups.append(pickup)
+        
+        return pickups
+    except Exception as e:
+        logger.error(f"Error fetching pickups: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/pickups/export")
+async def export_pickups(
+    format: str = "json",
+    po_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Export pickup entries"""
+    query = {"is_active": True}
+    if po_id:
+        query["po_id"] = po_id
+    
+    pickups = []
+    async for pickup in mongo_db.pickup_in_transit.find(query, {"_id": 0}).sort("created_at", -1):
+        pickups.append(pickup)
+    
+    if format == "csv":
+        return {"data": pickups, "format": "csv"}
+    
+    return pickups
+
+@api_router.get("/pickups/{pickup_id}")
+async def get_pickup(
+    pickup_id: str,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Get a single pickup entry"""
+    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id, "is_active": True}, {"_id": 0})
+    if not pickup:
+        raise HTTPException(status_code=404, detail="Pickup entry not found")
+    return pickup
+
+@api_router.post("/{pickup_id}/inward")
+async def inward_from_pickup(
+    pickup_id: str,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Move quantities from pickup (in-transit) to a NEW Inward Stock entry.
+    """
+    logger.info(f"🚀 EXECUTING inward_from_pickup for ID: {pickup_id}")
+    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id, "is_active": True})
+    if not pickup:
+        logger.error(f"❌ Inward Failed: Pickup {pickup_id} not found")
+        raise HTTPException(status_code=404, detail="Pickup entry not found")
+
+    if pickup.get("is_inwarded"):
+        logger.error(f"❌ Inward Failed: Pickup {pickup_id} already marked inwarded")
+        raise HTTPException(status_code=400, detail="Pickup already inwarded")
+
+    # Support multiple POs if present
+    po_ids = pickup.get("po_ids", [pickup.get("po_id")] if pickup.get("po_id") else [])
+    
+    # Calculate aggregated PO quantities and collect linked PI IDs
+    aggregated_po_quantities = {}
+    all_pi_ids = []
+    if po_ids:
+        for p_id in po_ids:
+            po = await mongo_db.purchase_orders.find_one({"id": p_id}, {"_id": 0})
+            if po:
+                # Collect PIs
+                ref_pi_ids = po.get("reference_pi_ids", [])
+                if not ref_pi_ids and po.get("reference_pi_id"):
+                    ref_pi_ids = [po.get("reference_pi_id")]
+                all_pi_ids.extend(ref_pi_ids)
+
+                for po_item in po.get("line_items", []):
+                    prod_id = po_item.get("product_id")
+                    sku = po_item.get("sku")
+                    key = prod_id if prod_id else sku
+                    if key:
+                        aggregated_po_quantities[key] = aggregated_po_quantities.get(key, 0) + float(po_item.get("quantity", 0))
+
+    all_pi_ids = list(set(all_pi_ids)) # Deduplicate
+
+    # 1. Create the NEW Inward Entry
+    inward_dict = {
+        "id": str(uuid.uuid4()),
+        "manual": pickup.get("manual", ""),
+        "inward_invoice_no": pickup.get("manual", ""),
+        "date": datetime.now(timezone.utc).isoformat().split('T')[0],
+        "po_id": po_ids[0] if po_ids else None,
+        "po_ids": po_ids,
+        "pi_id": all_pi_ids[0] if all_pi_ids else None,
+        "pi_ids": all_pi_ids,
+        "warehouse_id": pickup.get("warehouse_id"),
+        "inward_type": "warehouse",
+        "source_type": "pickup_inward",
+        "source_id": pickup_id,
+        "status": "Received",
+        "is_active": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current_user["id"],
+        "line_items": []
+    }
+
+    total_amount = 0
+    for pickup_item in pickup.get("line_items", []):
+        p_id = pickup_item.get("product_id")
+        sku = pickup_item.get("sku")
+        key = p_id if p_id else sku
+        qty = float(pickup_item.get("quantity", 0))
+        rate = float(pickup_item.get("rate", 0))
+        
+        total_p_qty = aggregated_po_quantities.get(key, 0)
+        
+        inward_item = {
+            "id": pickup_item.get("po_line_item_id") or str(uuid.uuid4()),
+            "product_id": p_id,
+            "product_name": pickup_item.get("product_name"),
+            "sku": sku,
+            "quantity": qty,
+            "rate": rate,
+            "amount": qty * rate,
+            "total_po_qty": total_p_qty
+        }
+        total_amount += inward_item["amount"]
+        inward_dict["line_items"].append(inward_item)
+
+    inward_dict["total_amount"] = total_amount
+    inward_dict["line_items_count"] = len(inward_dict["line_items"])
+
+    # 2. Insert Inward entry
+    await mongo_db.inward_stock.insert_one(inward_dict)
+    
+    # 3. Update stock tracking levels
+    await update_stock_tracking(inward_dict, "inward")
+
+    # 4. Mark pickup as inwarded
+    await mongo_db.pickup_in_transit.update_one(
+        {"id": pickup_id},
+        {"$set": {"is_inwarded": True, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+
+    # 5. Audit log
+    await mongo_db.audit_logs.insert_one({
+        "action": "inward_from_pickup",
+        "user_id": current_user["id"],
+        "entity_id": inward_dict["id"],
+        "source_pickup_id": pickup_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+
+    return {"message": "Inward completed successfully", "inward_id": inward_dict["id"]}
+
+@api_router.put("/pickups/{pickup_id}")
+async def update_pickup(
+    pickup_id: str,
+    pickup_data: dict,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Update a pickup entry"""
+    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id}, {"_id": 0})
+    if not pickup:
+        raise HTTPException(status_code=404, detail="Pickup entry not found")
+        
+    update_data = {
+        "pickup_date": pickup_data.get("pickup_date"),
+        "manual": pickup_data.get("manual"),
+        "notes": pickup_data.get("notes"),
+        "warehouse_id": pickup_data.get("warehouse_id"),
+        "line_items": pickup_data.get("line_items", []),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user["id"]
+    }
+    
+    await mongo_db.pickup_in_transit.update_one({"id": pickup_id}, {"$set": update_data})
+    
+    updated_pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id}, {"_id": 0})
+    return updated_pickup
+
+@api_router.delete("/pickups/{pickup_id}")
+async def delete_pickup(
+    pickup_id: str,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Delete (soft) a pickup entry"""
+    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id})
+    if not pickup:
+        raise HTTPException(status_code=404, detail="Pickup entry not found")
+        
+    await mongo_db.pickup_in_transit.update_one({"id": pickup_id}, {"$set": {"is_active": False}})
+    
+    # Log action
+    await mongo_db.audit_logs.insert_one({
+        "action": "pickup_deleted",
+        "user_id": current_user["id"],
+        "entity_id": pickup_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"message": "Pickup entry deleted successfully"}
+
+# ==================== INWARD STOCK ROUTES ====================
+
 @api_router.get("/inward-stock")
+
 async def get_inward_stock(
     inward_type: Optional[str] = None,
     current_user: dict = Depends(get_current_active_user)
@@ -2121,12 +2593,21 @@ async def get_inward_stock(
     
     inward_entries = []
     async for entry in mongo_db.inward_stock.find(query, {"_id": 0}):
-        # Get company details if PO is linked
-        if entry.get("po_id"):
-            po = await mongo_db.purchase_orders.find_one({"id": entry["po_id"]}, {"_id": 0})
-            if po and po.get("company_id"):
-                company = await mongo_db.companies.find_one({"id": po["company_id"]}, {"_id": 0})
-                entry["company"] = company
+        # Get company details
+        company_id = entry.get("company_id")
+        
+        # Always fetch PO details if po_id exists to get voucher_no
+        po_id = entry.get("po_id")
+        if po_id:
+            po = await mongo_db.purchase_orders.find_one({"id": po_id}, {"_id": 0})
+            if po:
+                entry["po_voucher_no"] = po.get("voucher_no")
+                if not company_id:
+                    company_id = po.get("company_id")
+        
+        if company_id:
+            company = await mongo_db.companies.find_one({"id": company_id}, {"_id": 0})
+            entry["company"] = company
                 
         # Get warehouse details
         if entry.get("warehouse_id"):
@@ -2227,7 +2708,7 @@ async def get_inward_stock_detail(
             if reference_pi_ids:
                 pi_details = []
                 for pi_id in reference_pi_ids:
-                    pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+                    pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
                     if pi:
                         pi_details.append(pi)
                 
@@ -2297,6 +2778,32 @@ async def delete_inward_stock(
     if not entry:
         raise HTTPException(status_code=404, detail="Inward entry not found")
     
+    # Check if any quantity from this inward batch has already been dispatched
+    # We check the stock_tracking entries for this inward_id
+    has_dispatched = await mongo_db.stock_tracking.count_documents({
+        "inward_entry_id": inward_id,
+        "quantity_outward": {"$gt": 0}
+    })
+    
+    if has_dispatched > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete: Part of this inward stock has already been dispatched/outwarded."
+        )
+    
+    # Delete linked stock tracking entries
+    # Regardless of type, if it has tracking entries, they must be removed
+    delete_result = await mongo_db.stock_tracking.delete_many({"inward_entry_id": inward_id})
+    if delete_result.deleted_count > 0:
+        print(f"       ✅ Removed {delete_result.deleted_count} summary entries for inward: {inward_id}")
+        
+        # Log this specific sub-action
+        await mongo_db.audit_logs.insert_one({
+            "action": "stock_tracking_deleted_cascade",
+            "parent_id": inward_id,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+
     await mongo_db.inward_stock.update_one({"id": inward_id}, {"$set": {"is_active": False}})
     return {"message": "Inward entry deleted successfully"}
 
@@ -2343,7 +2850,7 @@ async def update_stock_tracking(inward_entry: dict, operation: str):
         pi_numbers = []
         for pid in pi_ids:
             if pid:
-                pi = await mongo_db.performa_invoices.find_one({"id": pid}, {"_id": 0, "voucher_no": 1})
+                pi = await mongo_db.proforma_invoices.find_one({"id": pid}, {"_id": 0, "voucher_no": 1})
                 if pi and pi.get("voucher_no"):
                     pi_numbers.append(pi["voucher_no"])
         pi_number_str = ", ".join(pi_numbers) if pi_numbers else "N/A"
@@ -2451,6 +2958,14 @@ async def get_stock_summary(
     if entry_type:
         query["entry_type"] = entry_type  # NEW: Filter by entry type
     
+    # Optimize: Pre-fetch and aggregate all pending in-transit quantities
+    pending_in_transit = {} # Key: SKU, Value: Total Qty
+    async for pickup in mongo_db.pickup_in_transit.find({"is_active": True, "is_inwarded": {"$ne": True}}, {"_id": 0}):
+        for item in pickup.get("line_items", []):
+            sku = item.get("sku")
+            if sku:
+                pending_in_transit[sku] = pending_in_transit.get(sku, 0) + float(item.get("quantity", 0))
+
     stock_entries = []
     async for stock in mongo_db.stock_tracking.find(query, {"_id": 0}):
         # Calculate stock age (days since last update)
@@ -2471,12 +2986,8 @@ async def get_stock_summary(
         # Format PI & PO Number combined
         pi_po_combined = f"{stock.get('pi_number', 'N/A')} / {stock.get('po_number', 'N/A')}"
         
-        # Calculate In-Transit quantity for this SKU from pickup_in_transit collection
-        in_transit_qty = 0
-        async for pickup in mongo_db.pickup_in_transit.find({"is_active": True}, {"_id": 0}):
-            for pickup_item in pickup.get("line_items", []):
-                if pickup_item.get("sku") == stock.get("sku"):
-                    in_transit_qty += float(pickup_item.get("quantity", 0))
+        # Get pre-aggregated In-Transit quantity for this SKU
+        in_transit_qty = pending_in_transit.get(stock.get("sku"), 0)
         
         stock_summary = {
             "id": stock.get("id"),  # For actions
@@ -2507,6 +3018,48 @@ async def get_stock_summary(
     stock_entries.sort(key=lambda x: x["remaining_stock"])
     
     return stock_entries
+
+@api_router.get("/stock-summary/debug/{product_id}")
+async def debug_stock_tracking(
+    product_id: str,
+    warehouse_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Debug endpoint to check stock_tracking data for a specific product"""
+    query = {"product_id": product_id}
+    if warehouse_id:
+        query["warehouse_id"] = warehouse_id
+    
+    tracking_entries = []
+    async for entry in mongo_db.stock_tracking.find(query, {"_id": 0}):
+        tracking_entries.append(entry)
+    
+    # Also get outward entries for this product
+    outward_entries = []
+    outward_query = {}
+    if warehouse_id:
+        outward_query["warehouse_id"] = warehouse_id
+    
+    async for outward in mongo_db.outward_stock.find(outward_query, {"_id": 0}):
+        for item in outward.get("line_items", []):
+            if item.get("product_id") == product_id:
+                outward_entries.append({
+                    "outward_id": outward.get("id"),
+                    "export_invoice_no": outward.get("export_invoice_no"),
+                    "dispatch_type": outward.get("dispatch_type"),
+                    "date": outward.get("date"),
+                    "quantity": item.get("dispatch_quantity") or item.get("quantity", 0),
+                    "product_name": item.get("product_name")
+                })
+    
+    return {
+        "product_id": product_id,
+        "warehouse_id": warehouse_id,
+        "stock_tracking_entries": tracking_entries,
+        "outward_entries": outward_entries,
+        "total_tracking_entries": len(tracking_entries),
+        "total_outward_entries": len(outward_entries)
+    }
 
 @api_router.delete("/stock-summary/{stock_id}")
 async def delete_stock_summary(
@@ -2627,32 +3180,25 @@ async def get_stock_transactions(
                     "created_at": inward.get("created_at")
                 })
     
-    # Get Export Invoice transactions (dispatch_type = "export_invoice")
-    async for outward in mongo_db.outward_stock.find(
-        {**warehouse_query, "dispatch_type": "export_invoice", "is_active": True},
-        {"_id": 0}
-    ).sort("date", -1):
-        for item in outward.get("line_items", []):
-            if item.get("product_id") == product_id:
-                transactions.append({
-                    "type": "outward",
-                    "transaction_id": outward["id"],
-                    "date": outward["date"],
-                    "reference_no": outward.get("export_invoice_no", "N/A"),
-                    "dispatch_type": "Export Invoice",
-                    "quantity": item.get("dispatch_quantity") or item.get("quantity", 0),
-                    "rate": item.get("rate", 0),
-                    "amount": item.get("amount", 0),
-                    "product_name": item.get("product_name"),
-                    "sku": item.get("sku"),
-                    "created_at": outward.get("created_at")
-                })
+    # Get all Outward transactions and filter for regular/direct
+    outward_query = {**warehouse_query, "is_active": True}
+    all_outwards = []
+    async for outward in mongo_db.outward_stock.find(outward_query, {"_id": 0}):
+        all_outwards.append(outward)
     
-    # Get Direct Export transactions (dispatch_type = "direct_export")
-    async for outward in mongo_db.outward_stock.find(
-        {**warehouse_query, "dispatch_type": "direct_export", "is_active": True},
-        {"_id": 0}
-    ).sort("date", -1):
+    linked_plan_ids = {o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_plan_id")}
+    
+    for outward in all_outwards:
+        # SKIP dispatch plans that have already been converted
+        if outward.get("dispatch_type") == "dispatch_plan" and outward.get("id") in linked_plan_ids:
+            continue
+            
+        # Match type for this view
+        d_type = outward.get("dispatch_type")
+        type_label = "Export Invoice"
+        if d_type == "dispatch_plan": type_label = "Dispatch Plan"
+        elif d_type == "direct_export": type_label = "Direct Export"
+        
         for item in outward.get("line_items", []):
             if item.get("product_id") == product_id:
                 transactions.append({
@@ -2660,7 +3206,7 @@ async def get_stock_transactions(
                     "transaction_id": outward["id"],
                     "date": outward["date"],
                     "reference_no": outward.get("export_invoice_no", "N/A"),
-                    "dispatch_type": "Direct Export",
+                    "dispatch_type": type_label,
                     "quantity": item.get("dispatch_quantity") or item.get("quantity", 0),
                     "rate": item.get("rate", 0),
                     "amount": item.get("amount", 0),
@@ -2687,157 +3233,176 @@ async def create_outward_stock(
 ):
     """Create outward stock entry (Dispatch Plan, Export Invoice, or Direct Export)"""
     
-    # Log incoming data for debugging
-    print(f"\n{'='*80}")
-    print(f"📥 CREATE OUTWARD STOCK REQUEST")
-    print(f"{'='*80}")
-    print(f"Dispatch Type: {outward_data.get('dispatch_type')}")
-    print(f"Company ID: {outward_data.get('company_id')}")
-    print(f"Warehouse ID: {outward_data.get('warehouse_id')}")
-    print(f"Line Items Count: {len(outward_data.get('line_items', []))}")
-    print(f"{'='*80}\n")
+    # Log incoming data for debugging - BOTH to console AND file
+    import sys
+    log_msg = f"\n{'='*80}\n"
+    log_msg += f"🚀 CREATE OUTWARD STOCK REQUEST RECEIVED\n"
+    log_msg += f"{'='*80}\n"
+    log_msg += f"📥 Dispatch Type: {outward_data.get('dispatch_type')}\n"
+    log_msg += f"📥 Company ID: {outward_data.get('company_id')}\n"
+    log_msg += f"📥 Warehouse ID: {outward_data.get('warehouse_id')}\n"
+    log_msg += f"📥 Line Items Count: {len(outward_data.get('line_items', []))}\n"
+    log_msg += f"📥 User: {current_user.get('username', 'Unknown')}\n"
+    for idx, item in enumerate(outward_data.get('line_items', []), 1):
+        qty = item.get('dispatch_quantity') or item.get('quantity', 0)
+        log_msg += f"   Item {idx}: {item.get('product_name')} - Qty: {qty} (Product ID: {item.get('product_id')})\n"
+    log_msg += f"{'='*80}\n"
     
-    # Validate company
-    company = await mongo_db.companies.find_one({"id": outward_data["company_id"]}, {"_id": 0})
-    if not company:
-        print(f"❌ ERROR: Company not found - {outward_data['company_id']}")
-        raise HTTPException(status_code=404, detail="Company not found")
+    print(log_msg, flush=True)
+    sys.stdout.flush()
     
-    # Validate PI(s) if provided - support both single pi_id and multiple pi_ids
-    pi_data = None
-    pi_ids_list = []
+    # Also write to file
+    try:
+        with open("outward_stock_debug.log", "a", encoding="utf-8") as f:
+            f.write(f"\n[{datetime.now(timezone.utc).isoformat()}]\n")
+            f.write(log_msg)
+            f.flush()
+    except Exception as e:
+        print(f"Error writing to log file: {e}")
     
-    # Check for multiple PIs (new format)
-    if outward_data.get("pi_ids") and isinstance(outward_data["pi_ids"], list):
-        pi_ids_list = outward_data["pi_ids"]
-        # Validate all PIs exist
-        for pi_id in pi_ids_list:
-            pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
-            if not pi:
-                raise HTTPException(status_code=404, detail=f"PI {pi_id} not found")
-        # Get first PI for backward compatibility
-        if pi_ids_list:
-            pi_data = await mongo_db.performa_invoices.find_one({"id": pi_ids_list[0]}, {"_id": 0})
-    # Fallback to single pi_id (old format)
-    elif outward_data.get("pi_id"):
-        pi_ids_list = [outward_data["pi_id"]]
-        pi_data = await mongo_db.performa_invoices.find_one({"id": outward_data["pi_id"]}, {"_id": 0})
-        if not pi_data:
-            raise HTTPException(status_code=404, detail="PI not found")
-    
-    # Validate warehouse
-    warehouse = await mongo_db.warehouses.find_one({"id": outward_data["warehouse_id"]}, {"_id": 0})
-    if not warehouse:
-        raise HTTPException(status_code=404, detail="Warehouse not found")
-    
-    # Create outward entry
-    outward_dict = {
-        "id": str(uuid.uuid4()),
-        "export_invoice_no": outward_data.get("export_invoice_no") or f"EXP-{str(uuid.uuid4())[:8].upper()}",
-        "export_invoice_number": outward_data.get("export_invoice_number", ""),  # NEW: Manually typed export invoice number
-        "date": outward_data.get("date"),
-        "company_id": outward_data["company_id"],
-        "pi_id": pi_ids_list[0] if pi_ids_list else None,  # Store first PI for backward compatibility
-        "pi_ids": pi_ids_list,  # Store all PIs
-        "warehouse_id": outward_data["warehouse_id"],
-        "mode": outward_data.get("mode"),  # Sea, Air
-        "containers_pallets": outward_data.get("containers_pallets"),  # Number of containers (Sea) or pallets (Air)
-        "dispatch_type": outward_data.get("dispatch_type"),  # dispatch_plan, export_invoice, direct_export
-        "dispatch_plan_id": outward_data.get("dispatch_plan_id"),  # Link to Dispatch Plan if Export Invoice
-        "status": outward_data.get("status", "Pending Dispatch"),
-        "is_active": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "created_by": current_user["id"],
-        "line_items": []
-    }
-    
-    # Process line items and validate stock availability
-    total_amount = 0
-    for item in outward_data.get("line_items", []):
-        # Support both quantity and dispatch_quantity fields
-        qty = item.get("dispatch_quantity") or item.get("quantity", 0)
+    # Log to both console and file
+    def log_this(msg):
+        print(msg, flush=True)
+        try:
+            with open("outward_stock_debug.log", "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
+        except: pass
+
+    try:
+        # Validate company
+        company = await mongo_db.companies.find_one({"id": outward_data.get("company_id")}, {"_id": 0})
+        if not company:
+            log_this(f"  ❌ ERROR: Company not found - {outward_data.get('company_id')}")
+            raise HTTPException(status_code=404, detail="Company not found")
         
-        # Check available stock for Dispatch Plans and Export Invoices (not from Dispatch Plan)
-        # Export Invoices created FROM Dispatch Plans don't need stock validation (already validated)
-        # Direct Exports also don't need stock validation (they're from Direct Inward)
-        should_validate_stock = (
-            outward_data.get("dispatch_type") == "dispatch_plan" or
-            (outward_data.get("dispatch_type") == "export_invoice" and not outward_data.get("dispatch_plan_id"))
-        )
-        
-        if should_validate_stock:
-            print(f"  📦 Validating stock for {item['product_name']} - Qty: {qty}")
-            
-            # Calculate available stock using inward-outward calculation (same as available-quantity endpoint)
-            total_inward = 0.0
-            inward_query = {"is_active": True, "warehouse_id": outward_data["warehouse_id"]}
-            async for inward in mongo_db.inward_stock.find(inward_query, {"_id": 0}):
-                for inward_item in inward.get("line_items", []):
-                    if inward_item.get("product_id") == item["product_id"]:
-                        total_inward += float(inward_item.get("quantity", 0))
-            
-            total_outward = 0.0
-            outward_query = {"is_active": True, "warehouse_id": outward_data["warehouse_id"]}
-            async for outward in mongo_db.outward_stock.find(outward_query, {"_id": 0}):
-                for outward_item in outward.get("line_items", []):
-                    if outward_item.get("product_id") == item["product_id"]:
-                        total_outward += float(outward_item.get("quantity", 0))
-            
-            available_stock = total_inward - total_outward
-            print(f"  📊 Stock check: Inward={total_inward}, Outward={total_outward}, Available={available_stock}")
-            
-            # BLOCK if quantity exceeds available stock
-            if qty > available_stock:
-                print(f"  ❌ Insufficient stock!")
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Cannot dispatch {item['product_name']}: Requested quantity ({qty}) exceeds available stock ({available_stock})"
-                )
-            print(f"  ✅ Stock validation passed")
-        else:
-            print(f"  ⏭️  Skipping stock validation for {outward_data.get('dispatch_type')}")
-        
-        line_item = {
+        # Validate warehouse
+        warehouse_id = outward_data.get("warehouse_id")
+        warehouse = await mongo_db.warehouses.find_one({"id": warehouse_id}, {"_id": 0})
+        if not warehouse:
+            log_this(f"  ❌ ERROR: Warehouse not found - {warehouse_id}")
+            raise HTTPException(status_code=404, detail="Warehouse not found")
+
+        # Validate PI(s) if provided
+        pi_ids_list = outward_data.get("pi_ids", [])
+        if not pi_ids_list and outward_data.get("pi_id"):
+            pi_ids_list = [outward_data.get("pi_id")]
+
+        # Create outward record base
+        outward_dict = {
             "id": str(uuid.uuid4()),
-            "product_id": item.get("product_id"),
-            "product_name": item.get("product_name"),
-            "sku": item.get("sku"),
-            "pi_total_quantity": float(item.get("pi_total_quantity", 0)),  # Add this field
-            "quantity": float(qty),  # Store as quantity in DB
-            "dispatch_quantity": float(qty),  # Also store as dispatch_quantity
-            "rate": float(item.get("rate", 0)),
-            "amount": float(qty) * float(item.get("rate", 0)),
-            "dimensions": item.get("dimensions"),
-            "weight": float(item.get("weight", 0)) if item.get("weight") else None
+            "export_invoice_no": outward_data.get("export_invoice_no") or f"EXP-{str(uuid.uuid4())[:8].upper()}",
+            "export_invoice_number": outward_data.get("export_invoice_number", ""),
+            "date": outward_data.get("date"),
+            "company_id": outward_data["company_id"],
+            "pi_id": pi_ids_list[0] if pi_ids_list else None,
+            "pi_ids": pi_ids_list,
+            "warehouse_id": warehouse_id,
+            "mode": outward_data.get("mode"),
+            "containers_pallets": outward_data.get("containers_pallets"),
+            "dispatch_type": outward_data.get("dispatch_type"),
+            "dispatch_plan_id": outward_data.get("dispatch_plan_id"),
+            "status": outward_data.get("status", "Pending Dispatch"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_by": current_user["id"],
+            "line_items": []
         }
-        total_amount += line_item["amount"]
-        outward_dict["line_items"].append(line_item)
-    
-    outward_dict["total_amount"] = total_amount
-    outward_dict["line_items_count"] = len(outward_dict["line_items"])
-    
-    # Insert outward entry
-    await mongo_db.outward_stock.insert_one(outward_dict)
-    
-    # Update central stock tracking for Export Invoice AND Direct Export
-    # Dispatch Plans are NOT included (they're planning only)
-    if outward_data.get("dispatch_type") in ["export_invoice", "direct_export"]:
-        await update_stock_tracking_outward(outward_dict)
-        dispatch_type_label = "Direct Export" if outward_data.get("dispatch_type") == "direct_export" else "Export Invoice"
-        print(f"  ✅ Stock Summary updated ({dispatch_type_label}): Reduced {sum(item.get('quantity', 0) for item in outward_dict.get('line_items', []))} units")
-    else:
-        print(f"  ℹ️  Dispatch Plan created - Stock Summary NOT updated (planning only)")
-    
-    await mongo_db.audit_logs.insert_one({
-        "action": "outward_stock_created",
-        "user_id": current_user["id"],
-        "entity_id": outward_dict["id"],
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    
-    outward_dict.pop("_id", None)
-    return outward_dict
+        
+        log_this(f"  📝 Processing {len(outward_data.get('line_items', []))} line items...")
+        
+        total_amount = 0
+        for item in outward_data.get("line_items", []):
+            qty = float(item.get("dispatch_quantity") or item.get("quantity", 0))
+            product_id = item.get("product_id")
+            product_sku = item.get("sku")
+            product_name = item.get("product_name", "Unknown Product")
+            
+            # Recovery logic
+            if not product_id and product_sku:
+                product = await mongo_db.products.find_one({"sku": product_sku}, {"id": 1})
+                if product:
+                    product_id = product["id"]
+                    item["product_id"] = product_id
+                    log_this(f"     ✅ Recovered ID for {product_sku}: {product_id}")
+
+            # Stock Validation
+            should_validate = (
+                outward_data.get("dispatch_type") == "dispatch_plan" or
+                (outward_data.get("dispatch_type") == "export_invoice" and not outward_data.get("dispatch_plan_id"))
+            )
+            
+            if should_validate:
+                log_this(f"     🔍 Validating stock: {product_name} ({qty} units)")
+                avail = await get_available_stock(product_id, warehouse_id, product_sku)
+                log_this(f"     📊 Available: {avail}, Requested: {qty}")
+                
+                if qty > (avail + 0.001):
+                    log_this(f"     ❌ INSUFFICIENT STOCK!")
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Insufficient stock for {product_name}. Available: {avail}, Requested: {qty}"
+                    )
+            
+            line_item = {
+                "id": str(uuid.uuid4()),
+                "product_id": product_id,
+                "product_name": product_name,
+                "sku": product_sku,
+                "pi_total_quantity": float(item.get("pi_total_quantity", 0)),
+                "quantity": qty,
+                "dispatch_quantity": qty,
+                "rate": float(item.get("rate", 0)),
+                "amount": qty * float(item.get("rate", 0)),
+                "dimensions": item.get("dimensions"),
+                "weight": float(item.get("weight", 0)) if item.get("weight") else None
+            }
+            total_amount += line_item["amount"]
+            outward_dict["line_items"].append(line_item)
+        
+        outward_dict["total_amount"] = total_amount
+        outward_dict["line_items_count"] = len(outward_dict["line_items"])
+        
+        # Save to DB
+        await mongo_db.outward_stock.insert_one(outward_dict)
+        log_this(f"  💾 Saved outward entry: {outward_dict['export_invoice_no']}")
+        
+        # Stock Summary update logic
+        should_update = False
+        tp = outward_data.get("dispatch_type")
+        if tp in ["dispatch_plan", "direct_export"]:
+            should_update = True
+        elif tp == "export_invoice" and not outward_data.get("dispatch_plan_id"):
+            should_update = True
+        
+        if should_update:
+            log_this(f"  🔄 Updating stock tracking...")
+            await update_stock_tracking_outward(outward_dict)
+        elif tp == "export_invoice" and outward_data.get("dispatch_plan_id"):
+            log_this(f"  ℹ️  Linked to plan, updating plan status...")
+            await mongo_db.outward_stock.update_one(
+                {"id": outward_data.get("dispatch_plan_id")},
+                {"$set": {"status": "Invoiced", "updated_at": datetime.now(timezone.utc).isoformat()}}
+            )
+
+        await mongo_db.audit_logs.insert_one({
+            "action": "outward_stock_created",
+            "user_id": current_user["id"],
+            "entity_id": outward_dict["id"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        outward_dict.pop("_id", None)
+        log_this(f"  ✨ SUCCESS!")
+        return outward_dict
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_this(f"  💥 CRITICAL ERROR in create_outward_stock: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @api_router.get("/outward-stock")
 async def get_outward_stock(
@@ -2861,11 +3426,22 @@ async def get_outward_stock(
             warehouse = await mongo_db.warehouses.find_one({"id": entry["warehouse_id"]}, {"_id": 0})
             entry["warehouse"] = warehouse
             
-        # Get PI details if linked
-        if entry.get("pi_id"):
-            pi = await mongo_db.performa_invoices.find_one({"id": entry["pi_id"]}, {"_id": 0})
-            entry["pi"] = pi
-            
+        # Get PI details (support multiple PIs)
+        pi_ids = entry.get("pi_ids", [])
+        if not pi_ids and entry.get("pi_id"):
+            pi_ids = [entry["pi_id"]]
+        
+        if pi_ids:
+            pi_details = []
+            for pi_id in pi_ids:
+                pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
+                if pi:
+                    pi_details.append(pi)
+            entry["pis"] = pi_details
+            # Keep legacy pi_id for compatibility
+            if pi_details:
+                entry["pi"] = pi_details[0]
+
         outward_entries.append(entry)
     
     return outward_entries
@@ -2904,7 +3480,7 @@ async def get_pending_dispatch_plans(
             if pi_ids:
                 pi_details = []
                 for pi_id in pi_ids:
-                    pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+                    pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
                     if pi:
                         pi_details.append(pi)
                 dispatch["pis"] = pi_details
@@ -2920,38 +3496,15 @@ async def get_available_inward_quantity(
     current_user: dict = Depends(get_current_active_user)
 ):
     """Get available inward quantity for a specific SKU/product"""
-    
-    # Calculate total inward quantity
-    total_inward = 0.0
-    inward_query = {"is_active": True}
-    if warehouse_id:
-        inward_query["warehouse_id"] = warehouse_id
-    
-    async for inward in mongo_db.inward_stock.find(inward_query, {"_id": 0}):
-        for item in inward.get("line_items", []):
-            if item.get("product_id") == product_id:
-                total_inward += float(item.get("quantity", 0))
-    
-    # Calculate total outward quantity
-    total_outward = 0.0
-    outward_query = {"is_active": True}
-    if warehouse_id:
-        outward_query["warehouse_id"] = warehouse_id
-    
-    async for outward in mongo_db.outward_stock.find(outward_query, {"_id": 0}):
-        for item in outward.get("line_items", []):
-            if item.get("product_id") == product_id:
-                total_outward += float(item.get("quantity", 0))
-    
-    # Available = Inward - Outward
-    available_quantity = total_inward - total_outward
+    if not warehouse_id:
+        raise HTTPException(status_code=400, detail="warehouse_id is required")
+        
+    available_quantity = await get_available_stock(product_id, warehouse_id)
     
     return {
         "product_id": product_id,
         "warehouse_id": warehouse_id,
-        "total_inward": total_inward,
-        "total_outward": total_outward,
-        "available_quantity": max(0, available_quantity)  # Ensure non-negative
+        "available_quantity": max(0, available_quantity)
     }
 
 @api_router.get("/outward-stock/export")
@@ -2989,9 +3542,20 @@ async def get_outward_stock_detail(
         warehouse = await mongo_db.warehouses.find_one({"id": entry["warehouse_id"]}, {"_id": 0})
         entry["warehouse"] = warehouse
         
-    if entry.get("pi_id"):
-        pi = await mongo_db.performa_invoices.find_one({"id": entry["pi_id"]}, {"_id": 0})
-        entry["pi"] = pi
+    # Resolve PIs
+    pi_ids = entry.get("pi_ids", [])
+    if not pi_ids and entry.get("pi_id"):
+        pi_ids = [entry["pi_id"]]
+        
+    if pi_ids:
+        pi_details = []
+        for pi_id in pi_ids:
+            pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
+            if pi:
+                pi_details.append(pi)
+        entry["pis"] = pi_details
+        if pi_details:
+            entry["pi"] = pi_details[0]
     
     return entry
 
@@ -3001,49 +3565,80 @@ async def update_outward_stock(
     outward_data: dict,
     current_user: dict = Depends(get_current_active_user)
 ):
-    """Update outward stock entry"""
-    entry = await mongo_db.outward_stock.find_one({"id": outward_id}, {"_id": 0})
-    if not entry:
+    """Update outward stock entry with stock tracking recalibration"""
+    old_entry = await mongo_db.outward_stock.find_one({"id": outward_id}, {"_id": 0})
+    if not old_entry:
         raise HTTPException(status_code=404, detail="Outward entry not found")
     
+    # Check if this is an Export Invoice linked to a Dispatch Plan
+    # Editing these should be handled carefully as stock was reduced by the plan
+    if old_entry.get("dispatch_type") == "export_invoice" and old_entry.get("dispatch_plan_id"):
+        # Allow editing non-stock fields only, or warn
+        pass
+
+    # 1. Determine if we need to revert and update stock tracking
+    # We update tracking for Dispatch Plans, Direct Exports, and Standalone Export Invoices
+    tracking_enabled = (
+        old_entry.get("dispatch_type") == "dispatch_plan" or
+        old_entry.get("dispatch_type") == "direct_export" or
+        (old_entry.get("dispatch_type") == "export_invoice" and not old_entry.get("dispatch_plan_id"))
+    )
+
+    if tracking_enabled:
+        print(f"  🔄 Edit detected: Reverting old stock tracking for {outward_id}")
+        await revert_stock_tracking_outward(old_entry)
+    
+    # 2. Prepare update data
     update_data = {
-        "export_invoice_no": outward_data.get("export_invoice_no"),
-        "export_invoice_number": outward_data.get("export_invoice_number", entry.get("export_invoice_number", "")),
-        "date": outward_data.get("date"),
-        "company_id": outward_data.get("company_id"),
-        "warehouse_id": outward_data.get("warehouse_id"),
-        "mode": outward_data.get("mode"),
-        "status": outward_data.get("status", entry.get("status")),
+        "export_invoice_no": outward_data.get("export_invoice_no", old_entry.get("export_invoice_no")),
+        "export_invoice_number": outward_data.get("export_invoice_number", old_entry.get("export_invoice_number", "")),
+        "date": outward_data.get("date", old_entry.get("date")),
+        "company_id": outward_data.get("company_id", old_entry.get("company_id")),
+        "warehouse_id": outward_data.get("warehouse_id", old_entry.get("warehouse_id")),
+        "mode": outward_data.get("mode", old_entry.get("mode")),
+        "status": outward_data.get("status", old_entry.get("status")),
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "updated_by": current_user["id"]
     }
     
     # Update line items if provided
+    current_line_items = []
     if "line_items" in outward_data:
-        line_items = []
         total_amount = 0
         for item in outward_data["line_items"]:
+            # Support both quantity and dispatch_quantity for editing
+            qty = item.get("dispatch_quantity") or item.get("quantity", 0)
+            
             line_item = {
                 "id": item.get("id", str(uuid.uuid4())),
                 "product_id": item.get("product_id"),
                 "product_name": item.get("product_name"),
                 "sku": item.get("sku"),
-                "quantity": float(item.get("quantity", 0)),
+                "quantity": float(qty),
+                "dispatch_quantity": float(qty),
                 "rate": float(item.get("rate", 0)),
-                "amount": float(item.get("quantity", 0)) * float(item.get("rate", 0)),
+                "amount": float(qty) * float(item.get("rate", 0)),
                 "dimensions": item.get("dimensions"),
                 "weight": float(item.get("weight", 0)) if item.get("weight") else None
             }
             total_amount += line_item["amount"]
-            line_items.append(line_item)
+            current_line_items.append(line_item)
         
-        update_data["line_items"] = line_items
+        update_data["line_items"] = current_line_items
         update_data["total_amount"] = total_amount
-        update_data["line_items_count"] = len(line_items)
+        update_data["line_items_count"] = len(current_line_items)
     
+    # 3. Save updated entry
     await mongo_db.outward_stock.update_one({"id": outward_id}, {"$set": update_data})
     
+    # 4. Fetch updated entry and apply new stock tracking
     updated_entry = await mongo_db.outward_stock.find_one({"id": outward_id}, {"_id": 0})
+    
+    if tracking_enabled:
+        print(f"  🔄 Applying new stock tracking for edited entry {outward_id}")
+        await update_stock_tracking_outward(updated_entry)
+        print(f"  ✅ Edited Stock Summary updated successfully")
+
     return updated_entry
 
 @api_router.delete("/outward-stock/{outward_id}")
@@ -3056,19 +3651,140 @@ async def delete_outward_stock(
     if not entry:
         raise HTTPException(status_code=404, detail="Outward entry not found")
     
+    # Revert stock tracking (add back the stock)
+    await revert_stock_tracking_outward(entry)
+
     await mongo_db.outward_stock.update_one({"id": outward_id}, {"$set": {"is_active": False}})
     return {"message": "Outward entry deleted successfully"}
 
+async def revert_stock_tracking_outward(outward_entry: dict):
+    """
+    STOCK SUMMARY - Revert Outward Tracking (On Delete)
+    Adds back the quantity to stock tracking entries.
+    Strategy: LIFO (Last In First Out) restoration.
+    Since outward uses FIFO (Oldest first), we restore to Youngest first to "slide back" the allocation
+    or undo the most recent bucket usage.
+    """
+    try:
+        print(f"  🔄 Reverting stock tracking for outward: {outward_entry.get('export_invoice_no')}")
+        
+        for item in outward_entry.get("line_items", []):
+            try:
+                # Support both quantity and dispatch_quantity fields
+                qty_to_restore = item.get("dispatch_quantity") or item.get("quantity", 0)
+                product_id = item.get("product_id")
+                product_name = item.get("product_name")
+                sku = item.get("sku")
+                
+                print(f"     - Restoring: {product_name} (Qty: {qty_to_restore})")
+                
+                # Find all stock_tracking entries for this product in this warehouse with outward stock
+                # Sort by created_at DESC (Youngest first)
+                tracking_query = {
+                    "warehouse_id": outward_entry.get("warehouse_id"),
+                    "quantity_outward": {"$gt": 0}  # Only entries that have been used
+                }
+                
+                if product_id:
+                    tracking_query["product_id"] = product_id
+                elif sku:
+                    sku_val = sku.strip()
+                    import re
+                    sku_esc = re.escape(sku_val)
+                    print(f"       ℹ️ No product_id, falling back to flexible SKU for restoration: {sku_val}")
+                    tracking_query["sku"] = {"$regex": f"^{sku_esc}", "$options": "i"}
+                else:
+                    print(f"       ❌ ERROR: Both product_id and SKU are missing for {product_name} in restoration")
+                    continue
+
+                stock_entries = []
+                async for stock in mongo_db.stock_tracking.find(tracking_query, {"_id": 0}).sort("created_at", -1):  # LIFO: Youngest first
+                    stock_entries.append(stock)
+                
+                remaining_to_restore = qty_to_restore
+                
+                for stock in stock_entries:
+                    if remaining_to_restore <= 0:
+                        break
+                    
+                    # How much can we restore to this entry?
+                    # We can deduct from outward up to the amount it has
+                    available_to_restore = stock.get("quantity_outward", 0)
+                    qty_to_restore_here = min(available_to_restore, remaining_to_restore)
+                    
+                    # Update this stock entry
+                    old_outward = stock.get("quantity_outward", 0)
+                    new_outward = old_outward - qty_to_restore_here
+                    
+                    old_remaining = stock.get("remaining_stock", 0)
+                    new_remaining = old_remaining + qty_to_restore_here
+                    
+                    await mongo_db.stock_tracking.update_one(
+                        {"id": stock.get("id")},
+                        {"$set": {
+                            "quantity_outward": new_outward,
+                            "remaining_stock": new_remaining,
+                            "last_updated": datetime.now(timezone.utc).isoformat()
+                        }}
+                    )
+                    
+                    print(f"       ✅ Restored to entry (Invoice: {stock.get('inward_invoice_no')}): Outward {old_outward} → {new_outward}, Remaining {old_remaining} → {new_remaining}")
+                    
+                    remaining_to_restore -= qty_to_restore_here
+                
+                if remaining_to_restore > 0:
+                    print(f"       ⚠️  Could not fully restore {remaining_to_restore} units of {product_name} (Stock mismatch?)")
+                    
+            except Exception as item_error:
+                print(f"       ❌ Error restoring item {item.get('product_name')}: {str(item_error)}")
+                import traceback
+                traceback.print_exc()
+                continue
+        
+        print(f"  ✅ Outward stock restoration completed")
+    except Exception as e:
+        print(f"  ❌ CRITICAL ERROR in revert_stock_tracking_outward: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
 
 # Helper functions for outward operations
-async def get_available_stock(product_id: str, warehouse_id: str) -> float:
-    """Get available stock for a product in a specific warehouse"""
-    stock_entry = await mongo_db.stock_tracking.find_one({
-        "product_id": product_id,
-        "warehouse_id": warehouse_id
-    }, {"_id": 0})
+async def get_available_stock(product_id: str, warehouse_id: str, sku: Optional[str] = None) -> float:
+    """Get available stock for a product in a specific warehouse (Summed across all inward entries)"""
+    total_available = 0.0
     
-    return stock_entry["current_stock"] if stock_entry else 0.0
+    query = {
+        "warehouse_id": warehouse_id,
+        "remaining_stock": {"$gt": 0}
+    }
+    
+    if product_id:
+        query["product_id"] = product_id
+    elif sku:
+        # Flexible SKU matching: allow the provided SKU to be a prefix or match exactly
+        sku_clean = sku.strip()
+        # Escaping regex special characters if any
+        import re
+        sku_esc = re.escape(sku_clean)
+        query["sku"] = {"$regex": f"^{sku_esc}", "$options": "i"}
+    else:
+        return 0.0
+
+    async def local_log(msg):
+        print(msg)
+        try:
+            with open("outward_stock_debug.log", "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
+        except: pass
+
+    await local_log(f"     [DEBUG] Stock Query: {query}")
+    async for entry in mongo_db.stock_tracking.find(query):
+        val = float(entry.get("remaining_stock", 0))
+        total_available += val
+        await local_log(f"     [DEBUG] Found Item: {entry.get('sku')} | Qty: {val}")
+    
+    await local_log(f"     [DEBUG] Total Found: {total_available}")
+    return total_available
 
 async def update_stock_tracking_outward(outward_entry: dict):
     """
@@ -3076,28 +3792,67 @@ async def update_stock_tracking_outward(outward_entry: dict):
     Links outward to specific inward entries using FIFO (First In First Out)
     Reduces quantity from oldest inward entries first
     """
+    import sys
+    
+    def log_to_file(msg):
+        """Helper to log to both console and file"""
+        print(msg, flush=True)
+        try:
+            with open("outward_stock_debug.log", "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
+                f.flush()
+        except:
+            pass
+    
     try:
-        print(f"  🔄 Updating stock tracking for outward: {outward_entry.get('export_invoice_no')}")
+        log_to_file(f"  🔄 Updating stock tracking for outward: {outward_entry.get('export_invoice_no')}")
+        log_to_file(f"     Warehouse ID: {outward_entry.get('warehouse_id')}")
+        log_to_file(f"     Number of line items: {len(outward_entry.get('line_items', []))}")
         
         for item in outward_entry.get("line_items", []):
             try:
                 # Support both quantity and dispatch_quantity fields
                 qty_to_dispatch = item.get("dispatch_quantity") or item.get("quantity", 0)
+                product_id = item.get("product_id")
+                product_name = item.get("product_name")
                 
-                print(f"     - Processing: {item.get('product_name')} (Dispatch Qty: {qty_to_dispatch})")
+                log_to_file(f"     - Processing: {product_name} (Product ID: {product_id}, Dispatch Qty: {qty_to_dispatch})")
                 
                 # Find all stock_tracking entries for this product in this warehouse with remaining stock
                 # Sort by created_at (FIFO - oldest first)
                 stock_entries = []
-                async for stock in mongo_db.stock_tracking.find({
-                    "product_id": item["product_id"],
+                
+                # Use query that prefers product_id but falls back to SKU if product_id is missing
+                tracking_query = {
                     "warehouse_id": outward_entry.get("warehouse_id"),
-                    "remaining_stock": {"$gt": 0}  # Only entries with stock remaining
-                }, {"_id": 0}).sort("created_at", 1):  # FIFO: oldest first
+                    "remaining_stock": {"$gt": 0}
+                }
+                
+                if product_id:
+                    tracking_query["product_id"] = product_id
+                elif item.get("sku"):
+                    sku_val = item.get("sku").strip()
+                    import re
+                    sku_esc = re.escape(sku_val)
+                    log_to_file(f"       ℹ️ No product_id, falling back to flexible SKU: {sku_val}")
+                    tracking_query["sku"] = {"$regex": f"^{sku_esc}", "$options": "i"}
+                else:
+                    log_to_file(f"       ❌ ERROR: Both product_id and SKU are missing for {product_name}")
+                    continue
+
+                async for stock in mongo_db.stock_tracking.find(tracking_query, {"_id": 0}).sort("created_at", 1):  # FIFO: oldest first
                     stock_entries.append(stock)
                 
+                log_to_file(f"       📦 Found {len(stock_entries)} stock entries with available stock")
+                
                 if not stock_entries:
-                    print(f"       ⚠️  No stock available for {item.get('product_name')} in warehouse {outward_entry.get('warehouse_id')}")
+                    log_to_file(f"       ⚠️  No stock available for {product_name} (ID: {product_id}) in warehouse {outward_entry.get('warehouse_id')}")
+                    # Check if there are ANY stock entries for this product (even with 0 remaining)
+                    total_entries = await mongo_db.stock_tracking.count_documents({
+                        "product_id": product_id,
+                        "warehouse_id": outward_entry.get("warehouse_id")
+                    })
+                    log_to_file(f"       📊 Total stock entries for this product: {total_entries}")
                     continue
                 
                 remaining_to_dispatch = qty_to_dispatch
@@ -3125,22 +3880,22 @@ async def update_stock_tracking_outward(outward_entry: dict):
                         }}
                     )
                     
-                    print(f"       ✅ Updated entry (Invoice: {stock.get('inward_invoice_no')}): Outward {old_outward} → {new_outward}, Remaining: {new_remaining}")
+                    log_to_file(f"       ✅ Updated entry (Invoice: {stock.get('inward_invoice_no')}): Outward {old_outward} → {new_outward}, Remaining: {new_remaining}")
                     
                     remaining_to_dispatch -= qty_from_this_entry
                 
                 if remaining_to_dispatch > 0:
-                    print(f"       ⚠️  Insufficient stock! Could not dispatch {remaining_to_dispatch} units of {item.get('product_name')}")
+                    log_to_file(f"       ⚠️  Insufficient stock! Could not dispatch {remaining_to_dispatch} units of {product_name}")
                     
             except Exception as item_error:
-                print(f"       ❌ Error processing item {item.get('product_name')}: {str(item_error)}")
+                log_to_file(f"       ❌ Error processing item {item.get('product_name')}: {str(item_error)}")
                 import traceback
                 traceback.print_exc()
                 continue
         
-        print(f"  ✅ Outward stock tracking update completed (FIFO)")
+        log_to_file(f"  ✅ Outward stock tracking update completed (FIFO)")
     except Exception as e:
-        print(f"  ❌ CRITICAL ERROR in update_stock_tracking_outward: {str(e)}")
+        log_to_file(f"  ❌ CRITICAL ERROR in update_stock_tracking_outward: {str(e)}")
         import traceback
         traceback.print_exc()
 
@@ -3193,7 +3948,7 @@ async def get_payments(
     async for payment in mongo_db.payments.find(query, {"_id": 0}).sort("date", -1):
         # Enrich with PI and company details
         if payment.get("pi_id"):
-            pi = await mongo_db.performa_invoices.find_one({"id": payment["pi_id"]}, {"_id": 0})
+            pi = await mongo_db.proforma_invoices.find_one({"id": payment["pi_id"]}, {"_id": 0})
             if pi:
                 payment["pi_details"] = pi
         
@@ -3218,7 +3973,7 @@ async def get_payment(
     
     # Enrich with related data
     if payment.get("pi_id"):
-        pi = await mongo_db.performa_invoices.find_one({"id": payment["pi_id"]}, {"_id": 0})
+        pi = await mongo_db.proforma_invoices.find_one({"id": payment["pi_id"]}, {"_id": 0})
         if pi:
             payment["pi_details"] = pi
             
@@ -3249,7 +4004,7 @@ async def create_payment(
 ):
     """Create new payment record for a PI"""
     # Validate PI exists
-    pi = await mongo_db.performa_invoices.find_one({"id": payment_data["pi_id"]}, {"_id": 0})
+    pi = await mongo_db.proforma_invoices.find_one({"id": payment_data["pi_id"]}, {"_id": 0})
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
     
@@ -3463,6 +4218,66 @@ async def add_payment_entry(
     
     return await mongo_db.payments.find_one({"id": payment_id}, {"_id": 0})
 
+@api_router.delete("/payments/{payment_id}/entries/{entry_id}")
+async def delete_payment_entry(
+    payment_id: str,
+    entry_id: str,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """Delete a payment entry from a payment record"""
+    payment = await mongo_db.payments.find_one({"id": payment_id, "is_active": True}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+    
+    # Remove entry from payment_entries array
+    await mongo_db.payments.update_one(
+        {"id": payment_id},
+        {
+            "$pull": {"payment_entries": {"id": entry_id}},
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
+        }
+    )
+    
+    # Recalculate remaining payment
+    updated_payment = await mongo_db.payments.find_one({"id": payment_id}, {"_id": 0})
+    
+    # Calculate received from payment entries only (not including advance)
+    payment_entries_total = sum(e.get("received_amount", 0) for e in updated_payment.get("payment_entries", []))
+    
+    # Calculate total received including advance and extra payments
+    advance = updated_payment.get("advance_payment", 0)
+    extra_payments = updated_payment.get("extra_payments_total", 0)
+    total_received = advance + payment_entries_total + extra_payments
+    
+    remaining = updated_payment.get("total_amount", 0) - total_received
+    
+    # Check if fully paid
+    is_fully_paid = remaining <= 0
+    
+    await mongo_db.payments.update_one(
+        {"id": payment_id},
+        {
+            "$set": {
+                "received_amount": payment_entries_total,
+                "total_received": total_received,
+                "remaining_payment": remaining,
+                "is_fully_paid": is_fully_paid,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    # Log action
+    await mongo_db.audit_logs.insert_one({
+        "action": "payment_entry_deleted",
+        "user_id": current_user["id"],
+        "entity_id": payment_id,
+        "entry_id": entry_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"message": "Payment entry deleted successfully"}
+
 @api_router.get("/payments/{payment_id}/export-details")
 async def get_export_details(
     payment_id: str,
@@ -3478,7 +4293,7 @@ async def get_export_details(
         return []
     
     # Get PI details
-    pi = await mongo_db.performa_invoices.find_one({"id": pi_id}, {"_id": 0})
+    pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
     if not pi:
         return []
     
@@ -3615,7 +4430,7 @@ async def reopen_short_payment(
 # ==================== EXTRA PAYMENTS ====================
 @api_router.get("/extra-payments")
 async def get_extra_payments(
-    pi_number: str,
+    pi_number: str = Query(...),
     current_user: dict = Depends(get_current_active_user)
 ):
     """Get all extra payments for a specific PI number"""
@@ -3632,129 +4447,156 @@ async def get_extra_payments(
 @api_router.post("/extra-payments")
 async def create_extra_payment(
     payment_data: dict,
-    pi_number: str,
+    pi_number: str = Query(...),
     current_user: dict = Depends(get_current_active_user)
 ):
     """Create a new extra payment for a PI"""
-    # Validate required fields
-    if not payment_data.get("date"):
-        raise HTTPException(status_code=400, detail="Date is required")
-    if not payment_data.get("bank_id"):
-        raise HTTPException(status_code=400, detail="Bank is required")
-    if not payment_data.get("amount") or payment_data.get("amount") <= 0:
-        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
-    
-    # Verify bank exists
-    bank = await mongo_db.banks.find_one({"id": payment_data["bank_id"], "is_active": True})
-    if not bank:
-        raise HTTPException(status_code=404, detail="Bank not found")
-    
-    # Create extra payment record
-    extra_payment = {
-        "id": str(uuid.uuid4()),
-        "pi_number": pi_number,
-        "date": payment_data["date"],
-        "receipt": payment_data.get("receipt", ""),
-        "bank_id": payment_data["bank_id"],
-        "bank_name": bank.get("bank_name", ""),
-        "amount": float(payment_data["amount"]),
-        "is_active": True,
-        "created_by": current_user["id"],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await mongo_db.pi_extra_payments.insert_one(extra_payment)
-    
-    # Update payment record total if exists
-    await update_payment_with_extra_payments(pi_number)
-    
-    # Log action
-    await mongo_db.audit_logs.insert_one({
-        "action": "extra_payment_created",
-        "user_id": current_user["id"],
-        "entity_id": extra_payment["id"],
-        "pi_number": pi_number,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    
-    extra_payment.pop("_id", None)
-    return extra_payment
+    try:
+        # Validate required fields
+        if not payment_data.get("date"):
+            raise HTTPException(status_code=400, detail="Date is required")
+        if not payment_data.get("bank_id"):
+            raise HTTPException(status_code=400, detail="Bank is required")
+        
+        amount = float(payment_data.get("amount") or 0)
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be greater than 0")
+        
+        # Verify bank exists
+        bank = await mongo_db.banks.find_one({"id": payment_data["bank_id"], "is_active": True})
+        if not bank:
+            raise HTTPException(status_code=404, detail="Bank not found")
+        
+        # Create extra payment record
+        extra_payment = {
+            "id": str(uuid.uuid4()),
+            "pi_number": pi_number,
+            "date": payment_data["date"],
+            "receipt": payment_data.get("receipt", ""),
+            "bank_id": payment_data["bank_id"],
+            "bank_name": bank.get("bank_name", ""),
+            "amount": amount,
+            "note": payment_data.get("note", ""),
+            "is_active": True,
+            "created_by": current_user["id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        result = await mongo_db.pi_extra_payments.insert_one(extra_payment)
+        
+        # Update payment record total if exists
+        await update_payment_with_extra_payments(pi_number)
+        
+        # Log action
+        await mongo_db.audit_logs.insert_one({
+            "action": "extra_payment_created",
+            "user_id": current_user["id"],
+            "entity_id": extra_payment["id"],
+            "pi_number": pi_number,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        extra_payment.pop("_id", None)
+        return extra_payment
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR in create_extra_payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @api_router.put("/extra-payments/{extra_payment_id}")
 async def update_extra_payment(
     extra_payment_id: str,
     payment_data: dict,
-    pi_number: str,
+    pi_number: str = Query(...),
     current_user: dict = Depends(get_current_active_user)
 ):
     """Update an existing extra payment"""
-    # Validate required fields
-    if "date" in payment_data and not payment_data["date"]:
-        raise HTTPException(status_code=400, detail="Date is required")
-    if "bank_id" in payment_data and not payment_data["bank_id"]:
-        raise HTTPException(status_code=400, detail="Bank is required")
-    if "amount" in payment_data and (not payment_data["amount"] or payment_data["amount"] <= 0):
-        raise HTTPException(status_code=400, detail="Amount must be greater than 0")
-    
-    # Check if extra payment exists
-    existing = await mongo_db.pi_extra_payments.find_one({
-        "id": extra_payment_id,
-        "pi_number": pi_number,
-        "is_active": True
-    })
-    
-    if not existing:
-        raise HTTPException(status_code=404, detail="Extra payment not found")
-    
-    # Verify bank if being updated
-    if payment_data.get("bank_id"):
-        bank = await mongo_db.banks.find_one({"id": payment_data["bank_id"], "is_active": True})
-        if not bank:
-            raise HTTPException(status_code=404, detail="Bank not found")
-        payment_data["bank_name"] = bank.get("bank_name", "")
-    
-    # Update fields
-    update_data = {
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    if "date" in payment_data:
-        update_data["date"] = payment_data["date"]
-    if "receipt" in payment_data:
-        update_data["receipt"] = payment_data["receipt"]
-    if "bank_id" in payment_data:
-        update_data["bank_id"] = payment_data["bank_id"]
-        update_data["bank_name"] = payment_data["bank_name"]
-    if "amount" in payment_data:
-        update_data["amount"] = float(payment_data["amount"])
-    
-    await mongo_db.pi_extra_payments.update_one(
-        {"id": extra_payment_id},
-        {"$set": update_data}
-    )
-    
-    # Update payment record total if exists
-    await update_payment_with_extra_payments(pi_number)
-    
-    # Log action
-    await mongo_db.audit_logs.insert_one({
-        "action": "extra_payment_updated",
-        "user_id": current_user["id"],
-        "entity_id": extra_payment_id,
-        "pi_number": pi_number,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    
-    updated = await mongo_db.pi_extra_payments.find_one({"id": extra_payment_id}, {"_id": 0})
-    return updated
+    try:
+        print(f"DEBUG: Updating extra payment {extra_payment_id} for PI: {pi_number}")
+        
+        # Validate required fields
+        if "date" in payment_data and not payment_data["date"]:
+            raise HTTPException(status_code=400, detail="Date is required")
+        if "bank_id" in payment_data and not payment_data["bank_id"]:
+            raise HTTPException(status_code=400, detail="Bank is required")
+        
+        # Check if extra payment exists
+        existing = await mongo_db.pi_extra_payments.find_one({
+            "id": extra_payment_id,
+            "pi_number": pi_number,
+            "is_active": True
+        })
+        
+        if not existing:
+            raise HTTPException(status_code=404, detail="Extra payment not found")
+        
+        # Verify bank if being updated
+        bank_name = existing.get("bank_name", "")
+        if payment_data.get("bank_id"):
+            bank = await mongo_db.banks.find_one({"id": payment_data["bank_id"], "is_active": True})
+            if not bank:
+                raise HTTPException(status_code=404, detail="Bank not found")
+            bank_name = bank.get("bank_name", "")
+        
+        # Update fields
+        update_data = {
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        if "date" in payment_data:
+            update_data["date"] = payment_data["date"]
+        if "receipt" in payment_data:
+            update_data["receipt"] = payment_data["receipt"]
+        if "bank_id" in payment_data:
+            update_data["bank_id"] = payment_data["bank_id"]
+            update_data["bank_name"] = bank_name
+        if "amount" in payment_data:
+            amount = float(payment_data.get("amount") or 0)
+            if amount <= 0:
+                raise HTTPException(status_code=400, detail="Amount must be greater than 0")
+            update_data["amount"] = amount
+        if "note" in payment_data:
+            update_data["note"] = payment_data["note"]
+        
+        await mongo_db.pi_extra_payments.update_one(
+            {"id": extra_payment_id},
+            {"$set": update_data}
+        )
+        
+        # Update payment record total if exists
+        await update_payment_with_extra_payments(pi_number)
+        
+        # Log action
+        await mongo_db.audit_logs.insert_one({
+            "action": "extra_payment_updated",
+            "user_id": current_user["id"],
+            "entity_id": extra_payment_id,
+            "pi_number": pi_number,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        updated = await mongo_db.pi_extra_payments.find_one({"id": extra_payment_id}, {"_id": 0})
+        return updated
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR in update_extra_payment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @api_router.delete("/extra-payments/{extra_payment_id}")
 async def delete_extra_payment(
     extra_payment_id: str,
-    pi_number: str,
+    pi_number: str = Query(...),
     current_user: dict = Depends(get_current_active_user)
 ):
     """Soft delete an extra payment"""
@@ -3789,47 +4631,51 @@ async def delete_extra_payment(
 
 async def update_payment_with_extra_payments(pi_number: str):
     """Helper function to update payment record with extra payments total"""
-    # Find payment record for this PI
-    payment = await mongo_db.payments.find_one({
-        "pi_voucher_no": pi_number,
-        "is_active": True
-    })
-    
-    if not payment:
-        return
-    
-    # Calculate total extra payments
-    total_extra = 0
-    async for extra_payment in mongo_db.pi_extra_payments.find({
-        "pi_number": pi_number,
-        "is_active": True
-    }):
-        total_extra += extra_payment.get("amount", 0)
-    
-    # Calculate received amount from payment entries
-    payment_entries_total = sum(e.get("received_amount", 0) for e in payment.get("payment_entries", []))
-    
-    # Update payment record
-    advance_payment = payment.get("advance_payment", 0)
-    total_amount = payment.get("total_amount", 0)
-    
-    # Total received = Advance + Payment Entries + Extra Payments
-    total_received = advance_payment + payment_entries_total + total_extra
-    remaining_payment = total_amount - total_received
-    
-    await mongo_db.payments.update_one(
-        {"id": payment["id"]},
-        {
-            "$set": {
-                "received_amount": payment_entries_total,
-                "extra_payments_total": total_extra,
-                "total_received": total_received,
-                "remaining_payment": remaining_payment,
-                "is_fully_paid": remaining_payment <= 0,
-                "updated_at": datetime.now(timezone.utc).isoformat()
+    try:
+        # Find payment record for this PI
+        payment = await mongo_db.payments.find_one({
+            "pi_voucher_no": pi_number,
+            "is_active": True
+        })
+        
+        if not payment:
+            print(f"DEBUG: No payment record found for PI: {pi_number}")
+            return
+        
+        # Calculate total extra payments
+        total_extra = 0
+        async for extra_payment in mongo_db.pi_extra_payments.find({
+            "pi_number": pi_number,
+            "is_active": True
+        }):
+            total_extra += float(extra_payment.get("amount") or 0)
+        
+        # Calculate received amount from payment entries
+        payment_entries_total = sum(float(e.get("received_amount") or 0) for e in payment.get("payment_entries") or [])
+        
+        # Update payment record
+        advance_payment = float(payment.get("advance_payment") or 0)
+        total_amount = float(payment.get("total_amount") or 0)
+        
+        # Total received = Advance + Payment Entries + Extra Payments
+        total_received = advance_payment + payment_entries_total + total_extra
+        remaining_payment = total_amount - total_received
+        
+        await mongo_db.payments.update_one(
+            {"id": payment["id"]},
+            {
+                "$set": {
+                    "received_amount": payment_entries_total,
+                    "extra_payments_total": total_extra,
+                    "total_received": total_received,
+                    "remaining_payment": remaining_payment,
+                    "is_fully_paid": remaining_payment <= 0,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
             }
-        }
-    )
+        )
+    except Exception as e:
+        logger.error(f"ERROR in update_payment_with_extra_payments: {str(e)}")
 
 
 # ==================== EXPENSE CALCULATION ====================
@@ -4100,14 +4946,18 @@ async def calculate_pl_report(
                     # Find matching SKU in PO line items
                     for po_item in po.get("line_items", []):
                         if po_item.get("sku") == item.get("sku"):
-                            purchase_cost += po_item.get("quantity", 0) * po_item.get("rate", 0)
+                            purchase_cost = export_qty * po_item.get("rate", 0)
+                            break
+                
+                if purchase_cost > 0:
+                    break
             
             # If no PI reference, try direct SKU matching in all POs (Option B)
             if purchase_cost == 0:
                 async for po in mongo_db.purchase_orders.find({"is_active": True}, {"_id": 0}):
                     for po_item in po.get("line_items", []):
                         if po_item.get("sku") == item.get("sku"):
-                            purchase_cost += po_item.get("quantity", 0) * po_item.get("rate", 0)
+                            purchase_cost = export_qty * po_item.get("rate", 0)
                             break
             
             invoice_export_value += export_value
@@ -4150,8 +5000,11 @@ async def calculate_pl_report(
     
     # Calculate P&L
     gross_total = total_export_value - total_purchase_cost - total_expenses
-    gst_amount = gross_total * 0.18
-    net_profit = gross_total - gst_amount
+    
+    # GST Calculation (Inclusive: Gross / 1.18 = Net)
+    # The Net Profit is the base amount, and GST is the difference
+    net_profit = gross_total / 1.18
+    gst_amount = gross_total - net_profit
     net_profit_percentage = (net_profit / total_export_value * 100) if total_export_value > 0 else 0
     
     return {
@@ -4265,11 +5118,11 @@ async def get_pi_po_mapping_list(
         ]
     
     # Get total count for pagination
-    total_count = await mongo_db.performa_invoices.count_documents(pi_query)
+    total_count = await mongo_db.proforma_invoices.count_documents(pi_query)
     
     # Fetch PIs with pagination
     mappings = []
-    cursor = mongo_db.performa_invoices.find(pi_query, {"_id": 0}).sort("date", -1).skip(skip).limit(page_size)
+    cursor = mongo_db.proforma_invoices.find(pi_query, {"_id": 0}).sort("date", -1).skip(skip).limit(page_size)
     
     async for pi in cursor:
         pi_id = pi.get("id")
@@ -4384,7 +5237,7 @@ async def get_pi_po_mapping_detail(
     Returns full hierarchical structure with all linked POs and SKU details.
     """
     # Find the PI
-    pi = await mongo_db.performa_invoices.find_one({"id": mapping_id, "is_active": True}, {"_id": 0})
+    pi = await mongo_db.proforma_invoices.find_one({"id": mapping_id, "is_active": True}, {"_id": 0})
     
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
@@ -4477,8 +5330,7 @@ async def get_pi_po_mapping_detail(
 @api_router.put("/pi-po-mapping/{mapping_id}")
 async def update_pi_po_mapping(
     mapping_id: str,
-    notes: Optional[str] = None,
-    status: Optional[str] = None,
+    update_data_body: MappingUpdate,
     current_user: dict = Depends(get_current_active_user)
 ):
     """
@@ -4486,7 +5338,7 @@ async def update_pi_po_mapping(
     This endpoint allows updating mapping-related metadata without modifying core PI/PO data.
     """
     # Verify PI exists
-    pi = await mongo_db.performa_invoices.find_one({"id": mapping_id, "is_active": True})
+    pi = await mongo_db.proforma_invoices.find_one({"id": mapping_id, "is_active": True})
     
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
@@ -4495,14 +5347,14 @@ async def update_pi_po_mapping(
     # For now, we'll add fields to the PI document
     update_data = {}
     
-    if notes is not None:
-        update_data["mapping_notes"] = notes
+    if update_data_body.notes is not None:
+        update_data["mapping_notes"] = update_data_body.notes
     
-    if status is not None:
-        update_data["mapping_status"] = status
+    if update_data_body.status is not None:
+        update_data["mapping_status"] = update_data_body.status
     
     if update_data:
-        await mongo_db.performa_invoices.update_one(
+        await mongo_db.proforma_invoices.update_one(
             {"id": mapping_id},
             {"$set": update_data}
         )
@@ -4520,13 +5372,13 @@ async def delete_pi_po_mapping(
     This marks the PI as archived/deleted without removing the actual data.
     """
     # Verify PI exists
-    pi = await mongo_db.performa_invoices.find_one({"id": mapping_id, "is_active": True})
+    pi = await mongo_db.proforma_invoices.find_one({"id": mapping_id, "is_active": True})
     
     if not pi:
         raise HTTPException(status_code=404, detail="PI not found")
     
     # Soft delete by setting is_active to False
-    await mongo_db.performa_invoices.update_one(
+    await mongo_db.proforma_invoices.update_one(
         {"id": mapping_id},
         {
             "$set": {
@@ -4557,7 +5409,7 @@ async def get_inward_quantity(
     if consignee:
         pi_query["consignee"] = {"$regex": consignee, "$options": "i"}
     
-    async for pi in mongo_db.performa_invoices.find(pi_query, {"_id": 0}):
+    async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}):
         # Get linked POs (search in both reference_pi_id and reference_pi_ids array)
         po_query = {
             "$or": [
@@ -4650,8 +5502,8 @@ async def get_outward_quantity(
 ):
     """
     STOCK SUMMARY REBUILD - Get outward quantity tracking
-    ONLY counts Export Invoice (dispatch_type="export_invoice")
-    Does NOT count Dispatch Plans
+    Counts both Export Invoice AND Dispatch Plans
+    Deduplicates Dispatch Plans that are already linked to Export Invoices
     """
     outward_data = []
     
@@ -4662,7 +5514,7 @@ async def get_outward_quantity(
     if consignee:
         pi_query["consignee"] = {"$regex": consignee, "$options": "i"}
     
-    async for pi in mongo_db.performa_invoices.find(pi_query, {"_id": 0}):
+    async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}):
         # Get outward entries linked to this PI - ONLY Export Invoice
         # Use $or to avoid duplicate counting
         outward_query = {
@@ -4670,33 +5522,61 @@ async def get_outward_quantity(
                 {"pi_id": pi["id"]},
                 {"pi_ids": pi["id"]}
             ],
-            "dispatch_type": "export_invoice",  # ONLY export_invoice
+            "dispatch_type": {"$in": ["dispatch_plan", "export_invoice"]},
             "is_active": True
         }
         
         # Calculate quantities per SKU
         pi_sku_quantities = {}
         for item in pi.get("line_items", []):
-            sku_key = item.get("sku")
-            if not sku or sku.lower() in sku_key.lower():
-                pi_sku_quantities[sku_key] = {
+            item_sku = item.get("sku") or ""
+            item_pid = item.get("product_id") or ""
+            # If search filter 'sku' matches
+            if not sku or (item_sku and sku.lower() in item_sku.lower()):
+                # Create a robust key combining PID and SKU to handle empty fields
+                unique_key = f"{item_pid}_{item_sku}"
+                pi_sku_quantities[unique_key] = {
+                    "product_id": item_pid,
+                    "sku": item_sku,
                     "product_name": item.get("product_name"),
-                    "pi_quantity": item.get("quantity", 0),
+                    "pi_quantity": float(item.get("quantity", 0)),
                     "outward_quantity": 0,
-                    "remaining_quantity": item.get("quantity", 0)
+                    "remaining_quantity": float(item.get("quantity", 0))
                 }
         
-        # Calculate outwarded quantities - SINGLE query (no duplication)
-        async for outward in mongo_db.outward_stock.find(outward_query, {"_id": 0}):
+        # Calculate outwarded quantities - Fetch all associated records
+        all_outwards = await mongo_db.outward_stock.find(outward_query, {"_id": 0}).to_list(None)
+        
+        # Deduplication: Track dispatch plans that are already converted to invoices
+        invoiced_plan_ids = {o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_type") == "export_invoice" and o.get("dispatch_plan_id")}
+        
+        for outward in all_outwards:
+            # Skip if this is a dispatch plan that has already been fulfilled by an export invoice
+            if outward.get("dispatch_type") == "dispatch_plan" and outward.get("id") in invoiced_plan_ids:
+                continue
+                
             for item in outward.get("line_items", []):
-                sku_key = item.get("sku")
-                if sku_key in pi_sku_quantities:
-                    # Use dispatch_quantity (the actual outwarded quantity)
-                    qty = item.get("dispatch_quantity") or item.get("quantity", 0)
-                    pi_sku_quantities[sku_key]["outward_quantity"] += qty
-                    pi_sku_quantities[sku_key]["remaining_quantity"] = (
-                        pi_sku_quantities[sku_key]["pi_quantity"] - 
-                        pi_sku_quantities[sku_key]["outward_quantity"]
+                o_sku = item.get("sku") or ""
+                o_pid = item.get("product_id") or ""
+                
+                # Match by PID + SKU or Name if needed, but here we use our prepared map
+                match_key = f"{o_pid}_{o_sku}"
+                
+                # If exact key doesn't match, try matching by PID or SKU independently
+                if match_key not in pi_sku_quantities:
+                    found_key = None
+                    for k, d in pi_sku_quantities.items():
+                        if (o_pid and d["product_id"] == o_pid) or (o_sku and d["sku"] == o_sku):
+                            found_key = k
+                            break
+                    match_key = found_key
+
+                if match_key and match_key in pi_sku_quantities:
+                    qty = float(item.get("dispatch_quantity") or item.get("quantity", 0))
+                    pi_sku_quantities[match_key]["outward_quantity"] += qty
+                    pi_sku_quantities[match_key]["remaining_quantity"] = (
+                        pi_sku_quantities[match_key]["pi_quantity"] - 
+                        pi_sku_quantities[match_key]["outward_quantity"]
                     )
         
         if sku and not pi_sku_quantities:
@@ -4727,13 +5607,13 @@ async def get_outward_quantity(
             "remaining_quantity": total_pi_qty - total_outward_qty,
             "sku_details": [
                 {
-                    "sku": sku,
-                    "product_name": data["product_name"],
-                    "pi_quantity": data["pi_quantity"],
-                    "outward_quantity": data["outward_quantity"],
-                    "remaining_quantity": data["remaining_quantity"]
+                    "sku": d["sku"],
+                    "product_name": d["product_name"],
+                    "pi_quantity": d["pi_quantity"],
+                    "outward_quantity": d["outward_quantity"],
+                    "remaining_quantity": d["remaining_quantity"]
                 }
-                for sku, data in pi_sku_quantities.items()
+                for d in pi_sku_quantities.values()
             ],
             "status": calc_status
         })
@@ -4777,7 +5657,7 @@ async def get_customer_tracking(
     if pi_number:
         pi_query["voucher_no"] = {"$regex": pi_number, "$options": "i"}
     
-    async for pi in mongo_db.performa_invoices.find(pi_query, {"_id": 0}).sort("date", -1):
+    async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}).sort("date", -1):
         # Get customer/company details
         customer = await mongo_db.companies.find_one({"id": pi.get("customer_id")}, {"_id": 0})
         customer_name_str = customer.get("name") if customer else "Unknown"
@@ -4821,17 +5701,41 @@ async def get_customer_tracking(
                                 "quantity": qty
                             })
             
-            # Calculate Dispatched Quantity (from Export Invoices linked to this PI)
+            # Calculate Dispatched Quantity (from Dispatch Plans and Export Invoices)
             dispatched_quantity = 0.0
             dispatch_details = []
             
-            async for outward in mongo_db.outward_stock.find({
-                "pi_ids": pi["id"],
+            outward_query = {
+                "$or": [
+                    {"pi_id": pi["id"]},
+                    {"pi_ids": pi["id"]}
+                ],
                 "dispatch_type": {"$in": ["dispatch_plan", "export_invoice"]},
                 "is_active": True
-            }, {"_id": 0}):
+            }
+            
+            all_outwards = await mongo_db.outward_stock.find(outward_query, {"_id": 0}).to_list(None)
+            invoiced_plan_ids = {o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_type") == "export_invoice" and o.get("dispatch_plan_id")}
+            
+            for outward in all_outwards:
+                if outward.get("dispatch_type") == "dispatch_plan" and outward.get("id") in invoiced_plan_ids:
+                    continue
+                    
                 for outward_item in outward.get("line_items", []):
-                    if outward_item.get("product_id") == product_id:
+                    # Match by product_id or SKU or Name
+                    o_pid = outward_item.get("product_id")
+                    o_sku = outward_item.get("sku")
+                    o_name = outward_item.get("product_name")
+                    
+                    matches = False
+                    if product_id and o_pid == product_id:
+                        matches = True
+                    elif pi_item.get("sku") and o_sku == pi_item.get("sku"):
+                        matches = True
+                    elif pi_item.get("product_name") == o_name:
+                        matches = True
+                        
+                    if matches:
                         qty = float(outward_item.get("dispatch_quantity", 0) or outward_item.get("quantity", 0))
                         dispatched_quantity += qty
                         dispatch_details.append({
@@ -4883,15 +5787,22 @@ async def get_purchase_analysis(
             return {"message": "Please select Company and PI Number filters", "data": []}
         
         # Build PI query
+        # Some PIs might have company_id as a string name instead of UUID
+        # Fetch company names for the given IDs
+        expanded_company_ids = list(company_id_list)
+        async for company in mongo_db.companies.find({"id": {"$in": company_id_list}}):
+            if company.get("name"):
+                expanded_company_ids.append(company["name"])
+        
         pi_query = {
-            "company_id": {"$in": company_id_list},
+            "company_id": {"$in": expanded_company_ids},
             "voucher_no": {"$in": pi_number_list},
             "is_active": True
         }
         
         # Fetch all matching PIs
         pis = []
-        async for pi in mongo_db.performa_invoices.find(pi_query, {"_id": 0}):
+        async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}):
             pis.append(pi)
         
         if not pis:
@@ -4904,7 +5815,8 @@ async def get_purchase_analysis(
         po_query = {
             "$or": [
                 {"reference_pi_id": {"$in": pi_ids}},
-                {"reference_pi_ids": {"$elemMatch": {"$in": pi_ids}}}
+                {"reference_pi_ids": {"$in": pi_ids}},
+                {"pi_id": {"$in": pi_ids}} # Some POS use pi_id
             ],
             "is_active": True
         }
@@ -4944,30 +5856,56 @@ async def get_purchase_analysis(
                         
                         # Find matching product in PI
                         for pi_item in pi.get("line_items", []):
-                            if pi_item.get("product_id") == product_id:
+                            # Match by product_id OR SKU
+                            matched = False
+                            if product_id and pi_item.get("product_id") == product_id:
+                                matched = True
+                            elif sku and pi_item.get("sku") == sku:
+                                matched = True
+                                
+                            if matched:
                                 pi_quantity = float(pi_item.get("quantity", 0))
                                 break
                         break
                 
-                # Calculate Inward Quantity (from inward_stock where inward_type="warehouse")
+                # Calculate Inward Quantity (including pick-up based inwards)
                 inward_quantity = 0
                 async for inward in mongo_db.inward_stock.find({
-                    "po_id": po_id,
+                    "$or": [{"po_id": po_id}, {"po_ids": po_id}],
                     "inward_type": "warehouse",
                     "is_active": True
                 }, {"_id": 0}):
                     for inward_item in inward.get("line_items", []):
-                        if inward_item.get("product_id") == product_id:
+                        # Match by product_id OR SKU OR by PO line item ID (id)
+                        matched = False
+                        if product_id and inward_item.get("product_id") == product_id:
+                            matched = True
+                        elif sku and inward_item.get("sku") == sku:
+                            matched = True
+                        elif (inward_item.get("id") == po_item.get("id") and po_item.get("id")):
+                            matched = True
+                            
+                        if matched:
                             inward_quantity += float(inward_item.get("quantity", 0))
                 
-                # Calculate In-Transit Quantity (from pickup_in_transit collection)
+                # Calculate In-Transit Quantity (only PENDING ones)
                 intransit_quantity = 0
                 async for pickup in mongo_db.pickup_in_transit.find({
-                    "po_id": po_id,
-                    "is_active": True
+                    "$or": [{"po_id": po_id}, {"po_ids": po_id}],
+                    "is_active": True,
+                    "is_inwarded": {"$ne": True}
                 }, {"_id": 0}):
                     for pickup_item in pickup.get("line_items", []):
-                        if pickup_item.get("product_id") == product_id:
+                        # Match by product_id OR SKU OR by PO line item ID (id)
+                        matched = False
+                        if product_id and pickup_item.get("product_id") == product_id:
+                            matched = True
+                        elif sku and pickup_item.get("sku") == sku:
+                            matched = True
+                        elif (pickup_item.get("id") == po_item.get("id") and po_item.get("id")):
+                            matched = True
+                            
+                        if matched:
                             intransit_quantity += float(pickup_item.get("quantity", 0))
                 
                 # Calculate Remaining (PO Qty - Inward - In-Transit)
@@ -5026,7 +5964,7 @@ async def get_purchase_analysis(
 #         # Fetch all referenced PIs
 #         pis = []
 #         if reference_pi_ids:
-#             async for pi in mongo_db.performa_invoices.find({"id": {"$in": reference_pi_ids}, "is_active": True}, {"_id": 0}):
+#             async for pi in mongo_db.proforma_invoices.find({"id": {"$in": reference_pi_ids}, "is_active": True}, {"_id": 0}):
 #                 pis.append(pi)
         
 #         # Build line items with stats
@@ -5107,85 +6045,123 @@ async def get_po_lines_with_stats(
     - Already Inwarded (from inward_stock)
     - In-Transit (from pickup_in_transit collection)
     
-    Query param: voucher_no (PO voucher number)
+    Query param: voucher_no (can be a single voucher or comma-separated list of vouchers)
     """
     try:
-        # Find PO by voucher number
-        po = await mongo_db.purchase_orders.find_one({"voucher_no": voucher_no, "is_active": True}, {"_id": 0})
-        if not po:
-            raise HTTPException(status_code=404, detail=f"PO not found with voucher number: {voucher_no}")
+        voucher_nos = [v.strip() for v in voucher_no.split(",") if v.strip()]
+        if not voucher_nos:
+             raise HTTPException(status_code=400, detail="At least one voucher number is required")
+
+        # Find all POs by voucher numbers
+        pos_cursor = mongo_db.purchase_orders.find({"voucher_no": {"$in": voucher_nos}, "is_active": True}, {"_id": 0})
+        pos = await pos_cursor.to_list(length=100)
         
-        po_id = po.get("id")
+        if not pos:
+            raise HTTPException(status_code=404, detail=f"No active POs found for vouchers: {voucher_no}")
         
-        # Get reference PI IDs from PO
-        reference_pi_ids = po.get("reference_pi_ids", [])
-        if not reference_pi_ids and po.get("reference_pi_id"):
-            reference_pi_ids = [po.get("reference_pi_id")]
+        po_ids = [po.get("id") for po in pos]
         
-        # Fetch all referenced PIs
+        # Aggregate all referenced PIs from all POs
+        all_pi_ids = []
+        for po in pos:
+            reference_pi_ids = po.get("reference_pi_ids", [])
+            if not reference_pi_ids and po.get("reference_pi_id"):
+                reference_pi_ids = [po.get("reference_pi_id")]
+            all_pi_ids.extend(reference_pi_ids)
+        
+        all_pi_ids = list(set(all_pi_ids))
+        
         pis = []
-        if reference_pi_ids:
-            async for pi in mongo_db.performa_invoices.find({"id": {"$in": reference_pi_ids}, "is_active": True}, {"_id": 0}):
+        if all_pi_ids:
+            async for pi in mongo_db.proforma_invoices.find({"id": {"$in": all_pi_ids}, "is_active": True}, {"_id": 0}):
                 pis.append(pi)
         
-        # Build line items with stats
+        # Build aggregated line items with stats
+        # We group by product (SKU + Product Name)
+        aggregated_stats = {} # key: product_key (sku or product_id)
+
+        for po in pos:
+            po_id = po.get("id")
+            for po_item in po.get("line_items", []):
+                po_item_id = po_item.get("id")
+                product_id = po_item.get("product_id")
+                product_name = po_item.get("product_name")
+                sku = po_item.get("sku")
+                po_quantity = float(po_item.get("quantity", 0))
+                rate = float(po_item.get("rate", 0))
+                
+                # Create a stable key for grouping
+                # If SKU exists, use SKU. Otherwise use product_id.
+                product_key = sku if sku else product_id
+                
+                if product_key not in aggregated_stats:
+                    aggregated_stats[product_key] = {
+                        "ids": [], # Support multiple line item IDs if same product across POs
+                        "product_id": product_id,
+                        "product_name": product_name,
+                        "sku": sku,
+                        "pi_quantity": 0,
+                        "po_quantity": 0,
+                        "already_inwarded": 0,
+                        "in_transit": 0,
+                        "rate": rate # Last seen rate or could average
+                    }
+                
+                stats = aggregated_stats[product_key]
+                stats["ids"].append(po_item_id)
+                stats["po_quantity"] += po_quantity
+                
+                # Fetch PI quantity for this product (from all referenced PIs)
+                # This could be optimized but sticking to the existing logic for now
+                for pi in pis:
+                    for pi_item in pi.get("line_items", []):
+                        if sku and pi_item.get("sku") == sku:
+                             stats["pi_quantity"] += float(pi_item.get("quantity", 0))
+                        elif not sku and pi_item.get("product_id") == product_id:
+                             stats["pi_quantity"] += float(pi_item.get("quantity", 0))
+
+                # Calculate already inwarded and in-transit for this SPECIFIC PO item
+                # Actually, the user might want AGGREGATED inward status for this product across these POs
+                # But inward_stock entries are linked to po_id.
+                
+                # Fetch already inwarded for this po_item_id across all selected POs
+                # Wait, inward_stock entries have a po_id field.
+                async for inward in mongo_db.inward_stock.find({
+                    "po_id": po_id,
+                    "is_active": True
+                }, {"_id": 0}):
+                    for inward_item in inward.get("line_items", []):
+                        if inward_item.get("id") == po_item_id:
+                            stats["already_inwarded"] += float(inward_item.get("quantity", 0))
+                        elif sku and inward_item.get("sku") == sku and not inward_item.get("id"):
+                            # Fallback for old data without line item IDs
+                            stats["already_inwarded"] += float(inward_item.get("quantity", 0))
+                
+                # Calculate in-transit (only pending ones)
+                async for pickup in mongo_db.pickup_in_transit.find({
+                    "po_id": po_id,
+                    "is_active": True,
+                    "is_inwarded": {"$ne": True}
+                }, {"_id": 0}):
+                    for pickup_item in pickup.get("line_items", []):
+                        if pickup_item.get("id") == po_item_id:
+                            stats["in_transit"] += float(pickup_item.get("quantity", 0))
+                        elif sku and pickup_item.get("sku") == sku and not pickup_item.get("id"):
+                             stats["in_transit"] += float(pickup_item.get("quantity", 0))
+
+        # Prepare final list
         line_stats = []
-        for po_item in po.get("line_items", []):
-            po_item_id = po_item.get("id")  # ✅ This is the key to match across collections
-            product_id = po_item.get("product_id")
-            product_name = po_item.get("product_name")
-            sku = po_item.get("sku")
-            po_quantity = float(po_item.get("quantity", 0))
-            rate = float(po_item.get("rate", 0))
+        for key, stats in aggregated_stats.items():
+            stats["available_for_pickup"] = stats["po_quantity"] - stats["already_inwarded"] - stats["in_transit"]
+            # For the ID field, we take the FIRST ID if there's only one, or use the key
+            stats["id"] = stats["ids"][0] if stats["ids"] else key
+            line_stats.append(stats)
             
-            # Find matching PI quantity
-            pi_quantity = 0
-            for pi in pis:
-                for pi_item in pi.get("line_items", []):
-                    if pi_item.get("product_id") == product_id:
-                        pi_quantity += float(pi_item.get("quantity", 0))
-            
-            # Calculate Already Inwarded (from inward_stock)
-            already_inwarded = 0
-            async for inward in mongo_db.inward_stock.find({
-                "po_id": po_id,
-                "is_active": True
-            }, {"_id": 0}):
-                for inward_item in inward.get("line_items", []):
-                    if inward_item.get("id") == po_item_id:  # ✅ Match by line item ID
-                        already_inwarded += float(inward_item.get("quantity", 0))
-            
-            # Calculate In-Transit (from pickup_in_transit collection)
-            in_transit = 0
-            async for pickup in mongo_db.pickup_in_transit.find({
-                "po_id": po_id,
-                "is_active": True
-            }, {"_id": 0}):
-                for pickup_item in pickup.get("line_items", []):
-                    if pickup_item.get("id") == po_item_id:  # ✅ Match by line item ID
-                        in_transit += float(pickup_item.get("quantity", 0))
-            
-            # Calculate available quantity for pickup
-            available_for_pickup = po_quantity - already_inwarded - in_transit
-            
-            line_stats.append({
-                "id": po_item_id,  # ✅ PO line item ID - required for pickup creation
-                "product_id": product_id,
-                "product_name": product_name,
-                "sku": sku,
-                "pi_quantity": pi_quantity,
-                "po_quantity": po_quantity,
-                "already_inwarded": already_inwarded,
-                "in_transit": in_transit,
-                "available_for_pickup": available_for_pickup,
-                "rate": rate
-            })
-        
         return {
-            "po_voucher_no": voucher_no,
-            "po_id": po_id,
-            "po_date": po.get("date"),
-            "supplier": po.get("supplier"),
+            "po_voucher_no": ", ".join(voucher_nos),
+            "po_ids": po_ids,
+            "po_date": pos[0].get("date") if pos else None,
+            "supplier": pos[0].get("supplier") if pos else None,
             "line_items": line_stats
         }
         
@@ -5324,307 +6300,7 @@ async def get_po_lines_with_stats(
 #         raise HTTPException(status_code=500, detail=str(e))
 
 
-@api_router.post("/pickups")
-async def create_pickup(
-    pickup_data: dict,
-    current_user: dict = Depends(get_current_active_user)
-):
-    """
-    Create a new Pickup (In-Transit) entry
-    """
-    try:
-        # -----------------------------
-        # 1️⃣ BASIC VALIDATION
-        # -----------------------------
-        po_id = pickup_data.get("po_id")
-        if not po_id:
-            raise HTTPException(status_code=400, detail="po_id is required")
-
-        po = await mongo_db.purchase_orders.find_one(
-            {"id": po_id, "is_active": True},
-            {"_id": 0}
-        )
-        if not po:
-            raise HTTPException(status_code=404, detail="PO not found")
-
-        line_items = pickup_data.get("line_items", [])
-        if not line_items:
-            raise HTTPException(
-                status_code=400,
-                detail="At least one line item is required"
-            )
-
-        # -----------------------------
-        # 2️⃣ VALIDATE QUANTITIES
-        # -----------------------------
-        for item in line_items:
-            po_line_id = item.get("id")   # ✅ PO line item id
-            new_quantity = float(item.get("quantity", 0))
-
-            if not po_line_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail="PO line item id is required"
-                )
-
-            if new_quantity <= 0:
-                continue  # skip zero qty
-
-            # 🔹 Find PO quantity for this line
-            po_quantity = 0
-            for po_item in po.get("line_items", []):
-                if po_item.get("id") == po_line_id:
-                    po_quantity = float(po_item.get("quantity", 0))
-                    break
-
-            if po_quantity == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid PO line item id"
-                )
-
-            # 🔹 Calculate already inwarded
-            already_inwarded = 0
-            async for inward in mongo_db.inward_stock.find(
-                {"po_id": po_id, "is_active": True},
-                {"_id": 0}
-            ):
-                for inward_item in inward.get("line_items", []):
-                    if inward_item.get("id") == po_line_id:
-                        already_inwarded += float(
-                            inward_item.get("quantity", 0)
-                        )
-
-            # 🔹 Calculate existing in-transit
-            existing_in_transit = 0
-            async for pickup in mongo_db.pickup_in_transit.find(
-                {"po_id": po_id, "is_active": True},
-                {"_id": 0}
-            ):
-                for pickup_item in pickup.get("line_items", []):
-                    if pickup_item.get("id") == po_line_id:
-                        existing_in_transit += float(
-                            pickup_item.get("quantity", 0)
-                        )
-
-            # 🔹 Final validation
-            total_quantity = (
-                new_quantity
-                + already_inwarded
-                + existing_in_transit
-            )
-
-            if total_quantity > po_quantity:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Pickup quantity exceeds PO quantity. "
-                        f"PO: {po_quantity}, "
-                        f"Inwarded: {already_inwarded}, "
-                        f"In Transit: {existing_in_transit}"
-                    )
-                )
-
-        # -----------------------------
-        # 3️⃣ CREATE PICKUP ENTRY
-        # -----------------------------
-        pickup_dict = {
-            "id": str(uuid.uuid4()),  # ✅ pickup id
-            "pickup_date": pickup_data.get("pickup_date"),
-            "po_id": po_id,
-            "po_voucher_no": po.get("voucher_no"),
-            "manual": pickup_data.get("manual", ""),
-            "notes": pickup_data.get("notes", ""),
-            "is_active": True,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "created_by": current_user["id"],
-            "line_items": []
-        }
-
-        # -----------------------------
-        # 4️⃣ ADD PICKUP LINE ITEMS
-        # -----------------------------
-        for item in line_items:
-            quantity = float(item.get("quantity", 0))
-            if quantity > 0:
-                pickup_dict["line_items"].append({
-                    "id": item.get("id"),   # ✅ PO line item id
-                    "product_name": item.get("product_name"),
-                    "sku": item.get("sku"),
-                    "quantity": quantity,
-                    "rate": float(item.get("rate", 0))
-                })
-
-        if not pickup_dict["line_items"]:
-            raise HTTPException(
-                status_code=400,
-                detail="No valid line items with quantity > 0"
-            )
-
-        # -----------------------------
-        # 5️⃣ SAVE TO DB
-        # -----------------------------
-        await mongo_db.pickup_in_transit.insert_one(pickup_dict)
-
-        # Audit log
-        await mongo_db.audit_logs.insert_one({
-            "action": "pickup_created",
-            "user_id": current_user["id"],
-            "entity_id": pickup_dict["id"],
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
-
-        pickup_dict.pop("_id", None)
-
-        return pickup_dict
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating pickup: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
-@api_router.get("/pickups")
-async def get_pickups(
-    po_id: Optional[str] = None,
-    current_user: dict = Depends(get_current_active_user)
-):
-    """Get all pickup entries with optional PO filter"""
-    try:
-        query = {"is_active": True}
-        if po_id:
-            query["po_id"] = po_id
-        
-        pickups = []
-        async for pickup in mongo_db.pickup_in_transit.find(query, {"_id": 0}).sort("created_at", -1):
-            pickups.append(pickup)
-        
-        return pickups
-    except Exception as e:
-        logger.error(f"Error fetching pickups: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@api_router.post("/{pickup_id}/inward")
-async def inward_from_pickup(pickup_id: str):
-
-    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id})
-    if not pickup:
-        raise HTTPException(status_code=404, detail="Pickup not found")
-
-    if pickup.get("is_inwarded"):
-        raise HTTPException(status_code=400, detail="Pickup already inwarded")
-
-    inward = await mongo_db.inward_stock.find_one({"po_id": pickup["po_id"]})
-    if not inward:
-        raise HTTPException(status_code=400, detail="Inward stock not found for this PO")
-
-    for pickup_item in pickup["line_items"]:
-
-        inward_item = next(
-            (
-                item for item in inward["line_items"]
-                if item["product_name"] == pickup_item["product_name"]
-                and item["sku"] == pickup_item["sku"]
-            ),
-            None
-        )
-
-        if not inward_item:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Product {pickup_item['product_name']} not found in inward stock"
-            )
-
-        if pickup_item["quantity"] > inward_item["remaining"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Pickup quantity exceeds remaining PO quantity for {pickup_item['product_name']}"
-            )
-
-        # 🔹 MOVE quantity from pickup → inward
-        pickup_qty = pickup_item["quantity"]
-
-        # save old inward quantity
-        inward_item["previous_quantity"] = inward_item.get("quantity", 0)
-
-        # update inward quantity
-        inward_item["quantity"] = inward_item["previous_quantity"] + pickup_qty
-        inward_item["already_inwarded"] += pickup_qty
-        inward_item["remaining"] = inward_item["total_po_qty"] - inward_item["quantity"]
-
-        # reset pickup quantity
-        pickup_item["already_inwarded"] = pickup_qty
-        pickup_item["quantity"] = 0
-
-    await mongo_db.pickup_in_transit.update_one(
-        {"id": pickup["id"]},
-        {
-            "$set": {
-                "line_items": pickup["line_items"],
-                "is_inwarded": True
-            }
-        }
-    )
-
-    await mongo_db.inward_stock.update_one(
-        {"_id": inward["_id"]},
-        {
-            "$set": {
-                "line_items": inward["line_items"],
-                "status": "Received"
-            }
-        }
-    )
-
-    return {
-        "message": "Inward completed successfully",
-        "pickup_id": pickup["id"],
-        "inward_stock_id": str(inward["_id"]),
-        "po_id": pickup["po_id"]
-    }
-
-@api_router.get("/pickups/export")
-async def export_pickups(
-    format: str = "json",
-    po_id: Optional[str] = None,
-    current_user: dict = Depends(get_current_active_user)
-):
-    """Export pickup entries"""
-    query = {"is_active": True}
-    if po_id:
-        query["po_id"] = po_id
-    
-    pickups = []
-    async for pickup in mongo_db.pickup_in_transit.find(query, {"_id": 0}).sort("created_at", -1):
-        pickups.append(pickup)
-    
-    if format == "csv":
-        return {"data": pickups, "format": "csv"}
-    
-    return pickups
-
-
-@api_router.get("/pickups/{pickup_id}")
-async def get_pickup(
-    pickup_id: str,
-    current_user: dict = Depends(get_current_active_user)
-):
-    """Get a specific pickup entry"""
-    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id, "is_active": True}, {"_id": 0})
-    if not pickup:
-        raise HTTPException(status_code=404, detail="Pickup not found")
-    return pickup
-
-
-@api_router.delete("/pickups/{pickup_id}")
-async def delete_pickup(
-    pickup_id: str,
-    current_user: dict = Depends(get_current_active_user)
-):
+# --- DELETED DUPLICATE PICKUP ROUTES ---
     """Delete (soft delete) a pickup entry"""
     pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id, "is_active": True}, {"_id": 0})
     if not pickup:
@@ -5707,16 +6383,17 @@ async def bulk_delete_inward_stock(
                 failed.append({"id": inward_id, "reason": "Inward entry not found"})
                 continue
             
-            # Check if there's related outward stock
-            outward_count = await mongo_db.outward_stock.count_documents({
-                "po_id": inward.get("po_id"),
-                "is_active": True
+            # Check if there's related outward stock that actually deducted from THIS inward entry
+            # In transaction-based tracking, we check if any outward has been recorded against this batch
+            has_dispatched = await mongo_db.stock_tracking.count_documents({
+                "inward_entry_id": inward_id,
+                "quantity_outward": {"$gt": 0}
             })
             
-            if outward_count > 0:
+            if has_dispatched > 0:
                 failed.append({
                     "id": inward_id,
-                    "reason": f"Has related {outward_count} outward record(s)"
+                    "reason": f"Cannot delete: {has_dispatched} units already dispatched from this batch"
                 })
                 continue
             
@@ -5725,6 +6402,10 @@ async def bulk_delete_inward_stock(
                 {"id": inward_id},
                 {"$set": {"is_active": False}}
             )
+            
+            # Remove from stock summary
+            await mongo_db.stock_tracking.delete_many({"inward_entry_id": inward_id})
+            
             deleted.append(inward_id)
             
             # Audit log
@@ -5771,6 +6452,10 @@ async def bulk_delete_outward_stock(
                 {"id": outward_id},
                 {"$set": {"is_active": False}}
             )
+            
+            # Revert stock tracking (add back the stock to summary)
+            await revert_stock_tracking_outward(outward)
+            
             deleted.append(outward_id)
             
             # Audit log

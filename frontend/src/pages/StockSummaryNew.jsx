@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../utils/api";
+import { formatCurrency, formatNumber } from "../utils/formatters";
 import { Eye, Trash2, RefreshCw, Filter, X, Download } from "lucide-react";
 import * as XLSX from 'xlsx';
 
@@ -15,7 +16,7 @@ const StockSummaryNew = () => {
   const [stockData, setStockData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     company: "",
@@ -136,10 +137,9 @@ const StockSummaryNew = () => {
     try {
       setSelectedStock(stock);
       const response = await api.get(
-        `/stock-transactions${stock.product_id}/${stock.warehouse_id}`
+        `/stock-transactions/${stock.product_id}/${stock.warehouse_id}`
       );
-      setTransactions(response.data.transactions || []);
-      setViewDialogOpen(true);
+      setTransactions(response.data.transactions || []); setViewDialogOpen(true);
     } catch (error) {
       console.error("Error fetching transactions:", error);
       alert("Failed to load transaction history");
@@ -191,15 +191,15 @@ const StockSummaryNew = () => {
 
     // Create worksheet
     const ws = XLSX.utils.json_to_sheet(exportData);
-    
+
     // Create workbook
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Stock Summary');
-    
+
     // Generate file name with timestamp
     const timestamp = new Date().toISOString().split('T')[0];
     const fileName = `Stock_Summary_${timestamp}.xlsx`;
-    
+
     // Download file
     XLSX.writeFile(wb, fileName);
   };
@@ -212,9 +212,8 @@ const StockSummaryNew = () => {
 
     return (
       <span
-        className={`px-2 py-1 rounded-full text-xs font-semibold ${
-          statusColors[status] || "bg-gray-100 text-gray-800"
-        }`}
+        className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[status] || "bg-gray-100 text-gray-800"
+          }`}
       >
         {status}
       </span>
@@ -228,7 +227,7 @@ const StockSummaryNew = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Stock Summary</h1>
           <p className="text-gray-600 mt-1">
-            Real-time stock tracking from Warehouse Inward and Export Invoice
+            Real-time stock tracking from Inward, Dispatch Plans and Export Invoices
           </p>
         </div>
         <div className="flex gap-2">
@@ -257,22 +256,20 @@ const StockSummaryNew = () => {
           <nav className="flex -mb-px">
             <button
               onClick={() => setActiveTab("regular")}
-              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "regular"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${activeTab === "regular"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               📦 Stock Entries
-              <span className="ml-2 text-xs text-gray-500">(Warehouse Inward + Export Invoice)</span>
+              <span className="ml-2 text-xs text-gray-500">(Warehouse Inward + Dispatch Plans + Export Invoices)</span>
             </button>
             <button
               onClick={() => setActiveTab("direct")}
-              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === "direct"
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${activeTab === "direct"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
             >
               ⚡ Direct Stock Entries
               <span className="ml-2 text-xs text-gray-500">(Direct Inward + Direct Outward)</span>
@@ -287,7 +284,7 @@ const StockSummaryNew = () => {
           {activeTab === "regular" ? (
             <>
               <strong>Stock Entries:</strong> Displays stock from{" "}
-              <span className="font-semibold">Warehouse Inward</span> (PO-based) and{" "}
+              <span className="font-semibold">Warehouse Inward</span> (PO-based), <span className="font-semibold">Dispatch Plans</span>, and{" "}
               <span className="font-semibold">Export Invoice</span> entries.
             </>
           ) : (
@@ -319,394 +316,393 @@ const StockSummaryNew = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-                Company
-              </label>
-              <select
-                value={filters.company}
-                onChange={(e) => handleFilterChange("company", e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Companies</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.name}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+              Company
+            </label>
+            <select
+              value={filters.company}
+              onChange={(e) => handleFilterChange("company", e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Companies</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.name}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Warehouse
-              </label>
-              <select
-                value={filters.warehouse}
-                onChange={(e) => handleFilterChange("warehouse", e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All Warehouses</option>
-                {warehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.name}>
-                    {warehouse.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Warehouse
+            </label>
+            <select
+              value={filters.warehouse}
+              onChange={(e) => handleFilterChange("warehouse", e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All Warehouses</option>
+              {warehouses.map((warehouse) => (
+                <option key={warehouse.id} value={warehouse.name}>
+                  {warehouse.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                PI Number
-              </label>
-              <input
-                type="text"
-                value={filters.piNumber}
-                onChange={(e) => handleFilterChange("piNumber", e.target.value)}
-                placeholder="Search PI..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              PI Number
+            </label>
+            <input
+              type="text"
+              value={filters.piNumber}
+              onChange={(e) => handleFilterChange("piNumber", e.target.value)}
+              placeholder="Search PI..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                PO Number
-              </label>
-              <input
-                type="text"
-                value={filters.poNumber}
-                onChange={(e) => handleFilterChange("poNumber", e.target.value)}
-                placeholder="Search PO..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              PO Number
+            </label>
+            <input
+              type="text"
+              value={filters.poNumber}
+              onChange={(e) => handleFilterChange("poNumber", e.target.value)}
+              placeholder="Search PO..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                SKU
-              </label>
-              <input
-                type="text"
-                value={filters.sku}
-                onChange={(e) => handleFilterChange("sku", e.target.value)}
-                placeholder="Search SKU..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              SKU
+            </label>
+            <input
+              type="text"
+              value={filters.sku}
+              onChange={(e) => handleFilterChange("sku", e.target.value)}
+              placeholder="Search SKU..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category
-              </label>
-              <input
-                type="text"
-                value={filters.category}
-                onChange={(e) => handleFilterChange("category", e.target.value)}
-                placeholder="Search Category..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <input
+              type="text"
+              value={filters.category}
+              onChange={(e) => handleFilterChange("category", e.target.value)}
+              placeholder="Search Category..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
+      </div>
 
-        {/* Stock Summary Table */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+      {/* Stock Summary Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  SKU
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Color
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  PI & PO Number
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Category
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Warehouse
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Company
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  In-transit
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Inward
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Outward
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Remaining
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Age (Days)
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Product
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SKU
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Color
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    PI & PO Number
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Warehouse
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Company
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    In-transit
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Inward
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Outward
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Remaining
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Age (Days)
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <td colSpan="14" className="px-4 py-8 text-center text-gray-500">
+                    Loading...
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
-                  <tr>
-                    <td colSpan="14" className="px-4 py-8 text-center text-gray-500">
-                      Loading...
+              ) : filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan="14" className="px-4 py-8 text-center text-gray-500">
+                    No stock records found. Create Warehouse Inward entries to see data here.
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((stock) => (
+                  <tr key={stock.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {stock.product_name}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {stock.sku}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {stock.color || 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {stock.pi_po_number}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {stock.category}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {stock.warehouse_name}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {stock.company_name}
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-purple-600">
+                      {formatNumber(stock.in_transit || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-green-600">
+                      {formatNumber(stock.quantity_inward || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-orange-600">
+                      {formatNumber(stock.quantity_outward || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm font-bold text-blue-600">
+                      {formatNumber(stock.remaining_stock || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {getStatusBadge(stock.status)}
+                    </td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-600">
+                      {stock.age_days}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button
+                          onClick={() => handleView(stock)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title="View Transactions"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(stock)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Delete Entry"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ) : filteredData.length === 0 ? (
-                  <tr>
-                    <td colSpan="14" className="px-4 py-8 text-center text-gray-500">
-                      No stock records found. Create Warehouse Inward entries to see data here.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredData.map((stock) => (
-                    <tr key={stock.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                        {stock.product_name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {stock.sku}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {stock.color || 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {stock.pi_po_number}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {stock.category}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {stock.warehouse_name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {stock.company_name}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm font-semibold text-purple-600">
-                        {stock.in_transit || 0}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm font-semibold text-green-600">
-                        {stock.quantity_inward || 0}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm font-semibold text-orange-600">
-                        {stock.quantity_outward || 0}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm font-bold text-blue-600">
-                        {stock.remaining_stock || 0}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {getStatusBadge(stock.status)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-sm text-gray-600">
-                        {stock.age_days}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => handleView(stock)}
-                            className="text-blue-600 hover:text-blue-800"
-                            title="View Transactions"
-                          >
-                            <Eye className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClick(stock)}
-                            className="text-red-600 hover:text-red-800"
-                            title="Delete Entry"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Summary Footer */}
-          {filteredData.length > 0 && (
-            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-              <div className="flex justify-between items-center text-sm text-gray-700">
-                <span>
-                  Total Records: <strong>{filteredData.length}</strong>
-                </span>
-                <span>
-                  Total In-Transit: <strong className="text-purple-600">
-                    {filteredData.reduce((sum, item) => sum + (item.in_transit || 0), 0)}
-                  </strong>
-                  {" | "}
-                  Total Inward: <strong className="text-green-600">
-                    {filteredData.reduce((sum, item) => sum + (item.quantity_inward || 0), 0)}
-                  </strong>
-                  {" | "}
-                  Total Outward: <strong className="text-orange-600">
-                    {filteredData.reduce((sum, item) => sum + (item.quantity_outward || 0), 0)}
-                  </strong>
-                  {" | "}
-                  Total Remaining: <strong className="text-blue-600">
-                    {filteredData.reduce((sum, item) => sum + (item.remaining_stock || 0), 0)}
-                  </strong>
-                </span>
-              </div>
-            </div>
-          )}
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {/* View Transactions Dialog */}
-        {viewDialogOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="bg-blue-600 text-white px-6 py-4 flex justify-between items-center">
-                <h2 className="text-xl font-bold">Transaction History</h2>
-                <button
-                  onClick={() => setViewDialogOpen(false)}
-                  className="text-white hover:text-gray-200"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
-                {/* Stock Details */}
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Stock Details</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><strong>Product:</strong> {selectedStock?.product_name}</div>
-                    <div><strong>SKU:</strong> {selectedStock?.sku}</div>
-                    <div><strong>Warehouse:</strong> {selectedStock?.warehouse_name}</div>
-                    <div><strong>Company:</strong> {selectedStock?.company_name}</div>
-                  </div>
-                </div>
-
-                {/* Transactions Table */}
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Type
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Date
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                          Reference No
-                        </th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
-                          Quantity
-                        </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                          Rate
-                        </th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                          Amount
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {transactions.length === 0 ? (
-                        <tr>
-                          <td colSpan="6" className="px-4 py-4 text-center text-gray-500">
-                            No transactions found
-                          </td>
-                        </tr>
-                      ) : (
-                        transactions.map((txn, index) => (
-                          <tr key={index} className="hover:bg-gray-50">
-                            <td className="px-4 py-2">
-                              <span
-                                className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                  txn.type === "inward"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-orange-100 text-orange-800"
-                                }`}
-                              >
-                                {txn.type === "inward" ? "Inward" : "Outward"}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {new Date(txn.date).toLocaleDateString()}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-gray-600">
-                              {txn.reference_no}
-                            </td>
-                            <td className="px-4 py-2 text-center text-sm font-semibold">
-                              {txn.quantity}
-                            </td>
-                            <td className="px-4 py-2 text-right text-sm text-gray-600">
-                              ₹{txn.rate.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2 text-right text-sm font-semibold">
-                              ₹{txn.amount.toFixed(2)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delete Confirmation Dialog */}
-        {deleteDialogOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-              <div className="bg-red-600 text-white px-6 py-4">
-                <h2 className="text-xl font-bold">Confirm Delete</h2>
-              </div>
-
-              <div className="p-6">
-                <p className="text-gray-700 mb-4">
-                  Are you sure you want to delete this stock entry?
-                </p>
-                <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                  <div className="text-sm">
-                    <div><strong>Product:</strong> {stockToDelete?.product_name}</div>
-                    <div><strong>SKU:</strong> {stockToDelete?.sku}</div>
-                    <div><strong>Warehouse:</strong> {stockToDelete?.warehouse_name}</div>
-                    <div><strong>Remaining:</strong> {stockToDelete?.remaining_stock} units</div>
-                  </div>
-                </div>
-                <p className="text-sm text-red-600">
-                  Note: This will only remove the entry from Stock Summary. Original inward/outward records will not be affected.
-                </p>
-              </div>
-
-              <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
-                <button
-                  onClick={() => setDeleteDialogOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                >
-                  Delete
-                </button>
-              </div>
+        {/* Summary Footer */}
+        {filteredData.length > 0 && (
+          <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
+            <div className="flex justify-between items-center text-sm text-gray-700">
+              <span>
+                Total Records: <strong>{filteredData.length}</strong>
+              </span>
+              <span>
+                Total In-Transit: <strong className="text-purple-600">
+                  {formatNumber(filteredData.reduce((sum, item) => sum + (item.in_transit || 0), 0))}
+                </strong>
+                {" | "}
+                Total Inward: <strong className="text-green-600">
+                  {formatNumber(filteredData.reduce((sum, item) => sum + (item.quantity_inward || 0), 0))}
+                </strong>
+                {" | "}
+                Total Outward: <strong className="text-orange-600">
+                  {formatNumber(filteredData.reduce((sum, item) => sum + (item.quantity_outward || 0), 0))}
+                </strong>
+                {" | "}
+                Total Remaining: <strong className="text-blue-600">
+                  {formatNumber(filteredData.reduce((sum, item) => sum + (item.remaining_stock || 0), 0))}
+                </strong>
+              </span>
             </div>
           </div>
         )}
       </div>
+
+      {/* View Transactions Dialog */}
+      {viewDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="bg-blue-600 text-white px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold">Transaction History</h2>
+              <button
+                onClick={() => setViewDialogOpen(false)}
+                className="text-white hover:text-gray-200"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {/* Stock Details */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold text-gray-900 mb-2">Stock Details</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><strong>Product:</strong> {selectedStock?.product_name}</div>
+                  <div><strong>SKU:</strong> {selectedStock?.sku}</div>
+                  <div><strong>Warehouse:</strong> {selectedStock?.warehouse_name}</div>
+                  <div><strong>Company:</strong> {selectedStock?.company_name}</div>
+                </div>
+              </div>
+
+              {/* Transactions Table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Type
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Date
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Reference No
+                      </th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                        Quantity
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                        Rate
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                        Amount
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="px-4 py-4 text-center text-gray-500">
+                          No transactions found
+                        </td>
+                      </tr>
+                    ) : (
+                      transactions.map((txn, index) => (
+                        <tr key={index} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-semibold ${txn.type === "inward"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-orange-100 text-orange-800"
+                                }`}
+                            >
+                              {txn.type === "inward" ? "Inward" : "Outward"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600">
+                            {new Date(txn.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600">
+                            {txn.reference_no}
+                          </td>
+                          <td className="px-4 py-2 text-center text-sm font-semibold">
+                            {formatNumber(txn.quantity)}
+                          </td>
+                          <td className="px-4 py-2 text-right text-sm text-gray-600">
+                            {formatCurrency(txn.rate)}
+                          </td>
+                          <td className="px-4 py-2 text-right text-sm font-semibold">
+                            {formatCurrency(txn.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="bg-red-600 text-white px-6 py-4">
+              <h2 className="text-xl font-bold">Confirm Delete</h2>
+            </div>
+
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to delete this stock entry?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="text-sm">
+                  <div><strong>Product:</strong> {stockToDelete?.product_name}</div>
+                  <div><strong>SKU:</strong> {stockToDelete?.sku}</div>
+                  <div><strong>Warehouse:</strong> {stockToDelete?.warehouse_name}</div>
+                  <div><strong>Remaining:</strong> {stockToDelete?.remaining_stock} units</div>
+                </div>
+              </div>
+              <p className="text-sm text-red-600">
+                Note: This will only remove the entry from Stock Summary. Original inward/outward records will not be affected.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteDialogOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api, { API_BASE } from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -12,7 +13,7 @@ import { useResizeObserverErrorFix } from '../hooks/useResizeObserverErrorFix';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Card, CardContent } from '../components/ui/card';
 
-const PerformaInvoice = () => {
+const proformaInvoice = () => {
   const [pis, setPis] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [products, setProducts] = useState([]);
@@ -97,7 +98,12 @@ const PerformaInvoice = () => {
 
     // Company filter
     if (filters.company !== 'all') {
-      filtered = filtered.filter(pi => pi.company_id === filters.company);
+      const selectedCompany = companies.find(c => c.id === filters.company);
+      const selectedCompanyName = selectedCompany?.name?.toLowerCase();
+      filtered = filtered.filter(pi =>
+        pi.company_id === filters.company ||
+        pi.company_id?.toLowerCase() === selectedCompanyName
+      );
     }
 
     setFilteredPIs(filtered);
@@ -136,7 +142,7 @@ const PerformaInvoice = () => {
       return sum + piTotal;
     }, 0);
 
-    return { totalQuantity, totalAmount: totalAmount.toFixed(2) };
+    return { totalQuantity: formatNumber(totalQuantity), totalAmount: formatCurrency(totalAmount) };
   };
 
   const resetFilters = () => {
@@ -348,7 +354,7 @@ const PerformaInvoice = () => {
   };
 
   const getTotalAmount = () => {
-    return formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2);
+    return formatCurrency(formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0));
   };
 
   if (loading) {
@@ -363,8 +369,8 @@ const PerformaInvoice = () => {
     <div className="space-y-6" data-testid="pi-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Performa Invoice (PI)</h1>
-          <p className="text-slate-600 mt-1">Manage performa invoices with multi-line items</p>
+          <h1 className="text-3xl font-bold text-slate-900">proforma Invoice (PI)</h1>
+          <p className="text-slate-600 mt-1">Manage proforma invoices with multi-line items</p>
         </div>
         <div className="flex gap-2">
           {/* <Button
@@ -385,11 +391,11 @@ const PerformaInvoice = () => {
               link.click()
               document.body.removeChild(link)
             }}
-  data-testid="download-pi-template-btn"
-  className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
->
-  Download Template
-</Button>
+            data-testid="download-pi-template-btn"
+            className="border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+          >
+            Download Template
+          </Button>
 
           <input
             type="file"
@@ -619,7 +625,7 @@ const PerformaInvoice = () => {
                           <div>
                             <Label>Amount (Auto-calculated)</Label>
                             <Input
-                              value={`₹${item.amount.toFixed(2)}`}
+                              value={`₹${formatCurrency(item.amount)}`}
                               disabled
                               className="bg-blue-50 font-semibold"
                             />
@@ -655,7 +661,7 @@ const PerformaInvoice = () => {
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>View Performa Invoice Details</DialogTitle>
+            <DialogTitle>View proforma Invoice Details</DialogTitle>
           </DialogHeader>
 
           {viewingPI && (
@@ -686,8 +692,8 @@ const PerformaInvoice = () => {
                     <Label className="text-sm font-medium text-slate-600">Status</Label>
                     <div className="mt-1">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${viewingPI.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                          viewingPI.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                            'bg-yellow-100 text-yellow-800'
+                        viewingPI.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800'
                         }`}>
                         {viewingPI.status}
                       </span>
@@ -733,9 +739,9 @@ const PerformaInvoice = () => {
                           <td className="p-3">{item.category || '-'}</td>
                           <td className="p-3">{item.brand || '-'}</td>
                           <td className="p-3">{item.made_in || '-'}</td>
-                          <td className="p-3 text-right">{item.quantity}</td>
-                          <td className="p-3 text-right">₹{item.rate?.toFixed(2)}</td>
-                          <td className="p-3 text-right font-semibold">₹{item.amount?.toFixed(2)}</td>
+                          <td className="p-3 text-right">{formatNumber(item.quantity)}</td>
+                          <td className="p-3 text-right">₹{formatCurrency(item.rate)}</td>
+                          <td className="p-3 text-right font-semibold">₹{formatCurrency(item.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -747,7 +753,7 @@ const PerformaInvoice = () => {
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">
                     <span className="text-sm text-slate-700">Total Amount: </span>
                     <span className="text-xl font-bold text-blue-900">
-                      ₹{viewingPI.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2)}
+                      ₹{formatCurrency(viewingPI.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0))}
                     </span>
                   </div>
                 </div>
@@ -909,11 +915,11 @@ const PerformaInvoice = () => {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="font-semibold">₹{pi.total_amount?.toFixed(2)}</TableCell>
+                  <TableCell className="font-semibold">₹{formatCurrency(pi.total_amount)}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs ${pi.status === 'Completed' ? 'bg-green-100 text-green-800' :
-                        pi.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
+                      pi.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-yellow-100 text-yellow-800'
                       }`}>
                       {pi.status}
                     </span>
@@ -954,4 +960,4 @@ const PerformaInvoice = () => {
   );
 };
 
-export default PerformaInvoice;
+export default proformaInvoice;

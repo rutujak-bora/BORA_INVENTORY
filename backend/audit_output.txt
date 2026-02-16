@@ -1,0 +1,221 @@
+Checking DB: bora_inventory_mongo
+
+LATEST OUTWARD STOCK ENTRY:
+ID: b28f2a22-4ecc-48ca-a40e-fc98762ee656
+Invoice No: BMLEXRP26-41
+Type: dispatch_plan
+Created At: 2026-02-16T04:53:20.149705+00:00
+Line Items (3):
+  - Epson L130 (Epson L130 (304)): Qty 10.0
+  - Epson L8050 (Epson L8050 (304)): Qty 10.0
+  - Epson EcoTank L1250  (Epson EcoTank L1250 ): Qty 10.0
+
+STOCK TRACKING ENTRIES FOR THESE PRODUCTS:
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 160.0
+  Outward: 20.0
+  Remaining: 140.0
+  Last Outward Date: 2026-02-16T04:53:20.682339+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 150.0
+  Outward: 0.0
+  Remaining: 150.0
+  Last Outward Date: 2026-02-14T09:54:04.063361+00:00
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 20.0
+  Outward: 10.0
+  Remaining: 10.0
+  Last Outward Date: 2026-02-16T04:53:20.787938+00:00
+--------------------
+Product: Epson L130 (Epson L130 (304))
+  Warehouse: Pisoli WH
+  Inward: 510.0
+  Outward: 10.0
+  Remaining: 500.0
+  Last Outward Date: 2026-02-16T04:53:20.581877+00:00
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 44.0
+  Outward: 0.0
+  Remaining: 44.0
+  Last Outward Date: 2026-02-16T04:50:03.533911+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 200.0
+  Outward: 0.0
+  Remaining: 200.0
+  Last Outward Date: 2026-02-14T09:55:03.401349+00:00
+--------------------
+Product: Epson L130 (Epson L130 (304))
+  Warehouse: Pisoli WH
+  Inward: 210.0
+  Outward: 0.0
+  Remaining: 210.0
+  Last Outward Date: 2026-02-14T09:55:03.450841+00:00
+--------------------
+Product: Epson L130 (Epson L130 (304))
+  Warehouse: Pisoli WH
+  Inward: 280.0
+  Outward: 0.0
+  Remaining: 280.0
+  Last Outward Date: 2026-02-14T09:55:03.502119+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 60.0
+  Outward: 0.0
+  Remaining: 60.0
+  Last Outward Date: 2026-02-14T09:45:33.828670+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 150.0
+  Outward: 0.0
+  Remaining: 150.0
+  Last Outward Date: 2026-02-14T09:45:34.014024+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 200.0
+  Outward: 0.0
+  Remaining: 200.0
+  Last Outward Date: 2026-02-14T09:45:34.071300+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 400.0
+  Outward: 0.0
+  Remaining: 400.0
+  Last Outward Date: 2026-02-14T09:45:34.126152+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 100.0
+  Outward: 0.0
+  Remaining: 100.0
+  Last Outward Date: 2026-02-14T09:45:34.184321+00:00
+--------------------
+Product: Epson L8050 (Epson L8050 (304))
+  Warehouse: Pisoli WH
+  Inward: 80.0
+  Outward: 0.0
+  Remaining: 80.0
+  Last Outward Date: 2026-02-14T09:45:34.243544+00:00
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 50.0
+  Outward: 0.0
+  Remaining: 50.0
+  Last Outward Date: 2026-02-16T04:50:03.582126+00:00
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 40.0
+  Outward: 0.0
+  Remaining: 40.0
+  Last Outward Date: 2026-02-14T09:26:09.155864+00:00
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 510.0
+  Outward: 0.0
+  Remaining: 510.0
+  Last Outward Date: 2026-02-14T09:26:09.201635+00:00
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 190.0
+  Outward: 0.0
+  Remaining: 190.0
+  Last Outward Date: 2026-02-14T09:26:09.242731+00:00
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 420.0
+  Outward: 0.0
+  Remaining: 420.0
+  Last Outward Date: 2026-02-14T09:26:09.383770+00:00
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 80.0
+  Outward: 0.0
+  Remaining: 80.0
+  Last Outward Date: 2026-02-14T09:26:09.424434+00:00
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 405.0
+  Outward: 0
+  Remaining: 405.0
+  Last Outward Date: None
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 95.0
+  Outward: 0
+  Remaining: 95.0
+  Last Outward Date: None
+--------------------
+Product: Epson L130 (Epson L130 (320))
+  Warehouse: Pisoli WH
+  Inward: 300.0
+  Outward: 0
+  Remaining: 300.0
+  Last Outward Date: None
+--------------------
+Product: Canon Pixma MG2577S (Canon Pixma MG2577S (320))
+  Warehouse: Pisoli WH
+  Inward: 450.0
+  Outward: 0
+  Remaining: 450.0
+  Last Outward Date: None
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 22.0
+  Outward: 0
+  Remaining: 22.0
+  Last Outward Date: None
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 53.0
+  Outward: 0
+  Remaining: 53.0
+  Last Outward Date: None
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 70.0
+  Outward: 0
+  Remaining: 70.0
+  Last Outward Date: None
+--------------------
+Product: Epson EcoTank L1250  (Epson EcoTank L1250 )
+  Warehouse: Pisoli WH
+  Inward: 80.0
+  Outward: 0
+  Remaining: 80.0
+  Last Outward Date: None
+--------------------
+
+RECENT AUDIT LOGS FOR OUTWARD STOCK:
+Action: outward_stock_created, Entity ID: b28f2a22-4ecc-48ca-a40e-fc98762ee656, Timestamp: 2026-02-16T04:53:20.833017+00:00
+Action: outward_stock_created, Entity ID: 0337fe15-0cc1-4a61-8d0f-34d4fd013766, Timestamp: 2026-02-16T04:51:30.555762+00:00
+Action: outward_stock_created, Entity ID: 1bff2d86-b2ff-49c4-9d5c-cfba91a24558, Timestamp: 2026-02-16T04:50:03.633852+00:00
+Action: outward_stock_created, Entity ID: 38d77474-9c78-4b53-b797-8e7352c2e8a2, Timestamp: 2026-02-14T11:24:44.200678+00:00
+Action: outward_stock_created, Entity ID: 66af3c56-98de-47cc-94a8-5002bf1b5910, Timestamp: 2026-02-14T10:28:32.088636+00:00
+Action: outward_stock_created, Entity ID: 0cad2995-438e-4892-99bd-5b0b1474a443, Timestamp: 2026-02-14T10:28:00.254953+00:00
+Action: outward_stock_created, Entity ID: 33f20851-8d18-4825-8353-01a165773059, Timestamp: 2026-02-14T10:15:45.636670+00:00
+Action: outward_stock_created, Entity ID: 0ab9ff8d-6a05-4a8e-a7fa-61febe6b7e59, Timestamp: 2026-02-14T10:15:08.277060+00:00
+Action: outward_stock_created, Entity ID: fbcab670-a156-4771-ae80-7479d10225f2, Timestamp: 2026-02-14T10:14:06.498854+00:00
+Action: outward_stock_created, Entity ID: 7ee10644-19bb-4f3b-bf8a-31099cde355c, Timestamp: 2026-02-14T10:06:29.759690+00:00

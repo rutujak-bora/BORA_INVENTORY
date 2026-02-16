@@ -30,16 +30,19 @@ async def populate_users():
     all_companies_users = [
         {"email": "rutuja@bora.tech", "password": "rutuja@123", "role": UserRole.ADMIN},
         {"email": "sunil@bora.tech", "password": "sunil@123", "role": UserRole.REGULAR},
-        {"email": "suyash@bora.tech", "password": "suyash@123", "role": UserRole.REGULAR},
+        {"email": "athar@bora.tech", "password": "athara@123", "role": UserRole.REGULAR},
         {"email": "kritika@bora.tech", "password": "kritika@123", "role": UserRole.REGULAR},
         {"email": "himanshu@bora.tech", "password": "himanshu@123", "role": UserRole.REGULAR},
         {"email": "sayam@bora.tech", "password": "sayam@123", "role": UserRole.REGULAR},
         {"email": "bharat@bora.tech", "password": "bharat@123", "role": UserRole.REGULAR},
+        {"email": "akansha@bora.tech", "password": "akansha@123", "role": UserRole.REGULAR},
     ]
     
     dns_users = [
         {"email": "rkn@bora.tech", "password": "rkn@123", "role": UserRole.REGULAR},
         {"email": "dyaneshwar@bora.tech", "password": "dyan@123", "role": UserRole.REGULAR},
+        {"email": "shravni@bora.tech", "password": "shravni@123", "role": UserRole.REGULAR},
+        {"email": "shreyash@bora.tech", "password": "shreyash@123", "role": UserRole.REGULAR},
     ]
     
     async with AsyncSessionLocal() as session:

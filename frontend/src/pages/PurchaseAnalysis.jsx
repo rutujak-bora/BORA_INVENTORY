@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import { formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -47,10 +48,18 @@ const PurchaseAnalysis = () => {
   const fetchPIs = async () => {
     try {
       const response = await api.get('/pi');
-      // Filter PIs by selected companies
-      const filteredPIs = response.data.filter(pi =>
-        selectedCompanies.includes(pi.company_id)
-      );
+
+      // Get names of selected companies to handle cases where pi.company_id is stored as a name string
+      const selectedCompanyObjects = companies.filter(c => selectedCompanies.includes(c.id));
+      const selectedCompanyNames = selectedCompanyObjects.map(c => c.name.toLowerCase());
+
+      // Filter PIs by selected companies (match by ID or Name)
+      const filteredPIs = response.data.filter(pi => {
+        const piCompanyId = pi.company_id || "";
+        return selectedCompanies.includes(piCompanyId) ||
+          selectedCompanyNames.includes(piCompanyId.toLowerCase());
+      });
+
       setPis(filteredPIs || []);
     } catch (error) {
       console.error('Error fetching PIs:', error);
@@ -333,26 +342,26 @@ const PurchaseAnalysis = () => {
                           <TableCell>{item.product_name}</TableCell>
                           <TableCell className="font-mono text-sm">{item.sku}</TableCell>
                           <TableCell className="font-medium text-blue-600">{item.pi_number}</TableCell>
-                          <TableCell className="text-right font-semibold">{item.pi_quantity}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatNumber(item.pi_quantity)}</TableCell>
                           <TableCell className="font-medium text-green-600">{item.po_number}</TableCell>
-                          <TableCell className="text-right font-semibold">{item.po_quantity}</TableCell>
-                          <TableCell className="text-right font-semibold text-purple-600">{item.intransit_quantity || 0}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">{item.inward_quantity}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatNumber(item.po_quantity)}</TableCell>
+                          <TableCell className="text-right font-semibold text-purple-600">{formatNumber(item.intransit_quantity || 0)}</TableCell>
+                          <TableCell className="text-right font-semibold text-green-600">{formatNumber(item.inward_quantity)}</TableCell>
                           <TableCell className={`text-right font-bold ${item.remaining_quantity > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                            {item.remaining_quantity}
+                            {formatNumber(item.remaining_quantity)}
                           </TableCell>
                         </TableRow>
                       ))}
                       {/* Totals Row */}
                       <TableRow className="bg-blue-50 font-bold border-t-2 border-blue-300">
                         <TableCell colSpan="4" className="text-right">TOTALS:</TableCell>
-                        <TableCell className="text-right">{totals.piQty}</TableCell>
+                        <TableCell className="text-right">{formatNumber(totals.piQty)}</TableCell>
                         <TableCell></TableCell>
-                        <TableCell className="text-right">{totals.poQty}</TableCell>
-                        <TableCell className="text-right text-purple-600">{totals.intransitQty}</TableCell>
-                        <TableCell className="text-right text-green-600">{totals.inwardQty}</TableCell>
+                        <TableCell className="text-right">{formatNumber(totals.poQty)}</TableCell>
+                        <TableCell className="text-right text-purple-600">{formatNumber(totals.intransitQty)}</TableCell>
+                        <TableCell className="text-right text-green-600">{formatNumber(totals.inwardQty)}</TableCell>
                         <TableCell className={`text-right ${totals.remainingQty > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                          {totals.remainingQty}
+                          {formatNumber(totals.remainingQty)}
                         </TableCell>
                       </TableRow>
                     </>

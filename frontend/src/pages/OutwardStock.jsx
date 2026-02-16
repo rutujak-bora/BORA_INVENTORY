@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
+import { exportToCSV, exportToExcel, formatDataForExport } from '../utils/exportUtils';
+import { Badge } from '../components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '../components/ui/command';
+import { cn } from '../lib/utils';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
@@ -7,13 +13,92 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { SearchableSelect } from '../components/SearchableSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Plus, Trash2, Eye, X, Ship, FileText, PackageX, Download } from 'lucide-react';
+import { Plus, Trash2, Eye, X, Ship, FileText, PackageX, Download, Check, ChevronsUpDown } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useResizeObserverErrorFix } from '../hooks/useResizeObserverErrorFix';
 import { createSafeOnValueChange, getSafeSelectContentProps } from '../utils/selectHelpers';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+const MultiSelectPI = ({ selectedItems, options, onSelectionChange, placeholder = "Select PIs", valueKey = "id", labelKey = "voucher_no" }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between h-auto min-h-[40px] px-3 py-2 bg-white text-left"
+        >
+          <div className="flex flex-wrap gap-1 items-center">
+            {selectedItems.length > 0 ? (
+              selectedItems.map((itemValue) => {
+                const pi = options.find(o => o[valueKey] === itemValue);
+                return (
+                  <Badge key={itemValue} variant="secondary" className="flex items-center gap-1 bg-blue-100 text-blue-800 hover:bg-blue-200 border-none">
+                    {pi ? pi[labelKey] : itemValue}
+                    <X
+                      className="h-3 w-3 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectionChange(selectedItems.filter(v => v !== itemValue));
+                      }}
+                    />
+                  </Badge>
+                );
+              })
+            ) : (
+              <span className="text-gray-400">{placeholder}</span>
+            )}
+          </div>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[450px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search PI number or client..." />
+          <CommandEmpty>No PI found.</CommandEmpty>
+          <CommandGroup className="max-h-64 overflow-y-auto">
+            {options.map((pi) => {
+              const itemValue = pi[valueKey];
+              const isSelected = selectedItems.includes(itemValue);
+              return (
+                <CommandItem
+                  key={pi.id}
+                  onSelect={() => {
+                    const newItems = isSelected
+                      ? selectedItems.filter(v => v !== itemValue)
+                      : [...selectedItems, itemValue];
+                    onSelectionChange(newItems);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <div className={cn(
+                      "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                      isSelected ? "bg-primary text-primary-foreground" : "opacity-20"
+                    )}>
+                      {isSelected && <Check className="h-3 w-3" />}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{pi.voucher_no}</span>
+                      <span className="text-xs text-gray-500">
+                        {pi.company?.name || 'No Client'} | {new Date(pi.date).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 const OutwardStock = () => {
   const [outwardEntries, setOutwardEntries] = useState([]);
@@ -25,7 +110,7 @@ const OutwardStock = () => {
   const [availableQuantities, setAvailableQuantities] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dispatch');
-  
+
   // Dialog states
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -95,34 +180,24 @@ const OutwardStock = () => {
     }
   };
 
-  const handlePISelect = async (piId) => {
+  const handlePISelect = async (selectedPIIds) => {
     try {
-      const pi = pis.find(p => p.id === piId);
-      if (pi) {
-        // Check if PI is already selected
-        const isAlreadySelected = formData.pi_ids.includes(piId);
-        
-        if (isAlreadySelected) {
-          // Remove PI from selection and its associated line items
-          const updatedPIIds = formData.pi_ids.filter(id => id !== piId);
-          const updatedLineItems = formData.line_items.filter(item => item.pi_id !== piId);
-          
-          setFormData(prev => ({
-            ...prev,
-            pi_ids: updatedPIIds,
-            line_items: updatedLineItems.length > 0 ? updatedLineItems : [{
-              product_id: '',
-              product_name: '',
-              sku: '',
-              quantity: 0,
-              rate: 0,
-              amount: 0,
-              dimensions: '',
-              weight: 0
-            }]
-          }));
-        } else {
-          // Add PI to selection and merge line items
+      // Handle deselection - find which PIs were removed
+      const removedPIIds = formData.pi_ids.filter(id => !selectedPIIds.includes(id));
+      const addedPIIds = selectedPIIds.filter(id => !formData.pi_ids.includes(id));
+
+      let updatedLineItems = [...formData.line_items];
+      let updatedCompanyId = formData.company_id;
+
+      // Remove line items for deselected PIs
+      if (removedPIIds.length > 0) {
+        updatedLineItems = updatedLineItems.filter(item => !removedPIIds.includes(item.pi_id));
+      }
+
+      // Add line items for newly selected PIs
+      for (const piId of addedPIIds) {
+        const pi = pis.find(p => p.id === piId);
+        if (pi) {
           const fullPI = await api.get(`/pi/${piId}`);
           const newLineItems = fullPI.data.line_items?.map(item => ({
             product_id: item.product_id,
@@ -136,20 +211,36 @@ const OutwardStock = () => {
             pi_id: piId, // Track which PI this item came from
             pi_voucher_no: pi.voucher_no
           })) || [];
-          
-          // Remove empty line items - filter out items without product_name or with pi_id
-          const existingItems = formData.line_items.filter(item => 
-            item.pi_id || (item.product_name && item.product_name.trim() !== '')
-          );
-          
-          setFormData(prev => ({
-            ...prev,
-            pi_ids: [...prev.pi_ids, piId],
-            company_id: pi.company_id || prev.company_id,
-            line_items: [...existingItems, ...newLineItems]
-          }));
+
+          updatedLineItems = [...updatedLineItems, ...newLineItems];
+
+          // Set company from first PI if not already set
+          if (!updatedCompanyId && pi.company_id) {
+            updatedCompanyId = pi.company_id;
+          }
         }
       }
+
+      // If no PIs selected, reset to empty line item
+      if (selectedPIIds.length === 0) {
+        updatedLineItems = [{
+          product_id: '',
+          product_name: '',
+          sku: '',
+          quantity: 0,
+          rate: 0,
+          amount: 0,
+          dimensions: '',
+          weight: 0
+        }];
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        pi_ids: selectedPIIds,
+        company_id: updatedCompanyId,
+        line_items: updatedLineItems
+      }));
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to fetch PI details', variant: 'destructive' });
     }
@@ -235,12 +326,12 @@ const OutwardStock = () => {
   const handleLineItemChange = async (index, field, value) => {
     const newLineItems = [...formData.line_items];
     newLineItems[index][field] = value;
-    
+
     // Auto-calculate amount
     if (field === 'quantity' || field === 'rate') {
       newLineItems[index].amount = newLineItems[index].quantity * newLineItems[index].rate;
     }
-    
+
     // Fetch available quantity when product changes
     if (field === 'product_id' && value && formData.warehouse_id) {
       const availableQty = await fetchAvailableQuantity(value, formData.warehouse_id);
@@ -249,7 +340,7 @@ const OutwardStock = () => {
         [value]: availableQty
       }));
     }
-    
+
     setFormData({ ...formData, line_items: newLineItems });
   };
 
@@ -281,9 +372,9 @@ const OutwardStock = () => {
     if (availableQuantities[productId] !== undefined) {
       return availableQuantities[productId];
     }
-    
+
     // Fallback to old method
-    const stock = availableStock.find(s => 
+    const stock = availableStock.find(s =>
       s.product_id === productId && s.warehouse_id === warehouseId
     );
     return stock ? stock.available_stock : 0;
@@ -291,10 +382,10 @@ const OutwardStock = () => {
 
   const validateStock = () => {
     // Only validate items that have product_id, product_name, and quantity > 0
-    const validItems = formData.line_items.filter(item => 
+    const validItems = formData.line_items.filter(item =>
       item.product_id && item.product_name && item.quantity > 0
     );
-    
+
     for (let item of validItems) {
       const available = getAvailableQuantity(item.product_id, formData.warehouse_id);
       if (item.quantity > available) {
@@ -311,43 +402,43 @@ const OutwardStock = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     console.log('Form submitted with data:', formData);
-    
+
     // Validate required fields
     if (!formData.company_id) {
       toast({ title: 'Error', description: 'Please select a company', variant: 'destructive' });
       return;
     }
-    
+
     if (!formData.warehouse_id) {
       toast({ title: 'Error', description: 'Please select a warehouse', variant: 'destructive' });
       return;
     }
-    
+
     if (formData.dispatch_type !== 'direct_export' && formData.pi_ids.length === 0) {
       toast({ title: 'Error', description: 'Please select at least one PI', variant: 'destructive' });
       return;
     }
-    
+
     // Validate line items - check if there's at least one valid line item with product name
     const validLineItems = formData.line_items.filter(item => item.product_name && item.product_name.trim() !== '');
     if (validLineItems.length === 0) {
       toast({ title: 'Error', description: 'Please add at least one product', variant: 'destructive' });
       return;
     }
-    
+
     // Validate that valid line items have quantity > 0
     const itemsWithoutQuantity = validLineItems.filter(item => !item.quantity || item.quantity <= 0);
     if (itemsWithoutQuantity.length > 0) {
-      toast({ 
-        title: 'Error', 
-        description: `Please enter quantity for: ${itemsWithoutQuantity.map(i => i.product_name).join(', ')}`, 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: `Please enter quantity for: ${itemsWithoutQuantity.map(i => i.product_name).join(', ')}`,
+        variant: 'destructive'
       });
       return;
     }
-    
+
     // Validate stock availability (only for valid line items)
     if (!validateStock()) {
       return;
@@ -355,10 +446,10 @@ const OutwardStock = () => {
 
     try {
       // Filter out empty line items before submission
-      const validLineItems = formData.line_items.filter(item => 
+      const validLineItems = formData.line_items.filter(item =>
         item.product_name && item.product_name.trim() !== '' && item.quantity > 0
       );
-      
+
       // Prepare data for API
       const submitData = {
         ...formData,
@@ -366,9 +457,9 @@ const OutwardStock = () => {
         pi_id: formData.pi_ids.length > 0 ? formData.pi_ids[0] : null, // For backward compatibility, send first PI
         pi_ids: formData.pi_ids // Send multiple PIs
       };
-      
+
       console.log('Submitting data to API:', submitData);
-      
+
       if (editingEntry) {
         await api.put(`/outward-stock/${editingEntry.id}`, submitData);
         toast({ title: 'Success', description: 'Outward entry updated successfully' });
@@ -438,60 +529,60 @@ const OutwardStock = () => {
   const handleDownloadPDF = async (entry) => {
     try {
       console.log('Starting PDF download for entry:', entry.id);
-      
+
       // Fetch full entry details
       const fullEntry = await api.get(`/outward-stock/${entry.id}`);
       const data = fullEntry.data;
       console.log('Fetched entry data:', data);
-      
+
       // Create PDF
       const doc = new jsPDF();
       console.log('jsPDF instance created');
-      
+
       // Title
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
       doc.text('DISPATCH PLAN', 105, 20, { align: 'center' });
-      
+
       // Header Information
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      
+
       let yPos = 35;
       doc.text(`Reference No: ${data.export_invoice_no}`, 15, yPos);
       doc.text(`Date: ${new Date(data.date).toLocaleDateString()}`, 150, yPos);
-      
+
       yPos += 8;
       doc.text(`Ship Mode: ${data.mode || 'N/A'}`, 15, yPos);
       const containerLabel = data.mode === 'Air' ? 'Pallets' : 'Containers';
       doc.text(`${containerLabel}: ${data.containers_pallets || 'N/A'}`, 150, yPos);
-      
+
       yPos += 8;
       doc.text(`Status: ${data.status}`, 15, yPos);
       doc.text(`Warehouse: ${data.warehouse?.name || 'N/A'}`, 150, yPos);
-      
+
       // Line Items Table
       yPos += 12;
-      
+
       console.log('Preparing table data...');
       const tableData = data.line_items.map((item, index) => [
         index + 1,
         item.sku || 'N/A',
         item.product_name || 'N/A',
         item.quantity || 0,
-        `Rs ${(item.rate || 0).toFixed(2)}`,
-        `Rs ${(item.amount || 0).toFixed(2)}`,
+        `Rs ${formatCurrency(item.rate || 0)}`,
+        `Rs ${formatCurrency(item.amount || 0)}`,
         item.dimensions || 'N/A',
         item.weight || 0
       ]);
-      
+
       console.log('Checking if autoTable exists:', typeof doc.autoTable);
-      
+
       // Check if autoTable is available
       if (typeof doc.autoTable !== 'function') {
         throw new Error('autoTable plugin not loaded');
       }
-      
+
       doc.autoTable({
         startY: yPos,
         head: [['#', 'SKU', 'Product Name', 'Quantity', 'Rate', 'Amount', 'Dimensions', 'Weight (kg)']],
@@ -507,42 +598,42 @@ const OutwardStock = () => {
           7: { halign: 'right' }
         }
       });
-      
+
       console.log('Table added to PDF');
-      
+
       // Total Amount
       const totalAmount = data.line_items.reduce((sum, item) => sum + (item.amount || 0), 0);
       yPos = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Total Amount: Rs ${totalAmount.toFixed(2)}`, 150, yPos);
-      
+      doc.text(`Total Amount: Rs ${formatCurrency(totalAmount)}`, 150, yPos);
+
       // Footer
       yPos = doc.internal.pageSize.height - 20;
       doc.setFontSize(8);
       doc.setFont('helvetica', 'italic');
       doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, yPos, { align: 'center' });
-      
+
       // Save PDF
       console.log('Saving PDF...');
       doc.save(`Dispatch_Plan_${data.export_invoice_no}.pdf`);
       console.log('PDF saved successfully');
-      
+
       toast({ title: 'Success', description: 'PDF downloaded successfully' });
     } catch (error) {
       console.error('PDF generation error:', error);
       console.error('Error details:', error.message, error.stack);
-      toast({ 
-        title: 'Error', 
-        description: `Failed to generate PDF: ${error.message}`, 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: `Failed to generate PDF: ${error.message}`,
+        variant: 'destructive'
       });
     }
   };
 
   const resetForm = () => {
     const dispatchType = activeTab === 'dispatch' ? 'dispatch_plan' : activeTab === 'export' ? 'export_invoice' : 'direct_export';
-    
+
     setFormData({
       export_invoice_no: '',
       export_invoice_number: '',
@@ -605,7 +696,7 @@ const OutwardStock = () => {
   };
 
   const getTotalAmount = () => {
-    return formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2);
+    return formatCurrency(formData.line_items.reduce((sum, item) => sum + (item.amount || 0), 0));
   };
 
   // Filter entries by type
@@ -650,7 +741,7 @@ const OutwardStock = () => {
         <TabsContent value="dispatch" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Dispatch Plans</h2>
-            <Button 
+            <Button
               onClick={(e) => handleCreateButtonClick(e, 'dispatch_plan')}
               className="bg-blue-600 hover:bg-blue-700"
               type="button"
@@ -659,7 +750,7 @@ const OutwardStock = () => {
               Create Dispatch Plan
             </Button>
           </div>
-          
+
           <div className="border rounded-lg overflow-hidden bg-white">
             <Table>
               <TableHeader>
@@ -699,13 +790,12 @@ const OutwardStock = () => {
                           {entry.line_items_count} items
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">₹{formatCurrency(entry.total_amount)}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          entry.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                        <span className={`px-2 py-1 rounded-full text-xs ${entry.status === 'Delivered' ? 'bg-green-100 text-green-800' :
                           entry.status === 'Dispatched' ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
                           {entry.status}
                         </span>
                       </TableCell>
@@ -737,7 +827,7 @@ const OutwardStock = () => {
         <TabsContent value="export" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Export Invoices</h2>
-            <Button 
+            <Button
               onClick={(e) => handleCreateButtonClick(e, 'export_invoice')}
               className="bg-green-600 hover:bg-green-700"
               type="button"
@@ -746,7 +836,7 @@ const OutwardStock = () => {
               Create Export Invoice
             </Button>
           </div>
-          
+
           <div className="border rounded-lg overflow-hidden bg-white">
             <Table>
               <TableHeader>
@@ -784,13 +874,12 @@ const OutwardStock = () => {
                           {entry.line_items_count} items
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">₹{formatCurrency(entry.total_amount)}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          entry.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                        <span className={`px-2 py-1 rounded-full text-xs ${entry.status === 'Delivered' ? 'bg-green-100 text-green-800' :
                           entry.status === 'Dispatched' ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
                           {entry.status}
                         </span>
                       </TableCell>
@@ -822,7 +911,7 @@ const OutwardStock = () => {
         <TabsContent value="direct" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Direct Export</h2>
-            <Button 
+            <Button
               onClick={(e) => handleCreateButtonClick(e, 'direct_export')}
               className="bg-purple-600 hover:bg-purple-700"
               type="button"
@@ -831,7 +920,7 @@ const OutwardStock = () => {
               Create Direct Export
             </Button>
           </div>
-          
+
           <div className="border rounded-lg overflow-hidden bg-white">
             <Table>
               <TableHeader>
@@ -867,13 +956,12 @@ const OutwardStock = () => {
                           {entry.line_items_count} items
                         </div>
                       </TableCell>
-                      <TableCell className="font-semibold">₹{entry.total_amount?.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">₹{formatCurrency(entry.total_amount)}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          entry.status === 'Delivered' ? 'bg-green-100 text-green-800' :
+                        <span className={`px-2 py-1 rounded-full text-xs ${entry.status === 'Delivered' ? 'bg-green-100 text-green-800' :
                           entry.status === 'Dispatched' ? 'bg-blue-100 text-blue-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
                           {entry.status}
                         </span>
                       </TableCell>
@@ -909,12 +997,12 @@ const OutwardStock = () => {
             <DialogTitle>
               {editingEntry ? 'Edit' : 'Create'} {
                 formData.dispatch_type === 'dispatch_plan' ? 'Dispatch Plan' :
-                formData.dispatch_type === 'export_invoice' ? 'Export Invoice' :
-                'Direct Export'
+                  formData.dispatch_type === 'export_invoice' ? 'Export Invoice' :
+                    'Direct Export'
               }
             </DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Header Information */}
             <div className="grid grid-cols-4 gap-4">
@@ -922,7 +1010,7 @@ const OutwardStock = () => {
                 <Label>Export Invoice No</Label>
                 <Input
                   value={formData.export_invoice_no}
-                  onChange={(e) => setFormData({...formData, export_invoice_no: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, export_invoice_no: e.target.value })}
                   placeholder="Auto-generated if empty"
                 />
               </div>
@@ -939,7 +1027,7 @@ const OutwardStock = () => {
                 <Input
                   type="date"
                   value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                   required
                 />
               </div>
@@ -962,7 +1050,7 @@ const OutwardStock = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* NEW: Dispatch Plan Selection for Export Invoice */}
               {formData.dispatch_type === 'export_invoice' && (
                 <div className="col-span-2 bg-blue-50 p-3 rounded border border-blue-200">
@@ -990,41 +1078,18 @@ const OutwardStock = () => {
                   )}
                 </div>
               )}
-              
+
               {formData.dispatch_type !== 'direct_export' && (
                 <div className="col-span-2">
                   <Label>PI Reference (Multiple Selection)</Label>
-                  <div className="space-y-2">
-                    <SearchableSelect
-                      value=""
-                      onValueChange={handlePISelect}
-                      options={pis.map(pi => ({
-                        value: pi.id,
-                        label: `${pi.voucher_no} | ${new Date(pi.date).toLocaleDateString()}`
-                      }))}
-                      placeholder="Search and select PIs..."
-                      searchPlaceholder="Search PI..."
-                    />
-                    {formData.pi_ids.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {formData.pi_ids.map(piId => {
-                          const pi = pis.find(p => p.id === piId);
-                          return pi ? (
-                            <div key={piId} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-2">
-                              {pi.voucher_no}
-                              <button
-                                type="button"
-                                onClick={() => handlePISelect(piId)}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <MultiSelectPI
+                    selectedItems={formData.pi_ids}
+                    options={pis}
+                    onSelectionChange={handlePISelect}
+                    valueKey="id"
+                    labelKey="voucher_no"
+                    placeholder="Select Proforma Invoices"
+                  />
                 </div>
               )}
               <div>
@@ -1068,7 +1133,7 @@ const OutwardStock = () => {
                 <Input
                   type="number"
                   value={formData.containers_pallets}
-                  onChange={(e) => setFormData({...formData, containers_pallets: e.target.value})}
+                  onChange={(e) => setFormData({ ...formData, containers_pallets: e.target.value })}
                   placeholder={formData.mode === 'Air' ? 'Enter pallets' : formData.mode === 'Sea' ? 'Enter containers' : 'Select mode first'}
                   disabled={!formData.mode}
                   required={!!formData.mode}
@@ -1106,7 +1171,14 @@ const OutwardStock = () => {
                 {formData.line_items.map((item, index) => (
                   <div key={index} className="border rounded-lg p-4 bg-slate-50">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="font-medium text-slate-700">Item {index + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-700">Item {index + 1}</span>
+                        {item.pi_voucher_no && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                            PI: {item.pi_voucher_no}
+                          </Badge>
+                        )}
+                      </div>
                       {formData.line_items.length > 1 && (
                         <Button type="button" variant="ghost" size="sm" onClick={() => removeLineItem(index)}>
                           <X size={16} className="text-red-600" />
@@ -1162,7 +1234,7 @@ const OutwardStock = () => {
                         <div>
                           <Label>Amount (Auto-calc)</Label>
                           <Input
-                            value={`₹${item.amount.toFixed(2)}`}
+                            value={`₹${formatCurrency(item.amount)}`}
                             disabled
                             className="bg-blue-50 font-semibold"
                           />
@@ -1211,7 +1283,7 @@ const OutwardStock = () => {
                         <div>
                           <Label>Available Quantity</Label>
                           <Input
-                            value={formData.warehouse_id && item.product_id ? getAvailableQuantity(item.product_id, formData.warehouse_id) : '0'}
+                            value={formData.warehouse_id && item.product_id ? formatNumber(getAvailableQuantity(item.product_id, formData.warehouse_id)) : '0'}
                             disabled
                             className="bg-green-50 font-semibold text-green-800"
                           />
@@ -1237,20 +1309,19 @@ const OutwardStock = () => {
                             placeholder="Export quantity"
                             required
                             className={
-                              formData.warehouse_id && item.product_id && 
-                              item.quantity > getAvailableQuantity(item.product_id, formData.warehouse_id)
+                              formData.warehouse_id && item.product_id &&
+                                item.quantity > getAvailableQuantity(item.product_id, formData.warehouse_id)
                                 ? 'border-red-500 bg-red-50'
                                 : ''
                             }
                           />
                           {formData.warehouse_id && item.product_id && (
-                            <div className={`text-xs mt-1 ${
-                              item.quantity > getAvailableQuantity(item.product_id, formData.warehouse_id)
-                                ? 'text-red-600 font-semibold'
-                                : 'text-slate-500'
-                            }`}>
-                              Max: {getAvailableQuantity(item.product_id, formData.warehouse_id)}
-                              {item.quantity > getAvailableQuantity(item.product_id, formData.warehouse_id) && 
+                            <div className={`text-xs mt-1 ${item.quantity > getAvailableQuantity(item.product_id, formData.warehouse_id)
+                              ? 'text-red-600 font-semibold'
+                              : 'text-slate-500'
+                              }`}>
+                              Max: {formatNumber(getAvailableQuantity(item.product_id, formData.warehouse_id))}
+                              {item.quantity > getAvailableQuantity(item.product_id, formData.warehouse_id) &&
                                 ' ⚠️ Exceeds available!'}
                             </div>
                           )}
@@ -1258,7 +1329,7 @@ const OutwardStock = () => {
                         <div>
                           <Label>Total Amount (Auto-calc)</Label>
                           <Input
-                            value={`₹${item.amount.toFixed(2)}`}
+                            value={`₹${formatCurrency(item.amount)}`}
                             disabled
                             className="bg-blue-50 font-semibold"
                           />
@@ -1296,7 +1367,7 @@ const OutwardStock = () => {
                           />
                           {formData.warehouse_id && item.product_id && (
                             <div className="text-xs text-slate-500 mt-1">
-                              Available: {getAvailableQuantity(item.product_id, formData.warehouse_id)}
+                              Available: {formatNumber(getAvailableQuantity(item.product_id, formData.warehouse_id))}
                             </div>
                           )}
                         </div>
@@ -1314,7 +1385,7 @@ const OutwardStock = () => {
                         <div>
                           <Label>Total Amount (Auto-calc)</Label>
                           <Input
-                            value={`₹${item.amount.toFixed(2)}`}
+                            value={`₹${formatCurrency(item.amount)}`}
                             disabled
                             className="bg-blue-50 font-semibold"
                           />
@@ -1351,7 +1422,7 @@ const OutwardStock = () => {
           <DialogHeader>
             <DialogTitle>View Outward Stock Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewingEntry && (
             <div className="space-y-6">
               {/* Entry Header Information */}
@@ -1379,13 +1450,12 @@ const OutwardStock = () => {
                   <div>
                     <Label className="text-sm font-medium text-slate-600">Type</Label>
                     <div className="mt-1">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        viewingEntry.dispatch_type === 'dispatch_plan' ? 'bg-blue-100 text-blue-800' :
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${viewingEntry.dispatch_type === 'dispatch_plan' ? 'bg-blue-100 text-blue-800' :
                         viewingEntry.dispatch_type === 'export_invoice' ? 'bg-green-100 text-green-800' :
-                        'bg-purple-100 text-purple-800'
-                      }`}>
+                          'bg-purple-100 text-purple-800'
+                        }`}>
                         {viewingEntry.dispatch_type === 'dispatch_plan' ? 'Dispatch Plan' :
-                         viewingEntry.dispatch_type === 'export_invoice' ? 'Export Invoice' : 'Direct Export'}
+                          viewingEntry.dispatch_type === 'export_invoice' ? 'Export Invoice' : 'Direct Export'}
                       </span>
                     </div>
                   </div>
@@ -1452,9 +1522,9 @@ const OutwardStock = () => {
                         <tr key={index} className="border-t">
                           <td className="p-3">{item.product_name}</td>
                           <td className="p-3 font-mono text-sm">{item.sku}</td>
-                          <td className="p-3 text-right">{item.quantity}</td>
-                          <td className="p-3 text-right">₹{item.rate?.toFixed(2)}</td>
-                          <td className="p-3 text-right font-semibold">₹{item.amount?.toFixed(2)}</td>
+                          <td className="p-3 text-right">{formatNumber(item.quantity)}</td>
+                          <td className="p-3 text-right">₹{formatCurrency(item.rate)}</td>
+                          <td className="p-3 text-right font-semibold">₹{formatCurrency(item.amount)}</td>
                           <td className="p-3">{item.dimensions || '-'}</td>
                           <td className="p-3 text-right">{item.weight ? `${item.weight} kg` : '-'}</td>
                         </tr>
@@ -1462,13 +1532,13 @@ const OutwardStock = () => {
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Total Amount */}
                 <div className="mt-4 flex justify-end">
                   <div className="bg-blue-100 px-6 py-3 rounded-lg">
                     <span className="text-sm text-slate-700">Total Amount: </span>
                     <span className="text-xl font-bold text-blue-900">
-                      ₹{viewingEntry.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0).toFixed(2)}
+                      ₹{formatCurrency(viewingEntry.line_items?.reduce((sum, item) => sum + (item.amount || 0), 0))}
                     </span>
                   </div>
                 </div>

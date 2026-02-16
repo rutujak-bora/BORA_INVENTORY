@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -17,18 +18,18 @@ import { getSafeSelectContentProps } from '../utils/selectHelpers';
 const CustomerManagement = () => {
   const [activeTab, setActiveTab] = useState('pi-po-mapping');
   const [loading, setLoading] = useState(true);
-  
+
   // Data states
   const [piPoMappingData, setPiPoMappingData] = useState([]);
   const [inwardData, setInwardData] = useState([]);
   const [outwardData, setOutwardData] = useState([]);
-  
+
   // Pagination for PI-PO Mapping
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  
+
   // Filter states
   const [filters, setFilters] = useState({
     consignee: '',
@@ -40,7 +41,7 @@ const CustomerManagement = () => {
     search: '',
     status: 'all'
   });
-  
+
   // Dialog states
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [viewingData, setViewingData] = useState(null);
@@ -50,17 +51,17 @@ const CustomerManagement = () => {
   const [editType, setEditType] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingData, setDeletingData] = useState(null);
-  
+
   // Expanded POs state for view dialog
   const [expandedPOs, setExpandedPOs] = useState({});
-  
+
   const { toast } = useToast();
   useResizeObserverErrorFix();
-  
+
   useEffect(() => {
     fetchData();
   }, [activeTab, filters, page, pageSize]);
-  
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -72,21 +73,21 @@ const CustomerManagement = () => {
         await fetchOutwardQuantity();
       }
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to fetch data', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch data',
+        variant: 'destructive'
       });
     } finally {
       setLoading(false);
     }
   };
-  
+
   const fetchPiPoMapping = async () => {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
-    
+
     if (filters.consignee) params.append('consignee', filters.consignee);
     if (filters.pi_number) params.append('pi_number', filters.pi_number);
     if (filters.po_number) params.append('po_number', filters.po_number);
@@ -94,40 +95,40 @@ const CustomerManagement = () => {
     if (filters.from_date) params.append('from_date', filters.from_date);
     if (filters.to_date) params.append('to_date', filters.to_date);
     if (filters.search) params.append('search', filters.search);
-    
+
     const response = await api.get(`/pi-po-mapping?${params.toString()}`);
     setPiPoMappingData(response.data.data || []);
     setTotalPages(response.data.pagination?.total_pages || 1);
     setTotalCount(response.data.pagination?.total_count || 0);
   };
-  
+
   const fetchInwardQuantity = async () => {
     const params = new URLSearchParams();
     if (filters.consignee) params.append('consignee', filters.consignee);
     if (filters.pi_number) params.append('pi_number', filters.pi_number);
     if (filters.po_number) params.append('po_number', filters.po_number);
     if (filters.sku) params.append('sku', filters.sku);
-    
+
     const response = await api.get(`/customer-management/inward-quantity?${params.toString()}`);
     setInwardData(response.data);
   };
-  
+
   const fetchOutwardQuantity = async () => {
     const params = new URLSearchParams();
     if (filters.consignee) params.append('consignee', filters.consignee);
     if (filters.pi_number) params.append('pi_number', filters.pi_number);
     if (filters.sku) params.append('sku', filters.sku);
     if (filters.status !== 'all') params.append('status', filters.status);
-    
+
     const response = await api.get(`/customer-management/outward-quantity?${params.toString()}`);
     setOutwardData(response.data);
   };
-  
+
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setPage(1); // Reset to first page on filter change
   };
-  
+
   const resetFilters = () => {
     setFilters({
       consignee: '',
@@ -141,7 +142,7 @@ const CustomerManagement = () => {
     });
     setPage(1);
   };
-  
+
   const handleView = async (item) => {
     try {
       // Fetch detailed data
@@ -151,37 +152,37 @@ const CustomerManagement = () => {
       setExpandedPOs({});
       setViewDialogOpen(true);
     } catch (error) {
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to load details', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Failed to load details',
+        variant: 'destructive'
       });
     }
   };
-  
+
   const handleViewInward = (item) => {
     setViewingData(item);
     setViewDialogOpen(true);
   };
-  
+
   const handleViewOutward = (item) => {
     setViewingData(item);
     setViewDialogOpen(true);
   };
-  
+
   const togglePOExpansion = (poNumber) => {
     setExpandedPOs(prev => ({
       ...prev,
       [poNumber]: !prev[poNumber]
     }));
   };
-  
+
   const handleEdit = (item) => {
     setEditingData(item);
     setEditType('pi-po-mapping');
     setEditDialogOpen(true);
   };
-  
+
   const handleEditInward = (item) => {
     setEditingData({
       ...item,
@@ -191,7 +192,7 @@ const CustomerManagement = () => {
     setEditType('inward');
     setEditDialogOpen(true);
   };
-  
+
   const handleEditOutward = (item) => {
     setEditingData({
       ...item,
@@ -201,10 +202,10 @@ const CustomerManagement = () => {
     setEditType('outward');
     setEditDialogOpen(true);
   };
-  
+
   const handleSaveEdit = async () => {
     if (!editingData) return;
-    
+
     try {
       if (editType === 'pi-po-mapping') {
         await api.put(`/pi-po-mapping/${editingData.id}`, {
@@ -214,10 +215,10 @@ const CustomerManagement = () => {
         toast({ title: 'Success', description: 'Mapping updated successfully' });
         fetchData();
       } else if (editType === 'inward' || editType === 'outward') {
-        toast({ 
-          title: 'Info', 
-          description: `${editType === 'inward' ? 'Inward' : 'Outward'} quantities are managed in their respective modules.`, 
-          variant: 'default' 
+        toast({
+          title: 'Info',
+          description: `${editType === 'inward' ? 'Inward' : 'Outward'} quantities are managed in their respective modules.`,
+          variant: 'default'
         });
       }
       setEditDialogOpen(false);
@@ -226,15 +227,15 @@ const CustomerManagement = () => {
       toast({ title: 'Error', description: 'Failed to update', variant: 'destructive' });
     }
   };
-  
+
   const handleDelete = (item) => {
     setDeletingData(item);
     setDeleteDialogOpen(true);
   };
-  
+
   const confirmDelete = async () => {
     if (!deletingData) return;
-    
+
     try {
       await api.delete(`/pi-po-mapping/${deletingData.id}`);
       toast({ title: 'Success', description: 'Mapping archived successfully' });
@@ -245,25 +246,25 @@ const CustomerManagement = () => {
       toast({ title: 'Error', description: 'Failed to delete', variant: 'destructive' });
     }
   };
-  
+
   const handleDeleteInward = async (item) => {
     if (!window.confirm(`Delete inward record for ${item.pi_number}?`)) return;
-    toast({ 
-      title: 'Info', 
-      description: 'Please delete from Inward Stock module', 
-      variant: 'default' 
+    toast({
+      title: 'Info',
+      description: 'Please delete from Inward Stock module',
+      variant: 'default'
     });
   };
-  
+
   const handleDeleteOutward = async (item) => {
     if (!window.confirm(`Delete outward record for ${item.pi_number}?`)) return;
-    toast({ 
-      title: 'Info', 
-      description: 'Please delete from Outward Stock module', 
-      variant: 'default' 
+    toast({
+      title: 'Info',
+      description: 'Please delete from Outward Stock module',
+      variant: 'default'
     });
   };
-  
+
   const getStatusBadge = (status) => {
     const statusColors = {
       'Not Started': 'bg-gray-100 text-gray-800',
@@ -272,14 +273,14 @@ const CustomerManagement = () => {
       'Partially Inwarded': 'bg-yellow-100 text-yellow-800',
       'Partially Outwarded': 'bg-orange-100 text-orange-800'
     };
-    
+
     return (
       <Badge className={statusColors[status] || 'bg-gray-100 text-gray-800'}>
         {status}
       </Badge>
     );
   };
-  
+
   if (loading && piPoMappingData.length === 0 && inwardData.length === 0 && outwardData.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -287,7 +288,7 @@ const CustomerManagement = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -295,12 +296,12 @@ const CustomerManagement = () => {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Customer Management</h1>
           <p className="text-slate-600 mt-1">
-            {activeTab === 'pi-po-mapping' 
+            {activeTab === 'pi-po-mapping'
               ? 'Track PI to PO mappings with SKU-level details'
               : 'Track inward and outward quantities'}
           </p>
         </div>
-        <Button 
+        <Button
           onClick={fetchData}
           variant="outline"
           className="flex items-center gap-2"
@@ -309,7 +310,7 @@ const CustomerManagement = () => {
           Refresh
         </Button>
       </div>
-      
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -420,7 +421,7 @@ const CustomerManagement = () => {
           </div>
         </CardContent>
       </Card>
-      
+
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
@@ -437,7 +438,7 @@ const CustomerManagement = () => {
             Outward Quantity
           </TabsTrigger>
         </TabsList>
-        
+
         {/* PI → PO Mapping Tab */}
         <TabsContent value="pi-po-mapping" className="space-y-4">
           <Card>
@@ -475,7 +476,7 @@ const CustomerManagement = () => {
                           <TableCell className="font-medium">{item.consignee}</TableCell>
                           <TableCell>{item.pi_number}</TableCell>
                           <TableCell>{item.pi_date ? new Date(item.pi_date).toLocaleDateString() : 'N/A'}</TableCell>
-                          <TableCell className="text-right font-semibold">{item.pi_total_quantity}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatNumber(item.pi_total_quantity)}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="font-semibold">
                               {item.linked_po_count} PO(s)
@@ -506,7 +507,7 @@ const CustomerManagement = () => {
                   </TableBody>
                 </Table>
               </div>
-              
+
               {/* Pagination Controls */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
@@ -530,7 +531,7 @@ const CustomerManagement = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <Button
                       variant="outline"
@@ -557,7 +558,7 @@ const CustomerManagement = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Inward Quantity Tab - keeping existing implementation */}
         <TabsContent value="inward-quantity" className="space-y-4">
           <Card>
@@ -592,9 +593,9 @@ const CustomerManagement = () => {
                           <TableCell className="font-medium">{item.consignee_name}</TableCell>
                           <TableCell>{item.pi_number}</TableCell>
                           <TableCell>{item.po_number}</TableCell>
-                          <TableCell className="font-semibold">{item.pi_total_quantity}</TableCell>
-                          <TableCell className="text-green-600 font-semibold">{item.inward_total_quantity}</TableCell>
-                          <TableCell className="text-orange-600 font-semibold">{item.remaining_quantity}</TableCell>
+                          <TableCell className="font-semibold">{formatNumber(item.pi_total_quantity)}</TableCell>
+                          <TableCell className="text-green-600 font-semibold">{formatNumber(item.inward_total_quantity)}</TableCell>
+                          <TableCell className="text-orange-600 font-semibold">{formatNumber(item.remaining_quantity)}</TableCell>
                           <TableCell>{getStatusBadge(item.status)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -618,7 +619,7 @@ const CustomerManagement = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Outward Quantity Tab - keeping existing implementation */}
         <TabsContent value="outward-quantity" className="space-y-4">
           <Card>
@@ -653,9 +654,9 @@ const CustomerManagement = () => {
                           <TableCell className="font-medium">{item.consignee_name}</TableCell>
                           <TableCell>{item.pi_number}</TableCell>
                           <TableCell>{item.pi_date ? new Date(item.pi_date).toLocaleDateString() : 'N/A'}</TableCell>
-                          <TableCell className="font-semibold">{item.pi_total_quantity}</TableCell>
-                          <TableCell className="text-red-600 font-semibold">{item.outward_total_quantity}</TableCell>
-                          <TableCell className="text-orange-600 font-semibold">{item.remaining_quantity}</TableCell>
+                          <TableCell className="font-semibold">{formatNumber(item.pi_total_quantity)}</TableCell>
+                          <TableCell className="text-red-600 font-semibold">{formatNumber(item.outward_total_quantity)}</TableCell>
+                          <TableCell className="text-orange-600 font-semibold">{formatNumber(item.remaining_quantity)}</TableCell>
                           <TableCell>{getStatusBadge(item.status)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -680,14 +681,14 @@ const CustomerManagement = () => {
           </Card>
         </TabsContent>
       </Tabs>
-      
+
       {/* View Dialog for PI → PO Mapping */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>PI → PO Mapping Details</DialogTitle>
           </DialogHeader>
-          
+
           {viewDetailData && (
             <div className="space-y-6">
               {/* PI Header */}
@@ -715,29 +716,29 @@ const CustomerManagement = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Summary Cards */}
               <div className="grid grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-sm text-slate-600">PI Total Quantity</div>
-                    <div className="text-2xl font-bold text-blue-600">{viewDetailData.pi_total_quantity}</div>
+                    <div className="text-2xl font-bold text-blue-600">{formatNumber(viewDetailData.pi_total_quantity)}</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-sm text-slate-600">Total PO Quantity</div>
-                    <div className="text-2xl font-bold text-green-600">{viewDetailData.total_po_quantity}</div>
+                    <div className="text-2xl font-bold text-green-600">{formatNumber(viewDetailData.total_po_quantity)}</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-sm text-slate-600">Remaining Quantity</div>
-                    <div className="text-2xl font-bold text-orange-600">{viewDetailData.total_remaining_quantity}</div>
+                    <div className="text-2xl font-bold text-orange-600">{formatNumber(viewDetailData.total_remaining_quantity)}</div>
                   </CardContent>
                 </Card>
               </div>
-              
+
               {/* PI Items Summary */}
               <div>
                 <h3 className="text-lg font-semibold mb-3">PI Items Summary</h3>
@@ -758,17 +759,17 @@ const CustomerManagement = () => {
                         <TableRow key={idx}>
                           <TableCell className="font-medium">{item.sku}</TableCell>
                           <TableCell>{item.product_name}</TableCell>
-                          <TableCell className="text-right font-semibold">{item.pi_quantity}</TableCell>
-                          <TableCell className="text-right">₹{item.pi_rate?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-semibold text-green-600">{item.total_po_quantity}</TableCell>
-                          <TableCell className="text-right font-semibold text-orange-600">{item.remaining_quantity}</TableCell>
+                          <TableCell className="text-right font-semibold">{formatNumber(item.pi_quantity)}</TableCell>
+                          <TableCell className="text-right">₹{formatCurrency(item.pi_rate)}</TableCell>
+                          <TableCell className="text-right font-semibold text-green-600">{formatNumber(item.total_po_quantity)}</TableCell>
+                          <TableCell className="text-right font-semibold text-orange-600">{formatNumber(item.remaining_quantity)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
               </div>
-              
+
               {/* Linked POs */}
               <div>
                 <h3 className="text-lg font-semibold mb-3">Linked Purchase Orders</h3>
@@ -781,7 +782,7 @@ const CustomerManagement = () => {
                     {viewDetailData.linked_pos && viewDetailData.linked_pos.map((po, poIdx) => (
                       <div key={poIdx} className="border rounded-lg overflow-hidden">
                         {/* PO Header */}
-                        <div 
+                        <div
                           className="bg-slate-100 p-3 flex items-center justify-between cursor-pointer hover:bg-slate-200 transition-colors"
                           onClick={() => togglePOExpansion(po.po_number)}
                         >
@@ -798,7 +799,7 @@ const CustomerManagement = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* PO Items Table (Collapsible) */}
                         {expandedPOs[po.po_number] && (
                           <div className="p-4">
@@ -819,13 +820,13 @@ const CustomerManagement = () => {
                                   <TableRow key={itemIdx}>
                                     <TableCell className="font-medium">{item.sku}</TableCell>
                                     <TableCell>{item.product_name}</TableCell>
-                                    <TableCell className="text-right">{item.pi_quantity}</TableCell>
-                                    <TableCell className="text-right">₹{item.pi_rate?.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-semibold text-green-600">{item.po_quantity}</TableCell>
-                                    <TableCell className="text-right">₹{item.po_rate?.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">{formatNumber(item.pi_quantity)}</TableCell>
+                                    <TableCell className="text-right">₹{formatCurrency(item.pi_rate)}</TableCell>
+                                    <TableCell className="text-right font-semibold text-green-600">{formatNumber(item.po_quantity)}</TableCell>
+                                    <TableCell className="text-right">₹{formatCurrency(item.po_rate)}</TableCell>
                                     <TableCell className="text-right font-semibold">
                                       <span className={item.remaining_quantity > 0 ? 'text-orange-600' : 'text-green-600'}>
-                                        {item.remaining_quantity}
+                                        {formatNumber(item.remaining_quantity)}
                                       </span>
                                     </TableCell>
                                   </TableRow>
@@ -839,13 +840,13 @@ const CustomerManagement = () => {
                   </div>
                 )}
               </div>
-              
+
               <div className="flex justify-end">
                 <Button onClick={() => setViewDialogOpen(false)}>Close</Button>
               </div>
             </div>
           )}
-          
+
           {/* For inward/outward view */}
           {!viewDetailData && viewingData && (
             <div className="space-y-4">
@@ -866,24 +867,24 @@ const CustomerManagement = () => {
                 )}
                 <div>
                   <Label className="text-sm font-medium text-slate-600">Total Quantity</Label>
-                  <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold">{viewingData.pi_total_quantity}</div>
+                  <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold">{formatNumber(viewingData.pi_total_quantity)}</div>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-600">
                     {viewingData.inward_total_quantity !== undefined ? 'Inwarded' : 'Dispatched'}
                   </Label>
                   <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold text-green-700">
-                    {viewingData.inward_total_quantity || viewingData.outward_total_quantity}
+                    {formatNumber(viewingData.inward_total_quantity || viewingData.outward_total_quantity)}
                   </div>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-600">Remaining</Label>
                   <div className="mt-1 p-2 bg-slate-50 rounded border font-semibold text-orange-600">
-                    {viewingData.remaining_quantity}
+                    {formatNumber(viewingData.remaining_quantity)}
                   </div>
                 </div>
               </div>
-              
+
               {viewingData.sku_details && viewingData.sku_details.length > 0 && (
                 <div>
                   <Label className="text-sm font-medium text-slate-700 mb-2 block">SKU Details</Label>
@@ -903,11 +904,11 @@ const CustomerManagement = () => {
                           <TableRow key={idx}>
                             <TableCell className="font-medium">{sku.sku}</TableCell>
                             <TableCell>{sku.product_name}</TableCell>
-                            <TableCell className="font-semibold">{sku.pi_quantity}</TableCell>
+                            <TableCell className="font-semibold">{formatNumber(sku.pi_quantity)}</TableCell>
                             <TableCell className="font-semibold text-green-600">
-                              {sku.inward_quantity || sku.outward_quantity}
+                              {formatNumber(sku.inward_quantity || sku.outward_quantity)}
                             </TableCell>
-                            <TableCell className="font-semibold text-orange-600">{sku.remaining_quantity}</TableCell>
+                            <TableCell className="font-semibold text-orange-600">{formatNumber(sku.remaining_quantity)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -915,7 +916,7 @@ const CustomerManagement = () => {
                   </div>
                 </div>
               )}
-              
+
               <div className="flex justify-end">
                 <Button onClick={() => setViewDialogOpen(false)}>Close</Button>
               </div>
@@ -923,17 +924,17 @@ const CustomerManagement = () => {
           )}
         </DialogContent>
       </Dialog>
-      
+
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {editType === 'pi-po-mapping' ? 'Edit Mapping Metadata' : 
-               editType === 'inward' ? 'Edit Inward Quantities' : 'Edit Outward Quantities'}
+              {editType === 'pi-po-mapping' ? 'Edit Mapping Metadata' :
+                editType === 'inward' ? 'Edit Inward Quantities' : 'Edit Outward Quantities'}
             </DialogTitle>
           </DialogHeader>
-          
+
           {editingData && (
             <div className="space-y-4">
               {editType === 'pi-po-mapping' ? (
@@ -948,17 +949,17 @@ const CustomerManagement = () => {
                   </div>
                   <div>
                     <Label>Notes</Label>
-                    <Input 
+                    <Input
                       value={editingData.notes || ''}
-                      onChange={(e) => setEditingData({...editingData, notes: e.target.value})}
+                      onChange={(e) => setEditingData({ ...editingData, notes: e.target.value })}
                       placeholder="Add notes about this mapping..."
                     />
                   </div>
                   <div>
                     <Label>Status</Label>
-                    <Input 
+                    <Input
                       value={editingData.status || ''}
-                      onChange={(e) => setEditingData({...editingData, status: e.target.value})}
+                      onChange={(e) => setEditingData({ ...editingData, status: e.target.value })}
                       placeholder="e.g., In Progress, Completed"
                     />
                   </div>
@@ -974,7 +975,7 @@ const CustomerManagement = () => {
                       <li><strong>Outward Stock</strong> module for outward quantity changes</li>
                     </ul>
                   </div>
-                  
+
                   <div className="bg-slate-50 rounded-lg p-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -987,21 +988,21 @@ const CustomerManagement = () => {
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-slate-600">Total Quantity</Label>
-                        <div className="mt-1 p-2 bg-white rounded border font-semibold">{editingData.pi_total_quantity}</div>
+                        <div className="mt-1 p-2 bg-white rounded border font-semibold">{formatNumber(editingData.pi_total_quantity)}</div>
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-slate-600">
                           {editType === 'inward' ? 'Inwarded' : 'Dispatched'}
                         </Label>
                         <div className="mt-1 p-2 bg-white rounded border font-semibold text-green-700">
-                          {editType === 'inward' ? editingData.inward_total_quantity : editingData.outward_total_quantity}
+                          {formatNumber(editType === 'inward' ? editingData.inward_total_quantity : editingData.outward_total_quantity)}
                         </div>
                       </div>
                     </div>
                   </div>
                 </>
               )}
-              
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
                 {editType === 'pi-po-mapping' ? (
@@ -1020,14 +1021,14 @@ const CustomerManagement = () => {
           )}
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Archive PI Mapping</DialogTitle>
           </DialogHeader>
-          
+
           {deletingData && (
             <div className="space-y-4">
               <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
@@ -1035,13 +1036,13 @@ const CustomerManagement = () => {
                   <strong>Warning:</strong> This will archive the PI mapping. The PI and linked POs will be marked as inactive.
                 </p>
               </div>
-              
+
               <div className="space-y-2">
                 <div><strong>PI Number:</strong> {deletingData.pi_number}</div>
                 <div><strong>Consignee:</strong> {deletingData.consignee}</div>
                 <div><strong>Linked POs:</strong> {deletingData.linked_po_count}</div>
               </div>
-              
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
                 <Button variant="destructive" onClick={confirmDelete}>Archive</Button>

@@ -329,11 +329,11 @@ import { Edit, Trash2 } from 'lucide-react';
 
 ### 1. Companies
 - **Cannot delete if:** Used in PI or PO
-- **Check:** `purchase_orders.company_id`, `performa_invoices.company_id`
+- **Check:** `purchase_orders.company_id`, `proforma_invoices.company_id`
 
 ### 2. Products
 - **Cannot delete if:** Used in PI, PO, Inward, or Outward
-- **Check:** `performa_invoices.line_items.product_id`, `purchase_orders.line_items.product_id`, `inward_stock.line_items.product_id`, `outward_stock.line_items.product_id`
+- **Check:** `proforma_invoices.line_items.product_id`, `purchase_orders.line_items.product_id`, `inward_stock.line_items.product_id`, `outward_stock.line_items.product_id`
 
 ### 3. Warehouses
 - **Cannot delete if:** Used in Inward or Outward stock

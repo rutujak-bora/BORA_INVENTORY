@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -71,9 +72,10 @@ const PickupInTransit = () => {
       setSelectedPo(voucher_no);
       const response = await api.get(`/pos/lines-with-stats?voucher_no=${encodeURIComponent(voucher_no)}`);
       setPoLineStats(response.data);
-      
+
       // Initialize form data with line items
       const lineItems = response.data.line_items.map(item => ({
+        id: item.id,  // PO line item ID
         product_id: item.product_id,
         product_name: item.product_name,
         sku: item.sku,
@@ -85,7 +87,7 @@ const PickupInTransit = () => {
         in_transit: item.in_transit,
         available_for_pickup: item.available_for_pickup
       }));
-      
+
       setFormData(prev => ({
         ...prev,
         line_items: lineItems
@@ -103,7 +105,7 @@ const PickupInTransit = () => {
   const handleQuantityChange = (index, value) => {
     const newQuantity = parseFloat(value) || 0;
     const lineItem = formData.line_items[index];
-    
+
     // Validation: Check if new quantity exceeds available
     if (newQuantity > lineItem.available_for_pickup) {
       toast({
@@ -113,7 +115,7 @@ const PickupInTransit = () => {
       });
       return;
     }
-    
+
     const updatedLineItems = [...formData.line_items];
     updatedLineItems[index].quantity = newQuantity;
     setFormData(prev => ({ ...prev, line_items: updatedLineItems }));
@@ -121,7 +123,7 @@ const PickupInTransit = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!poLineStats) {
       toast({
         title: 'Error',
@@ -130,10 +132,10 @@ const PickupInTransit = () => {
       });
       return;
     }
-    
+
     // Filter line items with quantity > 0
     const validLineItems = formData.line_items.filter(item => item.quantity > 0);
-    
+
     if (validLineItems.length === 0) {
       toast({
         title: 'Error',
@@ -142,13 +144,14 @@ const PickupInTransit = () => {
       });
       return;
     }
-    
+
     try {
       const pickupData = {
         po_id: poLineStats.po_id,
         pickup_date: formData.pickup_date,
         notes: formData.notes,
         line_items: validLineItems.map(item => ({
+          id: item.id,  // PO line item ID
           product_id: item.product_id,
           product_name: item.product_name,
           sku: item.sku,
@@ -156,15 +159,15 @@ const PickupInTransit = () => {
           rate: item.rate
         }))
       };
-      
+
       await api.post('/pickups', pickupData);
-      
+
       toast({
         title: 'Success',
         description: 'Pickup (In-Transit) entry created successfully',
         variant: 'default'
       });
-      
+
       // Reset form and refresh data
       setSelectedPo('');
       setPoLineStats(null);
@@ -188,7 +191,7 @@ const PickupInTransit = () => {
     if (!window.confirm('Are you sure you want to delete this pickup entry?')) {
       return;
     }
-    
+
     try {
       await api.delete(`/pickups/${pickupId}`);
       toast({
@@ -197,7 +200,7 @@ const PickupInTransit = () => {
         variant: 'default'
       });
       fetchPickupEntries();
-      
+
       // Refresh PO line stats if a PO is selected
       if (selectedPo) {
         handlePoSelection(selectedPo);
@@ -321,12 +324,12 @@ const PickupInTransit = () => {
                         <TableRow key={item.product_id}>
                           <TableCell className="font-medium">{item.product_name}</TableCell>
                           <TableCell>{item.sku}</TableCell>
-                          <TableCell className="text-right">{item.pi_quantity}</TableCell>
-                          <TableCell className="text-right">{item.po_quantity}</TableCell>
-                          <TableCell className="text-right">{item.already_inwarded}</TableCell>
-                          <TableCell className="text-right">{item.in_transit}</TableCell>
+                          <TableCell className="text-right">{formatNumber(item.pi_quantity)}</TableCell>
+                          <TableCell className="text-right">{formatNumber(item.po_quantity)}</TableCell>
+                          <TableCell className="text-right">{formatNumber(item.already_inwarded)}</TableCell>
+                          <TableCell className="text-right">{formatNumber(item.in_transit)}</TableCell>
                           <TableCell className="text-right font-semibold text-green-600">
-                            {item.available_for_pickup}
+                            {formatNumber(item.available_for_pickup)}
                           </TableCell>
                           <TableCell>
                             <Input
@@ -419,8 +422,8 @@ const PickupInTransit = () => {
                           <TableRow key={item.id}>
                             <TableCell>{item.product_name}</TableCell>
                             <TableCell>{item.sku}</TableCell>
-                            <TableCell className="text-right">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{item.rate}</TableCell>
+                            <TableCell className="text-right">{formatNumber(item.quantity)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.rate)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

@@ -118,7 +118,7 @@ Access: DNS Operations
 
 ### All Companies Documentary
 - ✅ Company, Product & Warehouse Management
-- ✅ Performa Invoice (PI) Management
+- ✅ proforma Invoice (PI) Management
 - ✅ Purchase Order (PO) Management
 - ✅ Inward Stock Operations (3 types)
 - ✅ Outward Stock Operations (3 types with multiple PI support)
@@ -127,7 +127,7 @@ Access: DNS Operations
 
 ### DNS Documentary
 - ✅ Product Master Management
-- ✅ Performa Invoice & Purchase Orders
+- ✅ proforma Invoice & Purchase Orders
 - ✅ Payment Tracking & Reports
 
 ---

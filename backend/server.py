@@ -2234,19 +2234,18 @@ async def create_pickup(
     """
     Create a pickup (in-transit) entry.
     Validates that the quantity does not exceed PO quantity - (Already Inwarded + In Transit).
+    Optimized: Bulk fetching for validation.
     """
     po_ids = pickup_data.get("po_ids", [])
     if not po_ids and pickup_data.get("po_id"):
         po_ids = [pickup_data["po_id"]]
 
     logger.info(f"🚚 Creating pickup. POs: {po_ids}, Warehouse: {pickup_data.get('warehouse_id')}")
-    logger.info(f"📦 Line items count: {len(pickup_data.get('line_items', []))}")
     
     if not po_ids:
-        logger.error("❌ Pickup Creation Failed: Missing po_ids")
         raise HTTPException(status_code=400, detail="PO ID(s) is required")
 
-    # 1. Aggregate PO Quantities for validation
+    # 1. Fetch all POs and build quantity map
     aggregated_po_quantities = {}
     po_list = []
     company_id = None
@@ -2254,7 +2253,6 @@ async def create_pickup(
     for po_id in po_ids:
         po = await mongo_db.purchase_orders.find_one({"id": po_id, "is_active": True}, {"_id": 0})
         if not po:
-            logger.error(f"❌ Pickup Creation Failed: PO {po_id} not found")
             raise HTTPException(status_code=404, detail=f"PO {po_id} not found")
         po_list.append(po)
         if not company_id:
@@ -2265,63 +2263,50 @@ async def create_pickup(
             sku = item.get("sku")
             key = product_id if product_id else sku
             if key:
-                qty = float(item.get("quantity", 0))
-                aggregated_po_quantities[key] = aggregated_po_quantities.get(key, 0) + qty
-                logger.info(f"🔹 PO Item: {item.get('product_name')} (Key: {key}) Qty: {qty}")
+                aggregated_po_quantities[key] = aggregated_po_quantities.get(key, 0) + float(item.get("quantity", 0))
 
-    # 2. Process and Validate Line Items
+    # 2. Bulk fetch Inward and In-Transit data for all validation
+    all_inwards = await mongo_db.inward_stock.find({
+        "$or": [{"po_id": {"$in": po_ids}}, {"po_ids": {"$in": po_ids}}],
+        "is_active": True
+    }, {"_id": 0}).to_list(length=None)
+
+    all_pickups = await mongo_db.pickup_in_transit.find({
+        "$or": [{"po_id": {"$in": po_ids}}, {"po_ids": {"$in": po_ids}}],
+        "is_active": True,
+        "is_inwarded": False
+    }, {"_id": 0}).to_list(length=None)
+
+    # 3. Process and Validate Line Items
     processed_line_items = []
     for item in pickup_data.get("line_items", []):
         product_id = item.get("product_id")
         sku = item.get("sku")
         quantity = float(item.get("quantity", 0))
-        
-        # Use product_id if available, fallback to SKU
         key = product_id if product_id else sku
         
-        logger.info(f"🔍 Validating Item: {item.get('product_name')} (ID: {product_id}, SKU: {sku}, Key: {key}) Qty requested: {quantity}")
-        
         if quantity <= 0:
-            logger.info(f"⏩ Skipping item {item.get('product_name')} because quantity is {quantity}")
             continue
             
         if not key:
-             logger.error(f"❌ Pickup Creation Failed: Both product_id and sku missing for item {item.get('product_name')}")
              raise HTTPException(status_code=400, detail=f"Line item missing both product_id and sku for {item.get('product_name')}")
 
         total_po_qty = aggregated_po_quantities.get(key, 0)
         
-        # Calculate used quantity (Inwarded + In-Transit)
+        # Calculate used quantity from bulk data
         used_qty = 0
-        
-        # Inwarded Search
-        async for inward in mongo_db.inward_stock.find({
-            "$or": [{"po_id": {"$in": po_ids}}, {"po_ids": {"$in": po_ids}}],
-            "is_active": True
-        }):
+        for inward in all_inwards:
             for line in inward.get("line_items", []):
-                # Match by product_id OR SKU
-                inward_p_id = line.get("product_id")
-                inward_sku = line.get("sku")
-                if (product_id and inward_p_id == product_id) or (sku and inward_sku == sku):
+                if (product_id and line.get("product_id") == product_id) or (sku and line.get("sku") == sku):
                     used_qty += float(line.get("quantity", 0))
 
-        # In-Transit Search (excluding current being created)
-        async for existing_pickup in mongo_db.pickup_in_transit.find({
-            "$or": [{"po_id": {"$in": po_ids}}, {"po_ids": {"$in": po_ids}}],
-            "is_active": True,
-            "is_inwarded": False
-        }):
+        for existing_pickup in all_pickups:
             for line in existing_pickup.get("line_items", []):
-                pickup_p_id = line.get("product_id")
-                pickup_sku = line.get("sku")
-                if (product_id and pickup_p_id == product_id) or (sku and pickup_sku == sku):
+                if (product_id and line.get("product_id") == product_id) or (sku and line.get("sku") == sku):
                     used_qty += float(line.get("quantity", 0))
         
-        if (used_qty + quantity) > (total_po_qty + 0.001): # Small epsilon for float comparison
-            error_msg = f"Cannot pickup {item.get('product_name')} (SKU: {item.get('sku')}). Total ({used_qty} used + {quantity} new = {used_qty + quantity}) exceeds aggregated PO Qty ({total_po_qty}) for POs {po_ids}."
-            logger.error(f"❌ Validation Error: {error_msg}")
-            logger.info(f"Payload was: {pickup_data}")
+        if (used_qty + quantity) > (total_po_qty + 0.001):
+            error_msg = f"Cannot pickup {item.get('product_name')}. Total ({used_qty} used + {quantity} new) exceeds PO Qty ({total_po_qty})."
             raise HTTPException(status_code=400, detail=error_msg)
             
         processed_line_items.append({
@@ -2336,10 +2321,8 @@ async def create_pickup(
         })
 
     if not processed_line_items:
-         logger.error("❌ Pickup Creation Failed: No valid line items")
          raise HTTPException(status_code=400, detail="No valid line items to pickup")
 
-    # 3. Create Entry
     pickup_entry = {
         "id": str(uuid.uuid4()),
         "po_ids": po_ids,
@@ -2358,7 +2341,6 @@ async def create_pickup(
     }
     
     await mongo_db.pickup_in_transit.insert_one(pickup_entry)
-    logger.info(f"✅ Pickup created successfully: {pickup_entry['id']}")
     
     # Audit log
     await mongo_db.audit_logs.insert_one({
@@ -2370,6 +2352,7 @@ async def create_pickup(
     
     pickup_entry.pop("_id", None)
     return pickup_entry
+
 
 @api_router.get("/pickups")
 async def list_pickups(
@@ -2942,88 +2925,68 @@ async def get_stock_summary(
 ):
     """
     STOCK SUMMARY REBUILD - Get stock summary from stock_tracking collection
-    Returns: Product | SKU | Color | PI & PO Number | Category | Warehouse | Company | Inward | Outward | Remaining | Status | Age | Actions
-    entry_type: 'regular' for Stock Entries (Warehouse Inward + Export Invoice)
-                'direct' for Direct Stock Entries (Direct Inward + Direct Outward)
+    Optimized: Uses aggregation for in-transit calculation to avoid N+1 issues.
     """
     query = {}
+    if warehouse_id: query["warehouse_id"] = warehouse_id
+    if company_id: query["company_id"] = company_id
+    if pi_number: query["pi_number"] = {"$regex": pi_number, "$options": "i"}
+    if po_number: query["po_number"] = {"$regex": po_number, "$options": "i"}
+    if sku: query["sku"] = {"$regex": sku, "$options": "i"}
+    if category: query["category"] = {"$regex": category, "$options": "i"}
+    if entry_type: query["entry_type"] = entry_type
     
-    # Apply filters
-    if warehouse_id:
-        query["warehouse_id"] = warehouse_id
-    if company_id:
-        query["company_id"] = company_id
-    if pi_number:
-        query["pi_number"] = {"$regex": pi_number, "$options": "i"}
-    if po_number:
-        query["po_number"] = {"$regex": po_number, "$options": "i"}
-    if sku:
-        query["sku"] = {"$regex": sku, "$options": "i"}
-    if category:
-        query["category"] = {"$regex": category, "$options": "i"}
-    if entry_type:
-        query["entry_type"] = entry_type  # NEW: Filter by entry type
-    
-    # Optimize: Pre-fetch and aggregate all pending in-transit quantities
-    pending_in_transit = {} # Key: SKU, Value: Total Qty
-    async for pickup in mongo_db.pickup_in_transit.find({"is_active": True, "is_inwarded": {"$ne": True}}, {"_id": 0}):
-        for item in pickup.get("line_items", []):
-            sku = item.get("sku")
-            if sku:
-                pending_in_transit[sku] = pending_in_transit.get(sku, 0) + float(item.get("quantity", 0))
+    # 1. Optimize: Aggregate all pending in-transit quantities by SKU
+    it_pipeline = [
+        {"$match": {"is_active": True, "is_inwarded": {"$ne": True}}},
+        {"$unwind": "$line_items"},
+        {"$group": {"_id": "$line_items.sku", "total": {"$sum": "$line_items.quantity"}}}
+    ]
+    it_results = await mongo_db.pickup_in_transit.aggregate(it_pipeline).to_list(length=None)
+    pending_in_transit = {r["_id"]: r["total"] for r in it_results if r["_id"]}
 
+    # 2. Fetch stock entries
     stock_entries = []
     async for stock in mongo_db.stock_tracking.find(query, {"_id": 0}):
-        # Calculate stock age (days since last update)
         last_updated_str = stock.get("last_updated", stock.get("created_at"))
         try:
-            last_updated = datetime.fromisoformat(last_updated_str)
+            last_updated = datetime.fromisoformat(last_updated_str.replace('Z', '+00:00'))
             stock_age_days = (datetime.now(timezone.utc) - last_updated).days
         except:
-            stock_age_days = 0
+            stock_age_days = "N/A"
         
-        # Determine stock status based on remaining_stock
         remaining = stock.get("remaining_stock", 0)
-        if remaining < 10:
-            stock_status = "Low Stock"
-        else:
-            stock_status = "Normal"
+        stock_status = "Low Stock" if remaining < 10 else "Normal"
+        if remaining <= 0: stock_status = "Out of Stock"
         
-        # Format PI & PO Number combined
-        pi_po_combined = f"{stock.get('pi_number', 'N/A')} / {stock.get('po_number', 'N/A')}"
-        
-        # Get pre-aggregated In-Transit quantity for this SKU
         in_transit_qty = pending_in_transit.get(stock.get("sku"), 0)
         
-        stock_summary = {
-            "id": stock.get("id"),  # For actions
+        stock_entries.append({
+            "id": stock.get("id"),
             "product_id": stock.get("product_id"),
             "product_name": stock.get("product_name"),
             "sku": stock.get("sku"),
-            "color": stock.get("color", "N/A"),  # NEW: Add color
-            "pi_po_number": pi_po_combined,  # Combined column
-            "pi_number": stock.get("pi_number", "N/A"),  # Individual for filtering
-            "po_number": stock.get("po_number", "N/A"),  # Individual for filtering
+            "color": stock.get("color", "N/A"),
+            "pi_po_number": f"{stock.get('pi_number', 'N/A')} / {stock.get('po_number', 'N/A')}",
+            "pi_number": stock.get("pi_number", "N/A"),
+            "po_number": stock.get("po_number", "N/A"),
             "category": stock.get("category", "Unknown"),
             "warehouse_id": stock.get("warehouse_id"),
             "warehouse_name": stock.get("warehouse_name", "Unknown"),
             "company_id": stock.get("company_id"),
             "company_name": stock.get("company_name", "Unknown"),
-            "in_transit": in_transit_qty,  # NEW: In-transit quantity
+            "in_transit": in_transit_qty,
             "quantity_inward": stock.get("quantity_inward", 0),
             "quantity_outward": stock.get("quantity_outward", 0),
             "remaining_stock": remaining,
             "status": stock_status,
             "age_days": stock_age_days,
             "last_updated": last_updated_str
-        }
-        
-        stock_entries.append(stock_summary)
+        })
     
-    # Sort by remaining stock (lowest first - for low stock visibility)
     stock_entries.sort(key=lambda x: x["remaining_stock"])
-    
     return stock_entries
+
 
 @api_router.get("/stock-summary/debug/{product_id}")
 async def debug_stock_tracking(
@@ -4895,7 +4858,10 @@ async def calculate_pl_report(
     request_data: dict,
     current_user: dict = Depends(get_current_active_user)
 ):
-    """Calculate P&L for selected export invoices with detailed breakdown"""
+    """
+    Calculate P&L for selected export invoices with detailed breakdown.
+    Optimized: Bulk fetches POs and Expenses to avoid N+1 queries.
+    """
     export_invoice_ids = request_data.get("export_invoice_ids", [])
     from_date = request_data.get("from_date")
     to_date = request_data.get("to_date")
@@ -4905,110 +4871,125 @@ async def calculate_pl_report(
     if not export_invoice_ids:
         raise HTTPException(status_code=400, detail="No export invoices selected")
     
-    # Initialize totals
+    # 1. Bulk Fetch Invoices
+    outwards = await mongo_db.outward_stock.find({"id": {"$in": export_invoice_ids}, "is_active": True}, {"_id": 0}).to_list(length=None)
+    if not outwards:
+        return {"summary": {}, "message": "No invoices found"}
+
+    # 2. Collect PI IDs and SKUs for rate lookup
+    pi_ids = []
+    skus = []
+    for o in outwards:
+        pi_ids.extend(o.get("pi_ids", []) or ([o.get("pi_id")] if o.get("pi_id") else []))
+        for item in o.get("line_items", []):
+            if item.get("sku"):
+                skus.append(item.get("sku"))
+    
+    # 3. Bulk fetch POs for rate mapping
+    # Strategy: Build a map of SKU -> Rate from linked POs or most recent POs
+    po_rate_map = {} # key: pi_id:sku, value: rate
+    global_rate_map = {} # key: sku, value: rate (fallback)
+    
+    po_query = {
+        "is_active": True,
+        "$or": [
+            {"reference_pi_id": {"$in": pi_ids}},
+            {"reference_pi_ids": {"$in": pi_ids}},
+            {"line_items.sku": {"$in": skus}} # In case line items have sku at top level or we search by sku
+        ]
+    }
+    # More robust: just fetch POs that might be relevant
+    relevant_pos = await mongo_db.purchase_orders.find(po_query, {"_id": 0}).to_list(length=None)
+    
+    for po in relevant_pos:
+        # Link to PIs
+        p_ids = po.get("reference_pi_ids", []) or ([po.get("reference_pi_id")] if po.get("reference_pi_id") else [])
+        for item in po.get("line_items", []):
+            item_sku = item.get("sku")
+            item_rate = float(item.get("rate", 0))
+            if item_sku:
+                for pid in p_ids:
+                    po_rate_map[f"{pid}:{item_sku}"] = item_rate
+                global_rate_map[item_sku] = item_rate
+
+    # 4. Bulk fetch Expenses
+    total_expenses = 0
+    expense_query = {
+        "is_active": True,
+        "export_invoice_ids": {"$in": export_invoice_ids}
+    }
+    expenses_list = await mongo_db.expenses.find(expense_query, {"_id": 0}).to_list(length=None)
+    for exp in expenses_list:
+        total_expenses += exp.get("total_expense", 0)
+
+    # 5. Process Invoices
     total_export_value = 0
     total_purchase_cost = 0
-    total_expenses = 0
     item_breakdown = []
     export_invoice_details = []
     
-    # Process each export invoice
-    for inv_id in export_invoice_ids:
-        outward = await mongo_db.outward_stock.find_one({"id": inv_id, "is_active": True}, {"_id": 0})
-        if not outward:
-            continue
+    for outward in outwards:
+        # Filters (Double check in memory)
+        if from_date and outward.get("date") < from_date: continue
+        if to_date and outward.get("date") > to_date: continue
+        if company_id and outward.get("company_id") != company_id: continue
         
-        # Apply filters
-        if from_date and outward.get("date") < from_date:
-            continue
-        if to_date and outward.get("date") > to_date:
-            continue
-        if company_id and outward.get("company_id") != company_id:
-            continue
-        
-        invoice_export_value = 0
-        invoice_purchase_cost = 0
+        inv_export_value = 0
+        inv_purchase_cost = 0
         invoice_items = []
         
-        # Process line items
+        inv_pi_ids = outward.get("pi_ids", []) or ([outward.get("pi_id")] if outward.get("pi_id") else [])
+        
         for item in outward.get("line_items", []):
-            # Apply SKU filter
             if sku_filter and sku_filter.lower() not in item.get("sku", "").lower():
                 continue
             
-            # Calculate export value
-            export_qty = item.get("quantity", 0)
-            export_rate = item.get("rate", 0)
-            export_value = export_qty * export_rate
+            qty = float(item.get("quantity", 0))
+            export_rate = float(item.get("rate", 0))
+            export_val = qty * export_rate
             
-            # Find purchase cost via PI reference (Option A)
-            purchase_cost = 0
-            pi_ids = outward.get("pi_ids", []) or ([outward.get("pi_id")] if outward.get("pi_id") else [])
-            
-            for pi_id in pi_ids:
-                # Get PO linked to this PI
-                po = await mongo_db.purchase_orders.find_one({"reference_pi_id": pi_id, "is_active": True}, {"_id": 0})
-                if po:
-                    # Find matching SKU in PO line items
-                    for po_item in po.get("line_items", []):
-                        if po_item.get("sku") == item.get("sku"):
-                            purchase_cost = export_qty * po_item.get("rate", 0)
-                            break
-                
-                if purchase_cost > 0:
+            # Lookup purchase rate
+            p_rate = 0
+            # Try PI specific PO rate first
+            for pid in inv_pi_ids:
+                if f"{pid}:{item.get('sku')}" in po_rate_map:
+                    p_rate = po_rate_map[f"{pid}:{item.get('sku')}"]
                     break
             
-            # If no PI reference, try direct SKU matching in all POs (Option B)
-            if purchase_cost == 0:
-                async for po in mongo_db.purchase_orders.find({"is_active": True}, {"_id": 0}):
-                    for po_item in po.get("line_items", []):
-                        if po_item.get("sku") == item.get("sku"):
-                            purchase_cost = export_qty * po_item.get("rate", 0)
-                            break
+            # Fallback to global rate for this SKU
+            if p_rate == 0:
+                p_rate = global_rate_map.get(item.get("sku"), 0)
+                
+            purchase_cost = qty * p_rate
+            inv_export_value += export_val
+            inv_purchase_cost += purchase_cost
             
-            invoice_export_value += export_value
-            invoice_purchase_cost += purchase_cost
-            
-            # Store item breakdown
             item_data = {
                 "sku": item.get("sku"),
                 "product_name": item.get("product_name"),
-                "export_qty": export_qty,
+                "export_qty": qty,
                 "export_rate": export_rate,
-                "export_value": export_value,
+                "export_value": export_val,
                 "purchase_cost": purchase_cost,
-                "item_gross": export_value - purchase_cost
+                "item_gross": export_val - purchase_cost
             }
             invoice_items.append(item_data)
-            item_breakdown.append({
-                **item_data,
-                "export_invoice_no": outward.get("export_invoice_no")
-            })
-        
-        total_export_value += invoice_export_value
-        total_purchase_cost += invoice_purchase_cost
+            item_breakdown.append({**item_data, "export_invoice_no": outward.get("export_invoice_no")})
+            
+        total_export_value += inv_export_value
+        total_purchase_cost += inv_purchase_cost
         
         export_invoice_details.append({
-            "id": inv_id,
+            "id": outward["id"],
             "export_invoice_no": outward.get("export_invoice_no"),
             "date": outward.get("date"),
-            "export_value": invoice_export_value,
-            "purchase_cost": invoice_purchase_cost,
+            "export_value": inv_export_value,
+            "purchase_cost": inv_purchase_cost,
             "items": invoice_items
         })
     
-    # Get expenses for these export invoices
-    async for expense in mongo_db.expenses.find({"is_active": True}, {"_id": 0}):
-        # Check if any of our export invoices are in this expense
-        expense_invoice_ids = expense.get("export_invoice_ids", [])
-        if any(inv_id in expense_invoice_ids for inv_id in export_invoice_ids):
-            total_expenses += expense.get("total_expense", 0)
-    
-    # Calculate P&L
+    # Final P&L Calculation
     gross_total = total_export_value - total_purchase_cost - total_expenses
-    
-    # GST Calculation (Inclusive: Gross / 1.18 = Net)
-    # The Net Profit is the base amount, and GST is the difference
     net_profit = gross_total / 1.18
     gst_amount = gross_total - net_profit
     net_profit_percentage = (net_profit / total_export_value * 100) if total_export_value > 0 else 0
@@ -5085,36 +5066,19 @@ async def get_pi_po_mapping_list(
 ):
     """
     List PI to PO mappings with pagination and filtering.
-    Returns aggregated data showing PIs with linked POs and SKU-level details.
+    Optimized: Bulk fetches all linked POs for the set of PIs on the current page.
     """
-    # Validate page size
-    if page_size > 200:
-        page_size = 200
-    if page_size < 1:
-        page_size = 50
-    
+    if page_size > 200: page_size = 200
+    if page_size < 1: page_size = 50
     skip = (page - 1) * page_size
     
-    # Build PI query
     pi_query = {"is_active": True}
-    
-    # Apply filters
-    if pi_number:
-        pi_query["voucher_no"] = {"$regex": pi_number, "$options": "i"}
-    
-    if consignee:
-        pi_query["consignee"] = {"$regex": consignee, "$options": "i"}
-    
-    if from_date:
-        pi_query["date"] = {"$gte": from_date}
-    
+    if pi_number: pi_query["voucher_no"] = {"$regex": pi_number, "$options": "i"}
+    if consignee: pi_query["consignee"] = {"$regex": consignee, "$options": "i"}
+    if from_date: pi_query["date"] = {"$gte": from_date}
     if to_date:
-        if "date" in pi_query:
-            pi_query["date"]["$lte"] = to_date
-        else:
-            pi_query["date"] = {"$lte": to_date}
-    
-    # Search across multiple fields
+        if "date" in pi_query: pi_query["date"]["$lte"] = to_date
+        else: pi_query["date"] = {"$lte": to_date}
     if search:
         pi_query["$or"] = [
             {"voucher_no": {"$regex": search, "$options": "i"}},
@@ -5123,22 +5087,38 @@ async def get_pi_po_mapping_list(
             {"line_items.product_name": {"$regex": search, "$options": "i"}}
         ]
     
-    # Get total count for pagination
     total_count = await mongo_db.proforma_invoices.count_documents(pi_query)
+    pis = await mongo_db.proforma_invoices.find(pi_query, {"_id": 0}).sort("date", -1).skip(skip).limit(page_size).to_list(length=None)
     
-    # Fetch PIs with pagination
+    if not pis:
+        return {"data": [], "total_count": 0, "page": page, "page_size": page_size}
+
+    pi_ids = [pi["id"] for pi in pis]
+    
+    # Bulk fetch all linked POs
+    po_query = {
+        "is_active": True,
+        "$or": [
+            {"reference_pi_id": {"$in": pi_ids}},
+            {"reference_pi_ids": {"$in": pi_ids}}
+        ]
+    }
+    if po_number:
+        po_query["voucher_no"] = {"$regex": po_number, "$options": "i"}
+        
+    all_linked_pos = await mongo_db.purchase_orders.find(po_query, {"_id": 0}).to_list(length=None)
+    
+    # Map PIs to their POs
+    pi_to_pos = {pi_id: [] for pi_id in pi_ids}
+    for po in all_linked_pos:
+        ref_ids = po.get("reference_pi_ids", []) or ([po.get("reference_pi_id")] if po.get("reference_pi_id") else [])
+        for rid in ref_ids:
+            if rid in pi_to_pos:
+                pi_to_pos[rid].append(po)
+
     mappings = []
-    cursor = mongo_db.proforma_invoices.find(pi_query, {"_id": 0}).sort("date", -1).skip(skip).limit(page_size)
-    
-    async for pi in cursor:
+    for pi in pis:
         pi_id = pi.get("id")
-        pi_number_val = pi.get("voucher_no")
-        consignee_val = pi.get("consignee", "")
-        
-        # Calculate PI total quantity
-        pi_total_quantity = sum(item.get("quantity", 0) for item in pi.get("line_items", []))
-        
-        # Build PI items list
         pi_items = []
         for item in pi.get("line_items", []):
             pi_items.append({
@@ -5147,72 +5127,42 @@ async def get_pi_po_mapping_list(
                 "pi_quantity": item.get("quantity", 0),
                 "pi_rate": item.get("rate", 0)
             })
-        
-        # Find linked POs
-        po_query = {
-            "$or": [
-                {"reference_pi_id": pi_id},
-                {"reference_pi_ids": pi_id}
-            ],
-            "is_active": True
-        }
-        
-        # Apply PO number filter if provided
-        if po_number:
-            po_query["voucher_no"] = {"$regex": po_number, "$options": "i"}
-        
-        linked_pos = []
-        po_cursor = mongo_db.purchase_orders.find(po_query, {"_id": 0}).sort("date", 1)
-        
-        async for po in po_cursor:
-            po_items = []
             
+        linked_pos = []
+        pi_linked_pos = pi_to_pos.get(pi_id, [])
+        for po in pi_linked_pos:
+            po_items = []
             for po_item in po.get("line_items", []):
                 po_sku = po_item.get("sku", "")
-                
-                # Find matching PI item for this SKU
                 pi_item = next((item for item in pi_items if item["sku"] == po_sku), None)
-                
                 if pi_item:
-                    po_quantity = po_item.get("quantity", 0)
-                    pi_quantity = pi_item["pi_quantity"]
-                    
-                    # Calculate remaining for this PO item (other POs might also have quantities)
-                    # For now, simple calculation per PO
-                    remaining = pi_quantity - po_quantity
-                    
                     po_items.append({
                         "sku": po_sku,
                         "product_name": po_item.get("product_name", ""),
-                        "po_quantity": po_quantity,
+                        "po_quantity": po_item.get("quantity", 0),
                         "po_rate": po_item.get("rate", 0),
-                        "pi_quantity": pi_quantity,
+                        "pi_quantity": pi_item["pi_quantity"],
                         "pi_rate": pi_item["pi_rate"],
-                        "remaining_quantity": remaining
+                        "remaining_quantity": pi_item["pi_quantity"] - po_item.get("quantity", 0)
                     })
-            
-            if po_items:  # Only include POs that have matching items
+            if po_items:
                 linked_pos.append({
-                    "po_number": po.get("voucher_no"),
+                    "po_number": po.get("voucher_no") or po.get("po_no"),
                     "po_date": po.get("date"),
                     "po_id": po.get("id"),
                     "items": po_items
                 })
         
-        # Apply SKU filter if provided (filter at mapping level)
+        # Skill filter check
         if sku:
-            # Check if any PI item or linked PO item matches the SKU
-            has_sku = any(item["sku"].lower().find(sku.lower()) >= 0 for item in pi_items)
-            if not has_sku and linked_pos:
-                has_sku = any(
-                    any(item["sku"].lower().find(sku.lower()) >= 0 for item in po["items"])
-                    for po in linked_pos
-                )
+            has_sku = any(sku.lower() in item["sku"].lower() for item in pi_items)
             if not has_sku:
-                continue
-        
+                has_sku = any(any(sku.lower() in item["sku"].lower() for item in po["items"]) for po in linked_pos)
+            if not has_sku: continue
+
         mappings.append({
             "id": pi_id,
+
             "consignee": consignee_val,
             "pi_number": pi_number_val,
             "pi_date": pi.get("date"),
@@ -5628,15 +5578,16 @@ async def get_outward_quantity(
 
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats(current_user: dict = Depends(get_current_active_user)):
+    """
+    Get dashboard statistics with optimized aggregation.
+    """
     total_companies = await mongo_db.companies.count_documents({"is_active": True})
     total_warehouses = await mongo_db.warehouses.count_documents({"is_active": True})
     total_products = await mongo_db.products.count_documents({"is_active": True})
-    
-    # Count PIs and POs
     total_pis = await mongo_db.proforma_invoices.count_documents({"is_active": True})
     total_pos = await mongo_db.purchase_orders.count_documents({"is_active": True})
     
-    # Calculate Total Stock Inward (Sum of all line item quantities)
+    # Calculate Total Stock Inward (Optimized)
     inward_pipeline = [
         {"$match": {"is_active": True}},
         {"$unwind": "$line_items"},
@@ -5645,23 +5596,53 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_active_us
     inward_result = await mongo_db.inward_stock.aggregate(inward_pipeline).to_list(1)
     total_stock_inward = inward_result[0]["total_qty"] if inward_result else 0
     
-    # Calculate Total Stock Outward with Deduplication
-    # (Avoid double-counting when a Dispatch Plan is converted to an Export Invoice)
-    all_outwards = await mongo_db.outward_stock.find({"is_active": True}, {"id": 1, "dispatch_type": 1, "dispatch_plan_id": 1, "line_items": 1}).to_list(None)
+    # Calculate Total Stock Outward (Optimized with Deduplication)
+    # Strategy: Aggregation with $lookup to find if a dispatch_plan is already invoiced
+    outward_pipeline = [
+        {"$match": {"is_active": True}},
+        # Identify dispatch plans and check if they have a corresponding export invoice
+        {"$project": {
+            "id": 1,
+            "dispatch_type": 1,
+            "dispatch_plan_id": 1,
+            "line_items": 1
+        }},
+        # Group to find all plan IDs that are invoiced
+        {"$facet": {
+            "invoiced_plans": [
+                {"$match": {"dispatch_type": "export_invoice", "dispatch_plan_id": {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": None, "ids": {"$addToSet": "$dispatch_plan_id"}}}
+            ],
+            "all_entries": [
+                {"$match": {}}
+            ]
+        }},
+        {"$unwind": "$all_entries"},
+        {"$project": {
+            "entry": "$all_entries",
+            "invoiced_plan_ids": {"$ifNull": [{"$arrayElemAt": ["$invoiced_plans.ids", 0]}, []]}
+        }},
+        # Filter: Skip if dispatch_plan AND in invoiced_plan_ids
+        {"$match": {
+            "$expr": {
+                "$not": {
+                    "$and": [
+                        {"$eq": ["$entry.dispatch_type", "dispatch_plan"]},
+                        {"$in": ["$entry.id", "$invoiced_plan_ids"]}
+                    ]
+                }
+            }
+        }},
+        {"$unwind": "$entry.line_items"},
+        {"$group": {
+            "_id": None,
+            "total_qty": {"$sum": {"$ifNull": ["$entry.line_items.quantity", "$entry.line_items.dispatch_quantity"]}}
+        }}
+    ]
     
-    # Get IDs of dispatch plans that are now export invoices
-    invoiced_plan_ids = {o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_type") == "export_invoice" and o.get("dispatch_plan_id")}
+    outward_result = await mongo_db.outward_stock.aggregate(outward_pipeline).to_list(1)
+    total_stock_outward = outward_result[0]["total_qty"] if outward_result else 0
     
-    total_stock_outward = 0
-    for outward in all_outwards:
-        # Skip if this is a dispatch plan that has already been fulfilled by an export invoice
-        if outward.get("dispatch_type") == "dispatch_plan" and outward.get("id") in invoiced_plan_ids:
-            continue
-            
-        for item in outward.get("line_items", []):
-            total_stock_outward += item.get("quantity", 0)
-    
-    # Count Pending PIs and POs
     pending_pis = await mongo_db.proforma_invoices.count_documents({
         "is_active": True,
         "status": {"$in": ["Pending", "Draft"]}
@@ -5683,6 +5664,7 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_active_us
         "pending_pis": pending_pis,
         "pending_pos": pending_pos
     }
+
 
 # Include router in app
 # ==================== CUSTOMER TRACKING ====================
@@ -5823,162 +5805,123 @@ async def get_purchase_analysis(
 ):
     """
     Purchase Analysis Module
-    Filter by Company and PI, then display all linked POs with quantities
+    Optimized: Bulk fetches all inward and in-transit records for performance.
     """
     try:
-        # Parse filters
         company_id_list = company_ids.split(",") if company_ids else []
         pi_number_list = pi_numbers.split(",") if pi_numbers else []
         
         if not company_id_list or not pi_number_list:
             return {"message": "Please select Company and PI Number filters", "data": []}
         
-        # Build PI query
-        # Some PIs might have company_id as a string name instead of UUID
-        # Fetch company names for the given IDs
+        # 1. Fetch Company Names for mapping (PIs might use names)
         expanded_company_ids = list(company_id_list)
         async for company in mongo_db.companies.find({"id": {"$in": company_id_list}}):
             if company.get("name"):
                 expanded_company_ids.append(company["name"])
         
+        # 2. Fetch PIs
         pi_query = {
             "company_id": {"$in": expanded_company_ids},
             "voucher_no": {"$in": pi_number_list},
             "is_active": True
         }
-        
-        # Fetch all matching PIs
-        pis = []
-        async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}):
-            pis.append(pi)
-        
+        pis = await mongo_db.proforma_invoices.find(pi_query, {"_id": 0}).to_list(None)
         if not pis:
             return {"message": "No PIs found for selected filters", "data": []}
         
-        # Get all PI IDs
         pi_ids = [pi.get("id") for pi in pis]
         
-        # Fetch all POs linked to these PIs
+        # 3. Fetch POs linked to these PIs
         po_query = {
             "$or": [
                 {"reference_pi_id": {"$in": pi_ids}},
                 {"reference_pi_ids": {"$in": pi_ids}},
-                {"pi_id": {"$in": pi_ids}} # Some POS use pi_id
+                {"pi_id": {"$in": pi_ids}}
             ],
             "is_active": True
         }
-        
-        pos = []
-        async for po in mongo_db.purchase_orders.find(po_query, {"_id": 0}):
-            pos.append(po)
-        
-        # Build analysis data
+        pos = await mongo_db.purchase_orders.find(po_query, {"_id": 0}).to_list(None)
+        po_ids = [po["id"] for po in pos]
+
+        # 4. Bulk fetch Inward and In-Transit records for all POs
+        inwards = await mongo_db.inward_stock.find({
+            "po_id": {"$in": po_ids},
+            "inward_type": "warehouse",
+            "is_active": True
+        }, {"_id": 0}).to_list(None)
+
+        pickups = await mongo_db.pickup_in_transit.find({
+            "po_id": {"$in": po_ids},
+            "is_active": True,
+            "is_inwarded": {"$ne": True}
+        }, {"_id": 0}).to_list(None)
+
+        # 5. Process everything in memory
         analysis_data = []
-        
         for po in pos:
-            po_number = po.get("voucher_no")
+            po_number = po.get("voucher_no") or po.get("po_no")
             po_id = po.get("id")
+            ref_pi_ids = po.get("reference_pi_ids", [])
+            if not ref_pi_ids and po.get("reference_pi_id"):
+                ref_pi_ids = [po.get("reference_pi_id")]
             
-            # Get reference PI IDs from PO
-            reference_pi_ids = po.get("reference_pi_ids", [])
-            if not reference_pi_ids and po.get("reference_pi_id"):
-                reference_pi_ids = [po.get("reference_pi_id")]
-            
-            # For each product in PO
             for po_item in po.get("line_items", []):
                 product_id = po_item.get("product_id")
-                product_name = po_item.get("product_name")
                 sku = po_item.get("sku")
                 po_quantity = float(po_item.get("quantity", 0))
                 
-                # Find matching PI and get PI quantity
+                # Find matching PI and quantity
                 pi_quantity = 0
                 buyer = "N/A"
-                pi_number = "N/A"
-                
+                pi_no = "N/A"
                 for pi in pis:
-                    if pi.get("id") in reference_pi_ids:
+                    if pi.get("id") in ref_pi_ids:
                         buyer = pi.get("buyer", "N/A")
-                        pi_number = pi.get("voucher_no", "N/A")
-                        
-                        # Find matching product in PI
+                        pi_no = pi.get("voucher_no", "N/A")
                         for pi_item in pi.get("line_items", []):
-                            # Match by product_id OR SKU
-                            matched = False
-                            if product_id and pi_item.get("product_id") == product_id:
-                                matched = True
-                            elif sku and pi_item.get("sku") == sku:
-                                matched = True
-                                
-                            if matched:
+                            if (product_id and pi_item.get("product_id") == product_id) or (sku and pi_item.get("sku") == sku):
                                 pi_quantity = float(pi_item.get("quantity", 0))
                                 break
                         break
                 
-                # Calculate Inward Quantity (including pick-up based inwards)
+                # Calculate Inward Qty from bulk data
                 inward_quantity = 0
-                async for inward in mongo_db.inward_stock.find({
-                    "$or": [{"po_id": po_id}, {"po_ids": po_id}],
-                    "inward_type": "warehouse",
-                    "is_active": True
-                }, {"_id": 0}):
-                    for inward_item in inward.get("line_items", []):
-                        # Match by product_id OR SKU OR by PO line item ID (id)
-                        matched = False
-                        if product_id and inward_item.get("product_id") == product_id:
-                            matched = True
-                        elif sku and inward_item.get("sku") == sku:
-                            matched = True
-                        elif (inward_item.get("id") == po_item.get("id") and po_item.get("id")):
-                            matched = True
-                            
-                        if matched:
-                            inward_quantity += float(inward_item.get("quantity", 0))
+                for inward in inwards:
+                    if inward.get("po_id") == po_id:
+                        for item in inward.get("line_items", []):
+                            if (product_id and item.get("product_id") == product_id) or (sku and item.get("sku") == sku) or (item.get("id") == po_item.get("id") and po_item.get("id")):
+                                inward_quantity += float(item.get("quantity", 0))
                 
-                # Calculate In-Transit Quantity (only PENDING ones)
+                # Calculate In-Transit Qty from bulk data
                 intransit_quantity = 0
-                async for pickup in mongo_db.pickup_in_transit.find({
-                    "$or": [{"po_id": po_id}, {"po_ids": po_id}],
-                    "is_active": True,
-                    "is_inwarded": {"$ne": True}
-                }, {"_id": 0}):
-                    for pickup_item in pickup.get("line_items", []):
-                        # Match by product_id OR SKU OR by PO line item ID (id)
-                        matched = False
-                        if product_id and pickup_item.get("product_id") == product_id:
-                            matched = True
-                        elif sku and pickup_item.get("sku") == sku:
-                            matched = True
-                        elif (pickup_item.get("id") == po_item.get("id") and po_item.get("id")):
-                            matched = True
-                            
-                        if matched:
-                            intransit_quantity += float(pickup_item.get("quantity", 0))
+                for pickup in pickups:
+                    if pickup.get("po_id") == po_id:
+                        for item in pickup.get("line_items", []):
+                            if (product_id and item.get("product_id") == product_id) or (sku and item.get("sku") == sku) or (item.get("id") == po_item.get("id") and po_item.get("id")):
+                                intransit_quantity += float(item.get("quantity", 0))
                 
-                # Calculate Remaining (PO Qty - Inward - In-Transit)
-                remaining_quantity = po_quantity - inward_quantity - intransit_quantity
-                
-                # Add to analysis data
                 analysis_data.append({
                     "buyer": buyer,
-                    "product_name": product_name,
+                    "product_name": po_item.get("product_name"),
                     "sku": sku,
-                    "pi_number": pi_number,
+                    "pi_number": pi_no,
                     "pi_quantity": pi_quantity,
                     "po_number": po_number,
                     "po_quantity": po_quantity,
                     "inward_quantity": inward_quantity,
                     "intransit_quantity": intransit_quantity,
-                    "remaining_quantity": remaining_quantity
+                    "remaining_quantity": po_quantity - inward_quantity - intransit_quantity
                 })
         
         return {"data": analysis_data, "count": len(analysis_data)}
         
     except Exception as e:
-        print(f"Error in purchase analysis: {str(e)}")
+        logger.error(f"Error in purchase analysis: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ==================== PICKUP (IN-TRANSIT) ROUTES ====================
 # @api_router.get("/pos/lines-with-stats")
@@ -6093,38 +6036,43 @@ async def get_po_lines_with_stats(
     - In-Transit (from pickup_in_transit collection)
     
     Query param: voucher_no (can be a single voucher or comma-separated list of vouchers)
+    Optimized: Bulk fetches all inward and in-transit records.
     """
     try:
         voucher_nos = [v.strip() for v in voucher_no.split(",") if v.strip()]
         if not voucher_nos:
              raise HTTPException(status_code=400, detail="At least one voucher number is required")
 
-        # Find all POs by voucher numbers
-        pos_cursor = mongo_db.purchase_orders.find({"voucher_no": {"$in": voucher_nos}, "is_active": True}, {"_id": 0})
-        pos = await pos_cursor.to_list(length=100)
-        
+        # 1. Find all POs by voucher numbers
+        pos = await mongo_db.purchase_orders.find({"voucher_no": {"$in": voucher_nos}, "is_active": True}, {"_id": 0}).to_list(length=100)
         if not pos:
             raise HTTPException(status_code=404, detail=f"No active POs found for vouchers: {voucher_no}")
         
         po_ids = [po.get("id") for po in pos]
         
-        # Aggregate all referenced PIs from all POs
+        # 2. Collect and aggregate all referenced PIs
         all_pi_ids = []
         for po in pos:
-            reference_pi_ids = po.get("reference_pi_ids", [])
-            if not reference_pi_ids and po.get("reference_pi_id"):
-                reference_pi_ids = [po.get("reference_pi_id")]
-            all_pi_ids.extend(reference_pi_ids)
-        
-        all_pi_ids = list(set(all_pi_ids))
+            ref_ids = po.get("reference_pi_ids", [])
+            if not ref_ids and po.get("reference_pi_id"):
+                ref_ids = [po.get("reference_pi_id")]
+            all_pi_ids.extend(ref_ids)
         
         pis = []
         if all_pi_ids:
-            async for pi in mongo_db.proforma_invoices.find({"id": {"$in": all_pi_ids}, "is_active": True}, {"_id": 0}):
-                pis.append(pi)
+            pis = await mongo_db.proforma_invoices.find({"id": {"$in": list(set(all_pi_ids))}, "is_active": True}, {"_id": 0}).to_list(None)
         
-        # Build aggregated line items with stats
-        # We group by product (SKU + Product Name)
+        # 3. Bulk fetch ALL inward stock for these POs
+        inwards = await mongo_db.inward_stock.find({"po_id": {"$in": po_ids}, "is_active": True}, {"_id": 0}).to_list(None)
+        
+        # 4. Bulk fetch ALL in-transit (pickups) for these POs
+        pickups = await mongo_db.pickup_in_transit.find({
+            "po_id": {"$in": po_ids}, 
+            "is_active": True, 
+            "is_inwarded": {"$ne": True}
+        }, {"_id": 0}).to_list(None)
+        
+        # 5. Build lookup maps for fast access
         aggregated_stats = {} # key: product_key (sku or product_id)
 
         for po in pos:
@@ -6132,75 +6080,51 @@ async def get_po_lines_with_stats(
             for po_item in po.get("line_items", []):
                 po_item_id = po_item.get("id")
                 product_id = po_item.get("product_id")
-                product_name = po_item.get("product_name")
                 sku = po_item.get("sku")
-                po_quantity = float(po_item.get("quantity", 0))
-                rate = float(po_item.get("rate", 0))
-                
-                # Create a stable key for grouping
-                # If SKU exists, use SKU. Otherwise use product_id.
                 product_key = sku if sku else product_id
                 
                 if product_key not in aggregated_stats:
                     aggregated_stats[product_key] = {
-                        "ids": [], # Support multiple line item IDs if same product across POs
+                        "ids": [], 
                         "product_id": product_id,
-                        "product_name": product_name,
+                        "product_name": po_item.get("product_name"),
                         "sku": sku,
                         "pi_quantity": 0,
                         "po_quantity": 0,
                         "already_inwarded": 0,
                         "in_transit": 0,
-                        "rate": rate # Last seen rate or could average
+                        "rate": float(po_item.get("rate", 0))
                     }
                 
                 stats = aggregated_stats[product_key]
                 stats["ids"].append(po_item_id)
-                stats["po_quantity"] += po_quantity
+                stats["po_quantity"] += float(po_item.get("quantity", 0))
                 
-                # Fetch PI quantity for this product (from all referenced PIs)
-                # This could be optimized but sticking to the existing logic for now
+                # Fetch PI quantity for this product from relevant PIs
                 for pi in pis:
                     for pi_item in pi.get("line_items", []):
-                        if sku and pi_item.get("sku") == sku:
-                             stats["pi_quantity"] += float(pi_item.get("quantity", 0))
-                        elif not sku and pi_item.get("product_id") == product_id:
+                        if (sku and pi_item.get("sku") == sku) or (not sku and pi_item.get("product_id") == product_id):
                              stats["pi_quantity"] += float(pi_item.get("quantity", 0))
 
-                # Calculate already inwarded and in-transit for this SPECIFIC PO item
-                # Actually, the user might want AGGREGATED inward status for this product across these POs
-                # But inward_stock entries are linked to po_id.
+                # Calculate already inwarded from bulk data
+                for inward in inwards:
+                    if inward.get("po_id") == po_id:
+                        for inward_item in inward.get("line_items", []):
+                            if inward_item.get("id") == po_item_id or (not inward_item.get("id") and sku and inward_item.get("sku") == sku):
+                                stats["already_inwarded"] += float(inward_item.get("quantity", 0))
                 
-                # Fetch already inwarded for this po_item_id across all selected POs
-                # Wait, inward_stock entries have a po_id field.
-                async for inward in mongo_db.inward_stock.find({
-                    "po_id": po_id,
-                    "is_active": True
-                }, {"_id": 0}):
-                    for inward_item in inward.get("line_items", []):
-                        if inward_item.get("id") == po_item_id:
-                            stats["already_inwarded"] += float(inward_item.get("quantity", 0))
-                        elif sku and inward_item.get("sku") == sku and not inward_item.get("id"):
-                            # Fallback for old data without line item IDs
-                            stats["already_inwarded"] += float(inward_item.get("quantity", 0))
-                
-                # Calculate in-transit (only pending ones)
-                async for pickup in mongo_db.pickup_in_transit.find({
-                    "po_id": po_id,
-                    "is_active": True,
-                    "is_inwarded": {"$ne": True}
-                }, {"_id": 0}):
-                    for pickup_item in pickup.get("line_items", []):
-                        if pickup_item.get("id") == po_item_id:
-                            stats["in_transit"] += float(pickup_item.get("quantity", 0))
-                        elif sku and pickup_item.get("sku") == sku and not pickup_item.get("id"):
-                             stats["in_transit"] += float(pickup_item.get("quantity", 0))
+                # Calculate in-transit from bulk data
+                for pickup in pickups:
+                    if pickup.get("po_id") == po_id:
+                        for pickup_item in pickup.get("line_items", []):
+                            if pickup_item.get("id") == po_item_id or (not pickup_item.get("id") and sku and pickup_item.get("sku") == sku):
+                                stats["in_transit"] += float(pickup_item.get("quantity", 0))
 
-        # Prepare final list
+        # 6. Prepare final response
         line_stats = []
         for key, stats in aggregated_stats.items():
             stats["available_for_pickup"] = stats["po_quantity"] - stats["already_inwarded"] - stats["in_transit"]
-            # For the ID field, we take the FIRST ID if there's only one, or use the key
+            # ID is first line item ID or product key
             stats["id"] = stats["ids"][0] if stats["ids"] else key
             line_stats.append(stats)
             
@@ -6216,7 +6140,10 @@ async def get_po_lines_with_stats(
         raise
     except Exception as e:
         logger.error(f"Error fetching PO line stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # @api_router.post("/pickups")
 # async def create_pickup(

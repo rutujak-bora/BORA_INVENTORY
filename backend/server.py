@@ -5687,9 +5687,17 @@ async def get_customer_tracking(
         pi_query["voucher_no"] = {"$regex": pi_number, "$options": "i"}
     
     async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}).sort("date", -1):
-        # Get customer/company details
-        customer = await mongo_db.companies.find_one({"id": pi.get("customer_id")}, {"_id": 0})
-        customer_name_str = customer.get("name") if customer else "Unknown"
+        # Get customer/company details - try company_id first, fallback to buyer/consignee
+        customer = None
+        if pi.get("company_id"):
+            customer = await mongo_db.companies.find_one({"id": pi.get("company_id")}, {"_id": 0})
+        if not customer and pi.get("customer_id"):
+            customer = await mongo_db.companies.find_one({"id": pi.get("customer_id")}, {"_id": 0})
+        # Fallback: use buyer or consignee field directly from PI
+        if customer:
+            customer_name_str = customer.get("name", "Unknown")
+        else:
+            customer_name_str = pi.get("buyer") or pi.get("consignee") or pi.get("company_name") or "Unknown"
         
         # Filter by customer name if provided
         if customer_name and customer_name.lower() not in customer_name_str.lower():
@@ -5704,10 +5712,14 @@ async def get_customer_tracking(
             inwarded_quantity = 0.0
             inward_details = []
             
-            # Find POs linked to this PI
+            # Find POs linked to this PI - check all possible reference fields
             linked_pos = []
             async for po in mongo_db.purchase_orders.find({
-                "reference_pi_ids": pi["id"],
+                "$or": [
+                    {"reference_pi_ids": pi["id"]},
+                    {"reference_pi_id": pi["id"]},
+                    {"pi_id": pi["id"]}
+                ],
                 "is_active": True
             }, {"_id": 0}):
                 linked_pos.append(po)
@@ -5716,15 +5728,16 @@ async def get_customer_tracking(
             for po in linked_pos:
                 async for inward in mongo_db.inward_stock.find({
                     "po_id": po["id"],
-                    "inward_type": "warehouse",
                     "is_active": True
                 }, {"_id": 0}):
                     for inward_item in inward.get("line_items", []):
-                        if inward_item.get("product_id") == product_id:
+                        # Match by product_id or SKU
+                        if (inward_item.get("product_id") == product_id or
+                            (pi_item.get("sku") and inward_item.get("sku") == pi_item.get("sku"))):
                             qty = float(inward_item.get("quantity", 0))
                             inwarded_quantity += qty
                             inward_details.append({
-                                "po_number": po.get("po_no"),
+                                "po_number": po.get("voucher_no") or po.get("po_no"),
                                 "inward_invoice_no": inward.get("inward_invoice_no"),
                                 "date": inward.get("date"),
                                 "quantity": qty
@@ -5791,7 +5804,7 @@ async def get_customer_tracking(
                 "remaining_quantity_dispatch": remaining_dispatch,
                 "inward_details": inward_details,
                 "dispatch_details": dispatch_details,
-                "linked_po_numbers": [po.get("po_no") for po in linked_pos],
+                "linked_po_numbers": [po.get("voucher_no") or po.get("po_no") for po in linked_pos],
                 "status": "Completed" if remaining_dispatch == 0 else "Pending"
             })
     

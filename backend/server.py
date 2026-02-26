@@ -5160,9 +5160,12 @@ async def get_pi_po_mapping_list(
                 has_sku = any(any(sku.lower() in item["sku"].lower() for item in po["items"]) for po in linked_pos)
             if not has_sku: continue
 
+        consignee_val = pi.get("consignee") or pi.get("buyer") or "N/A"
+        pi_number_val = pi.get("voucher_no", "N/A")
+        pi_total_quantity = sum(item.get("pi_quantity", 0) for item in pi_items)
+
         mappings.append({
             "id": pi_id,
-
             "consignee": consignee_val,
             "pi_number": pi_number_val,
             "pi_date": pi.get("date"),

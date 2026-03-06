@@ -2570,41 +2570,63 @@ async def delete_pickup(
 # ==================== INWARD STOCK ROUTES ====================
 
 @api_router.get("/inward-stock")
-
 async def get_inward_stock(
     inward_type: Optional[str] = None,
     current_user: dict = Depends(get_current_active_user)
 ):
-    """Get all inward stock entries with optional filtering"""
+    """Get all inward stock entries with optional filtering - Optimized with bulk fetching"""
     query = {"is_active": True}
     if inward_type:
         query["inward_type"] = inward_type
     
-    inward_entries = []
-    async for entry in mongo_db.inward_stock.find(query, {"_id": 0}):
-        # Get company details
+    inward_entries = await mongo_db.inward_stock.find(query, {"_id": 0}).to_list(length=None)
+    
+    if not inward_entries:
+        return []
+
+    # Collect unique IDs for bulk lookup
+    po_ids = list(set(entry.get("po_id") for entry in inward_entries if entry.get("po_id")))
+    company_ids = list(set(entry.get("company_id") for entry in inward_entries if entry.get("company_id")))
+    warehouse_ids = list(set(entry.get("warehouse_id") for entry in inward_entries if entry.get("warehouse_id")))
+    
+    # Bulk fetch POs if any
+    pos_map = {}
+    if po_ids:
+        pos = await mongo_db.purchase_orders.find({"id": {"$in": po_ids}}, {"_id": 0, "id": 1, "voucher_no": 1, "company_id": 1}).to_list(length=None)
+        pos_map = {po["id"]: po for po in pos}
+        
+    # Bulk fetch Companies if any
+    companies_map = {}
+    if company_ids:
+        companies = await mongo_db.companies.find({"id": {"$in": company_ids}}, {"_id": 0}).to_list(length=None)
+        companies_map = {c["id"]: c for c in companies}
+        
+    # Bulk fetch Warehouses if any
+    warehouses_map = {}
+    if warehouse_ids:
+        warehouses = await mongo_db.warehouses.find({"id": {"$in": warehouse_ids}}, {"_id": 0}).to_list(length=None)
+        warehouses_map = {w["id"]: w for w in warehouses}
+        
+    # Map bulk data back to entries
+    for entry in inward_entries:
+        po_id = entry.get("po_id")
         company_id = entry.get("company_id")
         
-        # Always fetch PO details if po_id exists to get voucher_no
-        po_id = entry.get("po_id")
-        if po_id:
-            po = await mongo_db.purchase_orders.find_one({"id": po_id}, {"_id": 0})
-            if po:
-                entry["po_voucher_no"] = po.get("voucher_no")
-                if not company_id:
-                    company_id = po.get("company_id")
+        # Link PO details
+        if po_id and po_id in pos_map:
+            entry["po_voucher_no"] = pos_map[po_id].get("voucher_no")
+            if not company_id:
+                company_id = pos_map[po_id].get("company_id")
         
-        if company_id:
-            company = await mongo_db.companies.find_one({"id": company_id}, {"_id": 0})
-            entry["company"] = company
+        # Link Company details
+        if company_id and company_id in companies_map:
+            entry["company"] = companies_map[company_id]
                 
-        # Get warehouse details
-        if entry.get("warehouse_id"):
-            warehouse = await mongo_db.warehouses.find_one({"id": entry["warehouse_id"]}, {"_id": 0})
-            entry["warehouse"] = warehouse
+        # Link Warehouse details
+        warehouse_id = entry.get("warehouse_id")
+        if warehouse_id and warehouse_id in warehouses_map:
+            entry["warehouse"] = warehouses_map[warehouse_id]
             
-        inward_entries.append(entry)
-    
     return inward_entries
 
 # ==================== INWARD STOCK ENHANCEMENTS ====================
@@ -3378,41 +3400,67 @@ async def get_outward_stock(
     dispatch_type: Optional[str] = None,
     current_user: dict = Depends(get_current_active_user)
 ):
-    """Get all outward stock entries with optional filtering"""
+    """Get all outward stock entries with optional filtering - Optimized with bulk fetching"""
     query = {"is_active": True}
     if dispatch_type:
         query["dispatch_type"] = dispatch_type
     
-    outward_entries = []
-    async for entry in mongo_db.outward_stock.find(query, {"_id": 0}):
-        # Get company details
-        if entry.get("company_id"):
-            company = await mongo_db.companies.find_one({"id": entry["company_id"]}, {"_id": 0})
-            entry["company"] = company
-            
-        # Get warehouse details
-        if entry.get("warehouse_id"):
-            warehouse = await mongo_db.warehouses.find_one({"id": entry["warehouse_id"]}, {"_id": 0})
-            entry["warehouse"] = warehouse
-            
-        # Get PI details (support multiple PIs)
+    outward_entries = await mongo_db.outward_stock.find(query, {"_id": 0}).to_list(length=None)
+    
+    if not outward_entries:
+        return []
+        
+    # Collect unique IDs for bulk lookup
+    company_ids = list(set(entry.get("company_id") for entry in outward_entries if entry.get("company_id")))
+    warehouse_ids = list(set(entry.get("warehouse_id") for entry in outward_entries if entry.get("warehouse_id")))
+    
+    all_pi_ids = []
+    for entry in outward_entries:
         pi_ids = entry.get("pi_ids", [])
         if not pi_ids and entry.get("pi_id"):
             pi_ids = [entry["pi_id"]]
+        entry["_inner_pi_ids"] = pi_ids # Temporary for mapping
+        all_pi_ids.extend(pi_ids)
+    all_pi_ids = list(set(all_pi_ids))
+    
+    # Bulk Fetch Companies
+    companies_map = {}
+    if company_ids:
+        companies = await mongo_db.companies.find({"id": {"$in": company_ids}}, {"_id": 0}).to_list(length=None)
+        companies_map = {c["id"]: c for c in companies}
         
+    # Bulk Fetch Warehouses
+    warehouses_map = {}
+    if warehouse_ids:
+        warehouses = await mongo_db.warehouses.find({"id": {"$in": warehouse_ids}}, {"_id": 0}).to_list(length=None)
+        warehouses_map = {w["id"]: w for w in warehouses}
+        
+    # Bulk Fetch PIs
+    pis_map = {}
+    if all_pi_ids:
+        pis = await mongo_db.proforma_invoices.find({"id": {"$in": all_pi_ids}}, {"_id": 0}).to_list(length=None)
+        pis_map = {pi["id"]: pi for pi in pis}
+        
+    # Map back to entries
+    for entry in outward_entries:
+        # Link Company
+        company_id = entry.get("company_id")
+        if company_id and company_id in companies_map:
+            entry["company"] = companies_map[company_id]
+            
+        # Link Warehouse
+        warehouse_id = entry.get("warehouse_id")
+        if warehouse_id and warehouse_id in warehouses_map:
+            entry["warehouse"] = warehouses_map[warehouse_id]
+            
+        # Link PI details
+        pi_ids = entry.pop("_inner_pi_ids", [])
         if pi_ids:
-            pi_details = []
-            for pi_id in pi_ids:
-                pi = await mongo_db.proforma_invoices.find_one({"id": pi_id}, {"_id": 0})
-                if pi:
-                    pi_details.append(pi)
+            pi_details = [pis_map[pid] for pid in pi_ids if pid in pis_map]
             entry["pis"] = pi_details
-            # Keep legacy pi_id for compatibility
             if pi_details:
                 entry["pi"] = pi_details[0]
-
-        outward_entries.append(entry)
-    
+                
     return outward_entries
 
 # ==================== OUTWARD STOCK ENHANCEMENTS ====================

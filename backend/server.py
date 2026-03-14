@@ -6339,21 +6339,21 @@ async def get_po_lines_with_stats(
 
 
 # --- DELETED DUPLICATE PICKUP ROUTES ---
-    """Delete (soft delete) a pickup entry"""
-    pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id, "is_active": True}, {"_id": 0})
-    if not pickup:
-        raise HTTPException(status_code=404, detail="Pickup not found")
-    
-    await mongo_db.pickup_in_transit.update_one({"id": pickup_id}, {"$set": {"is_active": False}})
-    
-    await mongo_db.audit_logs.insert_one({
-        "action": "pickup_deleted",
-        "user_id": current_user["id"],
-        "entity_id": pickup_id,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
-    
-    return {"message": "Pickup deleted successfully"}
+#     """Delete (soft delete) a pickup entry"""
+#     pickup = await mongo_db.pickup_in_transit.find_one({"id": pickup_id, "is_active": True}, {"_id": 0})
+#     if not pickup:
+#         raise HTTPException(status_code=404, detail="Pickup not found")
+#     
+#     await mongo_db.pickup_in_transit.update_one({"id": pickup_id}, {"$set": {"is_active": False}})
+#     
+#     await mongo_db.audit_logs.insert_one({
+#         "action": "pickup_deleted",
+#         "user_id": current_user["id"],
+#         "entity_id": pickup_id,
+#         "timestamp": datetime.now(timezone.utc).isoformat()
+#     })
+#     
+#     return {"message": "Pickup deleted successfully"}
 
 @api_router.post("/pickups/bulk-delete")
 async def bulk_delete_pickups(

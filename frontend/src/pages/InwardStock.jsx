@@ -887,6 +887,7 @@ const InwardStock = () => {
         date: warehouseInwardFormData.inward_date,
         inward_invoice_no: warehouseInwardFormData.inward_invoice_no || `INW-${Date.now()}`,
         inward_type: 'warehouse',
+        source_type: 'warehouse_inward',
         line_items: validLineItems.map(item => ({
           id: item.id,
           product_id: item.product_id,
@@ -2066,7 +2067,7 @@ const InwardStock = () => {
                           <TableCell className="font-medium text-blue-600">{entry.po_voucher_no || 'N/A'}</TableCell>
                           <TableCell className="font-medium">{entry.manual || 'N/A'}</TableCell>
                           <TableCell>{entry.date}</TableCell>
-                          <TableCell>{entry?.warehouse?.warehouseName || 'Unknown'}</TableCell>
+                          <TableCell>{entry?.warehouse?.warehouseName || entry?.warehouse?.name || 'Unknown'}</TableCell>
                           <TableCell>
                             <div className="text-sm">
                               {entry.line_items?.length || 0} items

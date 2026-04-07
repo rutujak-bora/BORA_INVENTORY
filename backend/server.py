@@ -3779,17 +3779,21 @@ async def get_available_stock(product_id: str, warehouse_id: str, sku: Optional[
         "remaining_stock": {"$gt": 0}
     }
     
+    or_filters = []
     if product_id:
-        query["product_id"] = product_id
-    elif sku:
+        or_filters.append({"product_id": product_id})
+    if sku:
         # Flexible SKU matching: allow the provided SKU to be a prefix or match exactly
         sku_clean = sku.strip()
-        # Escaping regex special characters if any
         import re
         sku_esc = re.escape(sku_clean)
-        query["sku"] = {"$regex": f"^\\s*{sku_esc}", "$options": "i"}
-    else:
+        # Using regex to handle potential leading/trailing whitespace in DB and prefix matches
+        or_filters.append({"sku": {"$regex": f"^\\s*{sku_esc}", "$options": "i"}})
+    
+    if not or_filters:
         return 0.0
+        
+    query["$or"] = or_filters
 
     async def local_log(msg):
         print(msg)
@@ -3839,31 +3843,34 @@ async def update_stock_tracking_outward(outward_entry: dict):
                 qty_to_dispatch = float(qty_input)
                 product_id = item.get("product_id")
                 product_name = item.get("product_name")
+                sku_val = item.get("sku")
                 
                 log_to_file(f"     - Processing: {product_name} (Product ID: {product_id}, Dispatch Qty: {qty_to_dispatch})")
                 
                 # Find all stock_tracking entries for this product in this warehouse with remaining stock
                 # Sort by created_at (FIFO - oldest first)
-                stock_entries = []
-                
-                # Use query that prefers product_id but falls back to SKU if product_id is missing
                 tracking_query = {
                     "warehouse_id": outward_entry.get("warehouse_id"),
                     "remaining_stock": {"$gt": 0}
                 }
                 
+                or_filters = []
                 if product_id:
-                    tracking_query["product_id"] = product_id
-                elif item.get("sku"):
-                    sku_val = item.get("sku").strip()
+                    or_filters.append({"product_id": product_id})
+                if sku_val:
+                    sku_val = sku_val.strip()
                     import re
                     sku_esc = re.escape(sku_val)
-                    log_to_file(f"       ℹ️ No product_id, falling back to flexible SKU: {sku_val}")
-                    tracking_query["sku"] = {"$regex": f"^\\s*{sku_esc}", "$options": "i"}
-                else:
+                    log_to_file(f"       ℹ️ Using flexible SKU matching for {product_name}: {sku_val}")
+                    or_filters.append({"sku": {"$regex": f"^\\s*{sku_esc}", "$options": "i"}})
+                
+                if not or_filters:
                     log_to_file(f"       ❌ ERROR: Both product_id and SKU are missing for {product_name}")
                     continue
+                
+                tracking_query["$or"] = or_filters
 
+                stock_entries = []
                 async for stock in mongo_db.stock_tracking.find(tracking_query, {"_id": 0}).sort("created_at", 1):  # FIFO: oldest first
                     stock_entries.append(stock)
                 

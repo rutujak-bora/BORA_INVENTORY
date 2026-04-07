@@ -3304,7 +3304,11 @@ async def create_outward_stock(
         
         total_amount = 0
         for item in outward_data.get("line_items", []):
-            qty = float(item.get("dispatch_quantity") or item.get("quantity", 0))
+            # Support both quantity and dispatch_quantity - Prioritize dispatch_quantity even if it is 0
+            qty_input = item.get("dispatch_quantity")
+            if qty_input is None:
+                qty_input = item.get("quantity", 0)
+            qty = float(qty_input)
             product_id = item.get("product_id")
             product_sku = item.get("sku")
             product_name = item.get("product_name", "Unknown Product")
@@ -3709,7 +3713,7 @@ async def revert_stock_tracking_outward(outward_entry: dict):
                     import re
                     sku_esc = re.escape(sku_val)
                     print(f"       ℹ️ No product_id, falling back to flexible SKU for restoration: {sku_val}")
-                    tracking_query["sku"] = {"$regex": f"^{sku_esc}", "$options": "i"}
+                    tracking_query["sku"] = {"$regex": f"^\\s*{sku_esc}", "$options": "i"}
                 else:
                     print(f"       ❌ ERROR: Both product_id and SKU are missing for {product_name} in restoration")
                     continue
@@ -3783,7 +3787,7 @@ async def get_available_stock(product_id: str, warehouse_id: str, sku: Optional[
         # Escaping regex special characters if any
         import re
         sku_esc = re.escape(sku_clean)
-        query["sku"] = {"$regex": f"^{sku_esc}", "$options": "i"}
+        query["sku"] = {"$regex": f"^\\s*{sku_esc}", "$options": "i"}
     else:
         return 0.0
 
@@ -3828,8 +3832,11 @@ async def update_stock_tracking_outward(outward_entry: dict):
         
         for item in outward_entry.get("line_items", []):
             try:
-                # Support both quantity and dispatch_quantity fields
-                qty_to_dispatch = item.get("dispatch_quantity") or item.get("quantity", 0)
+                # Support both quantity and dispatch_quantity fields - Prioritize dispatch_quantity even if it is 0
+                qty_input = item.get("dispatch_quantity")
+                if qty_input is None:
+                    qty_input = item.get("quantity", 0)
+                qty_to_dispatch = float(qty_input)
                 product_id = item.get("product_id")
                 product_name = item.get("product_name")
                 
@@ -3852,7 +3859,7 @@ async def update_stock_tracking_outward(outward_entry: dict):
                     import re
                     sku_esc = re.escape(sku_val)
                     log_to_file(f"       ℹ️ No product_id, falling back to flexible SKU: {sku_val}")
-                    tracking_query["sku"] = {"$regex": f"^{sku_esc}", "$options": "i"}
+                    tracking_query["sku"] = {"$regex": f"^\\s*{sku_esc}", "$options": "i"}
                 else:
                     log_to_file(f"       ❌ ERROR: Both product_id and SKU are missing for {product_name}")
                     continue

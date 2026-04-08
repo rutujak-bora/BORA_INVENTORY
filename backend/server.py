@@ -41,12 +41,13 @@ cors_origins = [origin.strip() for origin in cors_origins]  # Remove whitespace
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=cors_origins if "*" not in cors_origins else [],
+    allow_origin_regex=".*" if "*" in cors_origins else None,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["*"],
-    max_age=86400,  # Cache preflight for 24 hours
+    max_age=86400,
 )
 
 @app.get("/")
@@ -2129,7 +2130,8 @@ async def create_inward_stock(
                              if matched:
                                  in_transit += float(p_item.get("quantity", 0))
 
-                if (already_inwarded + in_transit + inward_qty) > total_po_qty:
+                # Added 0.01 tolerance for floating point rounding issues
+                if (already_inwarded + in_transit + inward_qty) > (total_po_qty + 0.01):
                     error_detail = f"Cannot inward {agg_key}: total (new={inward_qty} + inwarded={already_inwarded} + transit={in_transit} = {already_inwarded + in_transit + inward_qty}) exceeds PO qty ({total_po_qty})."
                     raise HTTPException(
                         status_code=400,
@@ -2175,8 +2177,11 @@ async def create_inward_stock(
         product_id = item.get("product_id")
         inward_qty = float(item.get("quantity", 0))
         rate = float(item.get("rate", 0))
+        sku = item.get("sku")
 
-        total_po_qty = aggregated_po_quantities.get(product_id, 0)
+        # Use same aggregation key logic as validation
+        agg_key = sku if (not product_id or str(product_id) in ("nan", "None", "")) else product_id
+        total_po_qty = aggregated_po_quantities.get(agg_key, 0)
 
         already_inwarded = 0
         for po_id in po_ids:

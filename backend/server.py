@@ -2072,10 +2072,13 @@ async def create_inward_stock(
 
             for po_item in po.get("line_items", []):
                 product_id = po_item.get("product_id")
+                sku = po_item.get("sku")
                 po_item_id = po_item.get("id")
-                if product_id not in aggregated_po_quantities:
-                    aggregated_po_quantities[product_id] = 0
-                aggregated_po_quantities[product_id] += float(po_item.get("quantity", 0))
+                # Use SKU as primary key if product_id is nan/None
+                agg_key = sku if (not product_id or str(product_id) in ("nan", "None", "")) else product_id
+                if agg_key not in aggregated_po_quantities:
+                    aggregated_po_quantities[agg_key] = 0
+                aggregated_po_quantities[agg_key] += float(po_item.get("quantity", 0))
 
         # ---- QUANTITY VALIDATION ----
         for inward_item in inward_data.get("line_items", []):
@@ -2083,9 +2086,11 @@ async def create_inward_stock(
             sku = inward_item.get("sku")
             po_line_item_id = inward_item.get("id")
             inward_qty = float(inward_item.get("quantity", 0))
+            # Use same key logic as aggregation: prefer product_id, fall back to SKU
+            agg_key = sku if (not product_id or str(product_id) in ("nan", "None", "")) else product_id
 
-            if product_id in aggregated_po_quantities:
-                total_po_qty = aggregated_po_quantities[product_id]
+            if agg_key in aggregated_po_quantities:
+                total_po_qty = aggregated_po_quantities[agg_key]
 
                 already_inwarded = 0
                 for po_id in po_ids:
@@ -2128,7 +2133,7 @@ async def create_inward_stock(
                 if (already_inwarded + in_transit + inward_qty) > total_po_qty:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Cannot inward {product_id}: total (inwarded+transit+new={already_inwarded + in_transit + inward_qty}) exceeds PO qty ({total_po_qty}). Already Inwarded: {already_inwarded}, In Transit: {in_transit}"
+                        detail=f"Cannot inward {agg_key}: total (inwarded+transit+new={already_inwarded + in_transit + inward_qty}) exceeds PO qty ({total_po_qty}). Already Inwarded: {already_inwarded}, In Transit: {in_transit}"
                     )
 
         all_pi_ids = list(set(all_pi_ids))
@@ -3334,9 +3339,10 @@ async def create_outward_stock(
                 
                 if qty > (avail + 0.001):
                     log_this(f"     ❌ INSUFFICIENT STOCK!")
+                    debug_info = f"Requested: {qty}, Available: {avail}. Search criteria - ProdID: {product_id}, WhID: {warehouse_id}, SKU: {product_sku}"
                     raise HTTPException(
                         status_code=400, 
-                        detail=f"Insufficient stock for {product_name}. Available: {avail}, Requested: {qty}"
+                        detail=f"Insufficient stock for {product_name}. {debug_info}"
                     )
             
             line_item = {

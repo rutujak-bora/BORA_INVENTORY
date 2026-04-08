@@ -2095,7 +2095,7 @@ async def create_inward_stock(
                 already_inwarded = 0
                 for po_id in po_ids:
                     async for existing_inward in mongo_db.inward_stock.find(
-                        {"po_id": po_id, "is_active": True},
+                        {"$or": [{"po_id": po_id}, {"po_ids": po_id}], "is_active": True},
                         {"_id": 0}
                     ):
                         for existing_item in existing_inward.get("line_items", []):
@@ -2114,7 +2114,7 @@ async def create_inward_stock(
                 in_transit = 0
                 for po_id in po_ids:
                     async for pickup in mongo_db.pickup_in_transit.find(
-                        {"po_id": po_id, "is_active": True, "is_inwarded": {"$ne": True}},
+                        {"$or": [{"po_id": po_id}, {"po_ids": po_id}], "is_active": True, "is_inwarded": {"$ne": True}},
                         {"_id": 0}
                     ):
                         for p_item in pickup.get("line_items", []):
@@ -2129,11 +2129,11 @@ async def create_inward_stock(
                              if matched:
                                  in_transit += float(p_item.get("quantity", 0))
 
-                total_unavailable = already_inwarded + in_transit
                 if (already_inwarded + in_transit + inward_qty) > total_po_qty:
+                    error_detail = f"Cannot inward {agg_key}: total (new={inward_qty} + inwarded={already_inwarded} + transit={in_transit} = {already_inwarded + in_transit + inward_qty}) exceeds PO qty ({total_po_qty})."
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Cannot inward {agg_key}: total (inwarded+transit+new={already_inwarded + in_transit + inward_qty}) exceeds PO qty ({total_po_qty}). Already Inwarded: {already_inwarded}, In Transit: {in_transit}"
+                        detail=error_detail
                     )
 
         all_pi_ids = list(set(all_pi_ids))

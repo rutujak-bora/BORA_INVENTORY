@@ -129,14 +129,24 @@ const PLReporting = () => {
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
 
+      // Calculate values manually to ensure UI matches the specified formulas exactly
+      const totalExportValue = plReport.summary.total_export_value || 0;
+      const totalPurchaseCost = plReport.summary.total_purchase_cost || 0;
+      const totalExpenses = plReport.summary.total_expenses || 0;
+      
+      const grossTotal = totalExportValue - totalPurchaseCost;
+      const grossTotalIncGst = grossTotal * 1.18;
+      const netProfit = grossTotalIncGst - totalExpenses;
+      const netProfitPercentage = totalPurchaseCost > 0 ? (netProfit / totalPurchaseCost * 100 / 1.18) : 0;
+
       const summary = [
-        ['Export Invoice Value', `Rs ${formatCurrency(plReport.summary.total_export_value)}`],
-        ['Purchase Order Cost', `Rs ${formatCurrency(plReport.summary.total_purchase_cost)}`],
-        ['Total Expenses', `Rs ${formatCurrency(plReport.summary.total_expenses)}`],
-        ['Gross Total', `Rs ${formatCurrency(plReport.summary.gross_total)}`],
-        ['Gross Total Including GST', `Rs ${formatCurrency(plReport.summary.gross_total_inc_gst)}`],
-        ['Net Profit', `Rs ${formatCurrency(plReport.summary.net_profit)}`],
-        ['Net Profit %', `${plReport.summary.net_profit_percentage.toFixed(2)}%`]
+        ['Export Invoice Value', `Rs ${formatCurrency(totalExportValue)}`],
+        ['Purchase Order Cost', `Rs ${formatCurrency(totalPurchaseCost)}`],
+        ['Total Expenses', `Rs ${formatCurrency(totalExpenses)}`],
+        ['Gross Total', `Rs ${formatCurrency(grossTotal)}`],
+        ['Gross Total Including GST', `Rs ${formatCurrency(grossTotalIncGst)}`],
+        ['Net Profit', `Rs ${formatCurrency(netProfit)}`],
+        ['Net Profit %', `${netProfitPercentage.toFixed(2)}%`]
       ];
 
       doc.autoTable({
@@ -197,6 +207,16 @@ const PLReporting = () => {
     if (!plReport) return;
 
     try {
+      // Calculate values manually to ensure UI matches the specified formulas exactly
+      const totalExportValue = plReport.summary.total_export_value || 0;
+      const totalPurchaseCost = plReport.summary.total_purchase_cost || 0;
+      const totalExpenses = plReport.summary.total_expenses || 0;
+      
+      const grossTotal = totalExportValue - totalPurchaseCost;
+      const grossTotalIncGst = grossTotal * 1.18;
+      const netProfit = grossTotalIncGst - totalExpenses;
+      const netProfitPercentage = totalPurchaseCost > 0 ? (netProfit / totalPurchaseCost * 100 / 1.18) : 0;
+
       // Summary worksheet
       const summaryData = [
         ['PROFIT & LOSS REPORT'],
@@ -204,13 +224,13 @@ const PLReporting = () => {
         [],
         ['SUMMARY'],
         ['Description', 'Amount'],
-        ['Export Invoice Value', formatCurrency(plReport.summary.total_export_value)],
-        ['Purchase Order Cost', formatCurrency(plReport.summary.total_purchase_cost)],
-        ['Total Expenses', formatCurrency(plReport.summary.total_expenses)],
-        ['Gross Total', formatCurrency(plReport.summary.gross_total)],
-        ['Gross Total Including GST', formatCurrency(plReport.summary.gross_total_inc_gst)],
-        ['Net Profit', formatCurrency(plReport.summary.net_profit)],
-        ['Net Profit %', plReport.summary.net_profit_percentage.toFixed(2) + '%']
+        ['Export Invoice Value', formatCurrency(totalExportValue)],
+        ['Purchase Order Cost', formatCurrency(totalPurchaseCost)],
+        ['Total Expenses', formatCurrency(totalExpenses)],
+        ['Gross Total', formatCurrency(grossTotal)],
+        ['Gross Total Including GST', formatCurrency(grossTotalIncGst)],
+        ['Net Profit', formatCurrency(netProfit)],
+        ['Net Profit %', netProfitPercentage.toFixed(2) + '%']
       ];
 
       // Item breakdown worksheet
@@ -451,39 +471,48 @@ const PLReporting = () => {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-sm text-slate-600">Gross Total</div>
-                <div className="text-2xl font-bold text-green-600">₹{formatCurrency(plReport.summary.gross_total)}</div>
+                <div className="text-2xl font-bold text-green-600">₹{formatCurrency(plReport.summary.total_export_value - plReport.summary.total_purchase_cost)}</div>
               </CardContent>
             </Card>
           </div>
 
           {/* Net Profit Section */}
-          <Card className="bg-gradient-to-r from-green-50 to-blue-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-slate-600">Gross Total Including GST</div>
-                  <div className="text-lg font-semibold text-slate-700">₹{formatCurrency(plReport.summary.gross_total_inc_gst)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-slate-600">Net Profit</div>
-                  <div className="text-4xl font-bold text-green-700">₹{formatCurrency(plReport.summary.net_profit)}</div>
-                  <div className="text-sm text-green-600 font-semibold mt-1">
-                    {plReport.summary.net_profit_percentage.toFixed(2)}% margin
+          {(() => {
+            const grossT = (plReport.summary.total_export_value || 0) - (plReport.summary.total_purchase_cost || 0);
+            const grossTIncGst = grossT * 1.18;
+            const netP = grossTIncGst - (plReport.summary.total_expenses || 0);
+            const netPP = (plReport.summary.total_purchase_cost || 0) > 0 ? (netP / plReport.summary.total_purchase_cost * 100 / 1.18) : 0;
+            
+            return (
+              <Card className="bg-gradient-to-r from-green-50 to-blue-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm text-slate-600">Gross Total Including GST</div>
+                      <div className="text-lg font-semibold text-slate-700">₹{formatCurrency(grossTIncGst)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-slate-600">Net Profit</div>
+                      <div className="text-4xl font-bold text-green-700">₹{formatCurrency(netP)}</div>
+                      <div className="text-sm text-green-600 font-semibold mt-1">
+                        {netPP.toFixed(2)}% margin
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleDownloadPDF} variant="outline">
+                        <FileText size={16} className="mr-2" />
+                        Download PDF
+                      </Button>
+                      <Button onClick={handleDownloadExcel} variant="outline">
+                        <FileSpreadsheet size={16} className="mr-2" />
+                        Download Excel
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleDownloadPDF} variant="outline">
-                    <FileText size={16} className="mr-2" />
-                    Download PDF
-                  </Button>
-                  <Button onClick={handleDownloadExcel} variant="outline">
-                    <FileSpreadsheet size={16} className="mr-2" />
-                    Download Excel
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Item Breakdown Table */}
           <Card>

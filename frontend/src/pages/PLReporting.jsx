@@ -74,23 +74,22 @@ const PLReporting = () => {
     });
   };
 
-  const handleCalculatePL = async () => {
-    if (selectedInvoices.length === 0) {
-      toast({ title: 'Error', description: 'Please select at least one export invoice', variant: 'destructive' });
+  const handleCalculatePLFor = async (invoicesToCalculate) => {
+    if (invoicesToCalculate.length === 0) {
+      setPlReport(null);
       return;
     }
 
     setLoadingReport(true);
     try {
       const response = await api.post('/pl-report/calculate', {
-        export_invoice_ids: selectedInvoices,
+        export_invoice_ids: invoicesToCalculate,
         from_date: filters.from_date,
         to_date: filters.to_date,
         company_id: filters.company_id === 'all' ? '' : filters.company_id,
         sku: filters.sku
       });
       setPlReport(response.data);
-      toast({ title: 'Success', description: 'P&L Report generated successfully' });
     } catch (error) {
       toast({
         title: 'Error',
@@ -101,6 +100,8 @@ const PLReporting = () => {
       setLoadingReport(false);
     }
   };
+
+  const handleCalculatePL = () => handleCalculatePLFor(selectedInvoices);
 
   const handleDownloadPDF = () => {
     if (!plReport) return;
@@ -361,74 +362,63 @@ const PLReporting = () => {
       {/* Export Invoice Selection */}
       <Card>
         <CardHeader>
-          <CardTitle>Select Export Invoices ({selectedInvoices.length} selected)</CardTitle>
+          <CardTitle>Select Export Invoices</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-3 max-h-[400px] overflow-y-auto p-2">
-            {exportInvoices.map(invoice => {
-              const isSelected = selectedInvoices.includes(invoice.id);
-              return (
-                <div
-                  key={invoice.id}
-                  onClick={() => handleInvoiceToggle(invoice.id)}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all ${isSelected
-                    ? 'bg-blue-50 border-blue-500 shadow-md'
-                    : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow'
-                    }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="font-semibold text-lg">{invoice.export_invoice_no}</div>
-                      {invoice.export_invoice_number && (
-                        <div className="text-sm text-blue-600 font-medium">Invoice #: {invoice.export_invoice_number}</div>
-                      )}
-                      <div className="text-sm text-slate-600">{new Date(invoice.date).toLocaleDateString()}</div>
-                      <div className="text-xs text-slate-500 mt-1">{invoice.dispatch_type}</div>
-                      <div className="font-semibold text-green-700 mt-2">₹{formatCurrency(invoice.total_value)}</div>
-                    </div>
-                    {isSelected && (
-                      <Badge className="bg-blue-500">✓</Badge>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="max-w-md">
+            <Select 
+              onValueChange={(val) => {
+                const newSelection = selectedInvoices.includes(val) 
+                  ? selectedInvoices 
+                  : [...selectedInvoices, val];
+                setSelectedInvoices(newSelection);
+                
+                // Auto calculate
+                setTimeout(() => handleCalculatePLFor(newSelection), 100);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select export invoice" />
+              </SelectTrigger>
+              <SelectContent {...getSafeSelectContentProps()}>
+                {exportInvoices.map(invoice => (
+                   <SelectItem key={invoice.id} value={invoice.id}>
+                     {invoice.export_invoice_no} ({new Date(invoice.date).toLocaleDateString()}) - ₹{formatCurrency(invoice.total_value)}
+                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {selectedInvoices.length > 0 && (
             <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4">
                 <div className="flex flex-wrap gap-2">
                   {selectedInvoices.map(id => {
                     const invoice = exportInvoices.find(inv => inv.id === id);
                     return invoice ? (
-                      <Badge key={id} variant="outline" className="flex items-center gap-1">
+                      <Badge key={id} variant="secondary" className="flex items-center gap-1 px-3 py-1">
                         {invoice.export_invoice_no}
                         <X
                           size={14}
-                          className="cursor-pointer hover:text-red-600"
+                          className="cursor-pointer hover:text-red-600 ml-1"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleInvoiceToggle(id);
+                            const newSelection = selectedInvoices.filter(invId => invId !== id);
+                            setSelectedInvoices(newSelection);
+                            setTimeout(() => handleCalculatePLFor(newSelection), 100);
                           }}
                         />
                       </Badge>
                     ) : null;
                   })}
                 </div>
-                <Button onClick={handleCalculatePL} disabled={loadingReport}>
-                  {loadingReport ? (
-                    <>
-                      <RefreshCw size={16} className="mr-2 animate-spin" />
-                      Calculating...
-                    </>
-                  ) : (
-                    <>
-                      <TrendingUp size={16} className="mr-2" />
-                      Generate P&L Report
-                    </>
-                  )}
-                </Button>
+                {loadingReport && (
+                  <div className="flex items-center text-blue-600 text-sm">
+                    <RefreshCw size={14} className="mr-2 animate-spin" />
+                    Calculating P&L...
+                  </div>
+                )}
               </div>
             </div>
           )}

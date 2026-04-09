@@ -134,7 +134,7 @@ const PLReporting = () => {
         ['Purchase Order Cost', `Rs ${formatCurrency(plReport.summary.total_purchase_cost)}`],
         ['Total Expenses', `Rs ${formatCurrency(plReport.summary.total_expenses)}`],
         ['Gross Total', `Rs ${formatCurrency(plReport.summary.gross_total)}`],
-        ['GST (18%)', `Rs ${formatCurrency(plReport.summary.gst_amount)}`],
+        ['Gross Total Including GST', `Rs ${formatCurrency(plReport.summary.gross_total_inc_gst)}`],
         ['Net Profit', `Rs ${formatCurrency(plReport.summary.net_profit)}`],
         ['Net Profit %', `${plReport.summary.net_profit_percentage.toFixed(2)}%`]
       ];
@@ -171,7 +171,7 @@ const PLReporting = () => {
 
       doc.autoTable({
         startY: yPos,
-        head: [['Invoice No', 'SKU', 'Product', 'Qty', 'Rate', 'Export Value', 'Purchase Cost', 'Gross']],
+        head: [['Invoice No', 'SKU', 'Product', 'Qty', 'Rate', 'Sale Value', 'Purchase Cost', 'Gross']],
         body: itemData,
         theme: 'grid',
         headStyles: { fillColor: [34, 197, 94] },
@@ -208,7 +208,7 @@ const PLReporting = () => {
         ['Purchase Order Cost', formatCurrency(plReport.summary.total_purchase_cost)],
         ['Total Expenses', formatCurrency(plReport.summary.total_expenses)],
         ['Gross Total', formatCurrency(plReport.summary.gross_total)],
-        ['GST (18%)', formatCurrency(plReport.summary.gst_amount)],
+        ['Gross Total Including GST', formatCurrency(plReport.summary.gross_total_inc_gst)],
         ['Net Profit', formatCurrency(plReport.summary.net_profit)],
         ['Net Profit %', plReport.summary.net_profit_percentage.toFixed(2) + '%']
       ];
@@ -217,7 +217,7 @@ const PLReporting = () => {
       const breakdownData = [
         ['ITEM-WISE BREAKDOWN'],
         [],
-        ['Invoice No', 'SKU', 'Product', 'Quantity', 'Rate', 'Export Value', 'Purchase Cost', 'Gross']
+        ['Invoice No', 'SKU', 'Product', 'Quantity', 'Rate', 'Sale Value', 'Purchase Cost', 'Gross']
       ];
 
       plReport.item_breakdown.forEach(item => {
@@ -366,13 +366,13 @@ const PLReporting = () => {
         </CardHeader>
         <CardContent>
           <div className="max-w-md">
-            <Select 
+            <Select
               onValueChange={(val) => {
-                const newSelection = selectedInvoices.includes(val) 
-                  ? selectedInvoices 
+                const newSelection = selectedInvoices.includes(val)
+                  ? selectedInvoices
                   : [...selectedInvoices, val];
                 setSelectedInvoices(newSelection);
-                
+
                 // Auto calculate
                 setTimeout(() => handleCalculatePLFor(newSelection), 100);
               }}
@@ -382,9 +382,9 @@ const PLReporting = () => {
               </SelectTrigger>
               <SelectContent {...getSafeSelectContentProps()}>
                 {exportInvoices.map(invoice => (
-                   <SelectItem key={invoice.id} value={invoice.id}>
-                     {invoice.export_invoice_no} ({new Date(invoice.date).toLocaleDateString()}) - ₹{formatCurrency(invoice.total_value)}
-                   </SelectItem>
+                  <SelectItem key={invoice.id} value={invoice.id}>
+                    {invoice.export_invoice_no} ({new Date(invoice.date).toLocaleDateString()}) - ₹{formatCurrency(invoice.total_value)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -432,7 +432,7 @@ const PLReporting = () => {
           <div className="grid grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-6">
-                <div className="text-sm text-slate-600">Export Value</div>
+                <div className="text-sm text-slate-600">Sale Value</div>
                 <div className="text-2xl font-bold text-blue-600">₹{formatCurrency(plReport.summary.total_export_value)}</div>
               </CardContent>
             </Card>
@@ -461,8 +461,8 @@ const PLReporting = () => {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-slate-600">GST (18%)</div>
-                  <div className="text-lg font-semibold text-slate-700">₹{formatCurrency(plReport.summary.gst_amount)}</div>
+                  <div className="text-sm text-slate-600">Gross Total Including GST</div>
+                  <div className="text-lg font-semibold text-slate-700">₹{formatCurrency(plReport.summary.gross_total_inc_gst)}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-slate-600">Net Profit</div>
@@ -500,7 +500,7 @@ const PLReporting = () => {
                       <TableHead>Product</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
                       <TableHead className="text-right">Export Rate</TableHead>
-                      <TableHead className="text-right">Export Value</TableHead>
+                      <TableHead className="text-right">Sale Value</TableHead>
                       <TableHead className="text-right">Purchase Cost</TableHead>
                       <TableHead className="text-right">Item Gross</TableHead>
                     </TableRow>

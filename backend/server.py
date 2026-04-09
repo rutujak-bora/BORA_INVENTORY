@@ -5066,10 +5066,14 @@ async def calculate_pl_report(
         })
     
     # Final P&L Calculation
-    gross_total = total_export_value - total_purchase_cost - total_expenses
-    net_profit = gross_total / 1.18
-    gst_amount = gross_total - net_profit
-    net_profit_percentage = (net_profit / total_export_value * 100) if total_export_value > 0 else 0
+    gross_total = total_export_value - total_purchase_cost
+    gross_total_inc_gst = gross_total * 1.18
+    net_profit = gross_total_inc_gst - total_expenses
+    
+    if total_purchase_cost > 0:
+        net_profit_percentage = (net_profit / total_purchase_cost) * 100 / 1.18
+    else:
+        net_profit_percentage = 0
     
     return {
         "summary": {
@@ -5077,7 +5081,7 @@ async def calculate_pl_report(
             "total_purchase_cost": total_purchase_cost,
             "total_expenses": total_expenses,
             "gross_total": gross_total,
-            "gst_amount": gst_amount,
+            "gross_total_inc_gst": gross_total_inc_gst,
             "net_profit": net_profit,
             "net_profit_percentage": net_profit_percentage
         },

@@ -1587,10 +1587,11 @@ const OutwardStockNew = () => {
                     <Select
                       value="_select_po_"
                       onValueChange={(poId) => {
-                        if (poId && poId !== "_select_po_" && !formData.po_ids.includes(poId)) {
+                        const currentPoIds = formData.po_ids || [];
+                        if (poId && poId !== "_select_po_" && !currentPoIds.includes(poId)) {
                           requestAnimationFrame(() => {
                             setTimeout(() => {
-                              handlePOSelect([...formData.po_ids, poId]);
+                              handlePOSelect([...currentPoIds, poId]);
                             }, 50);
                           });
                         }
@@ -1601,7 +1602,7 @@ const OutwardStockNew = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {(pos || [])
-                          .filter(po => !formData.po_ids.includes(po.id))
+                          .filter(po => !(formData.po_ids || []).includes(po.id))
                           .filter(po => !formData.company_id || po.company_id === formData.company_id)
                           .map(po => (
                             <SelectItem key={po.id} value={po.id}>
@@ -1611,9 +1612,9 @@ const OutwardStockNew = () => {
                       </SelectContent>
                     </Select>
 
-                    {formData.po_ids.length > 0 && (
+                    {(formData.po_ids || []).length > 0 && (
                       <div className="flex flex-wrap gap-2 mt-2 p-2 bg-white rounded border">
-                        {formData.po_ids.map(poId => {
+                        {(formData.po_ids || []).map(poId => {
                           const po = pos.find(p => p.id === poId);
                           return po ? (
                             <div key={poId} className="flex items-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded text-sm">
@@ -1621,7 +1622,8 @@ const OutwardStockNew = () => {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const newPoIds = formData.po_ids.filter(id => id !== poId);
+                                  const currentPoIds = formData.po_ids || [];
+                                  const newPoIds = currentPoIds.filter(id => id !== poId);
                                   handlePOSelect(newPoIds);
                                 }}
                                 className="hover:bg-indigo-700 rounded-full p-0.5"

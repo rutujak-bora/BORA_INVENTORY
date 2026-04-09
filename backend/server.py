@@ -5096,7 +5096,6 @@ async def get_export_invoices_for_pl(
 ):
     """Get export invoices available for P&L calculation"""
     query = {
-        "dispatch_type": {"$in": ["export_invoice", "direct_export"]},
         "is_active": True
     }
     

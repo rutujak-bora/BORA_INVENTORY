@@ -29,6 +29,7 @@ const OutwardStockNew = () => {
   const [outwardEntries, setOutwardEntries] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [pis, setPIs] = useState([]);
+  const [pos, setPOs] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [pendingDispatchPlans, setPendingDispatchPlans] = useState([]);
   const [availableQuantities, setAvailableQuantities] = useState({});
@@ -54,6 +55,8 @@ const OutwardStockNew = () => {
     company_id: '',
     warehouse_id: '',
     mode: '',
+    dispatch_mode: 'Export',
+    po_ids: [],
     pi_ids: [],
     dispatch_plan_id: '',
     export_invoice_no: '',
@@ -143,10 +146,11 @@ const OutwardStockNew = () => {
 
   const fetchData = async () => {
     try {
-      const [outwardRes, companiesRes, pisRes, warehousesRes, dispatchPlansRes, directInwardRes] = await Promise.all([
+      const [outwardRes, companiesRes, pisRes, posRes, warehousesRes, dispatchPlansRes, directInwardRes] = await Promise.all([
         api.get('/outward-stock'),
         api.get('/companies'),
         api.get('/pi'),
+        api.get('/purchase-orders'),
         api.get('/warehouses'),
         api.get('/outward-stock/dispatch-plans-pending'),
         api.get('/inward-stock/direct-entries')
@@ -155,6 +159,7 @@ const OutwardStockNew = () => {
       setOutwardEntries(outwardRes.data || []);
       setCompanies(companiesRes.data || []);
       setPIs(pisRes.data || []);
+      setPOs(posRes.data || []);
       setWarehouses(warehousesRes.data || []);
       setPendingDispatchPlans(dispatchPlansRes.data || []);
       setDirectInwardEntries(directInwardRes.data || []);
@@ -370,10 +375,81 @@ const OutwardStockNew = () => {
       });
 
     } catch (error) {
-      console.error(error);
       toast({
         title: 'Error',
         description: 'Failed to load PI details',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // Handle PO Selection (Local Mode)
+  const handlePOSelect = async (poIds) => {
+    const idsToFetch = poIds || formData.po_ids;
+    if (!idsToFetch || idsToFetch.length === 0) {
+      setFormData(prev => ({ ...prev, po_ids: [], line_items: [] }));
+      setAvailableQuantities({});
+      return;
+    }
+
+    const warehouseId = formData.warehouse_id || selectedWarehouseId;
+
+    try {
+      const allLineItems = [];
+      const seenProducts = new Set();
+      const quantities = {};
+
+      for (const poId of idsToFetch) {
+        const po = pos.find(p => p.id === poId);
+        if (!po) continue;
+
+        for (const item of (po.line_items || [])) {
+          const key = `${item.product_id}-${item.sku}`;
+          if (seenProducts.has(key)) continue;
+          seenProducts.add(key);
+
+          // Fetch available quantity specifically for this product
+          const availableQty = await fetchAvailableQuantity(item.product_id, warehouseId);
+          const itemId = item.id || item._id;
+
+          allLineItems.push({
+            id: itemId,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            sku: item.sku,
+            pi_total_quantity: item.quantity || 0,
+            dispatched_quantity: item.dispatched_quantity || 0,
+            rate: item.rate,
+            available_quantity: availableQty,
+            dispatch_quantity: 0,
+            dimensions: item.dimensions || '',
+            weight: item.weight || 0,
+            amount: 0
+          });
+
+          quantities[itemId] = availableQty;
+        }
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        po_ids: idsToFetch,
+        company_id: pos.find(p => p.id === idsToFetch[0])?.company_id || prev.company_id,
+        line_items: allLineItems
+      }));
+
+      setAvailableQuantities(quantities);
+
+      toast({
+        title: 'PO Selected',
+        description: 'Available stock loaded from Purchase Order(s)'
+      });
+
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load PO details',
         variant: 'destructive'
       });
     }
@@ -1389,6 +1465,26 @@ const OutwardStockNew = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div>
+                <Label>Dispatch Mode *</Label>
+                <Select
+                  value={formData.dispatch_mode}
+                  onValueChange={(value) => {
+                    requestAnimationFrame(() => {
+                      setTimeout(() => setFormData({ ...formData, dispatch_mode: value, pi_ids: [], po_ids: [], line_items: [] }), 50);
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Export">Export</SelectItem>
+                    <SelectItem value="Local">Local</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Dispatch Plan Selection for Export Invoice */}
@@ -1423,58 +1519,120 @@ const OutwardStockNew = () => {
               </div>
             )}
 
-            {/* PI Selection (for Dispatch Plan and Export Invoice without dispatch plan) */}
+            {/* Dynamic Reference Selection (PI vs PO) */}
             {formData.dispatch_type !== 'direct_export' && (!formData.dispatch_plan_id || formData.dispatch_plan_id === 'none') && (
-              <div>
-                <Label>PI Reference * (Select one or multiple)</Label>
-                <Select
-                  value="_select_pi_"
-                  onValueChange={(piId) => {
-                    if (piId && piId !== "_select_pi_" && !formData.pi_ids.includes(piId)) {
-                      console.log("this is the data which is being shown in the form ", piId);
-                      requestAnimationFrame(() => {
-                        setTimeout(() => {
-                          handlePISelect([...formData.pi_ids, piId]);
-                        }, 50);
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select PI to add..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(pis || [])
-                      .filter(pi => !formData.pi_ids.includes(pi.id))
-                      .filter(pi => !formData.company_id || pi.company_id === formData.company_id)
-                      .map(pi => (
-                        <SelectItem key={pi.id} value={pi.id}>
-                          {pi.voucher_no} | {new Date(pi.date).toLocaleDateString()}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+              <div className="bg-slate-50 p-4 rounded border">
+                <h3 className="font-semibold text-slate-800 mb-4 border-b pb-2">
+                  {formData.dispatch_mode === 'Local' ? 'Local Dispatch Source' : 'Export Dispatch Source'}
+                </h3>
+                
+                {formData.dispatch_mode === 'Export' ? (
+                  // PI Selector
+                  <div>
+                    <Label>PI Reference * (Select one or multiple)</Label>
+                    <Select
+                      value="_select_pi_"
+                      onValueChange={(piId) => {
+                        if (piId && piId !== "_select_pi_" && !formData.pi_ids.includes(piId)) {
+                          requestAnimationFrame(() => {
+                            setTimeout(() => {
+                              handlePISelect([...formData.pi_ids, piId]);
+                            }, 50);
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select PI to add..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(pis || [])
+                          .filter(pi => !formData.pi_ids.includes(pi.id))
+                          .filter(pi => !formData.company_id || pi.company_id === formData.company_id)
+                          .map(pi => (
+                            <SelectItem key={pi.id} value={pi.id}>
+                              {pi.voucher_no} | {new Date(pi.date).toLocaleDateString()}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
 
-                {formData.pi_ids.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2 p-2 bg-slate-50 rounded border">
-                    {formData.pi_ids.map(piId => {
-                      const pi = pis.find(p => p.id === piId);
-                      return pi ? (
-                        <div key={piId} className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-sm">
-                          <span>{pi.voucher_no}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newPiIds = formData.pi_ids.filter(id => id !== piId);
-                              handlePISelect(newPiIds);
-                            }}
-                            className="hover:bg-blue-700 rounded-full p-0.5"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ) : null;
-                    })}
+                    {formData.pi_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2 p-2 bg-white rounded border">
+                        {formData.pi_ids.map(piId => {
+                          const pi = pis.find(p => p.id === piId);
+                          return pi ? (
+                            <div key={piId} className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-sm">
+                              <span>{pi.voucher_no}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newPiIds = formData.pi_ids.filter(id => id !== piId);
+                                  handlePISelect(newPiIds);
+                                }}
+                                className="hover:bg-blue-700 rounded-full p-0.5"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // PO Selector
+                  <div>
+                    <Label>Purchase Order * (Select one or multiple)</Label>
+                    <Select
+                      value="_select_po_"
+                      onValueChange={(poId) => {
+                        if (poId && poId !== "_select_po_" && !formData.po_ids.includes(poId)) {
+                          requestAnimationFrame(() => {
+                            setTimeout(() => {
+                              handlePOSelect([...formData.po_ids, poId]);
+                            }, 50);
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select PO to add..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(pos || [])
+                          .filter(po => !formData.po_ids.includes(po.id))
+                          .filter(po => !formData.company_id || po.company_id === formData.company_id)
+                          .map(po => (
+                            <SelectItem key={po.id} value={po.id}>
+                              {po.po_number || po.voucher_no || 'PO'} | {new Date(po.date).toLocaleDateString()}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+
+                    {formData.po_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2 p-2 bg-white rounded border">
+                        {formData.po_ids.map(poId => {
+                          const po = pos.find(p => p.id === poId);
+                          return po ? (
+                            <div key={poId} className="flex items-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded text-sm">
+                              <span>{po.po_number || po.voucher_no}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newPoIds = formData.po_ids.filter(id => id !== poId);
+                                  handlePOSelect(newPoIds);
+                                }}
+                                className="hover:bg-indigo-700 rounded-full p-0.5"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

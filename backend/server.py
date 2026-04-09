@@ -3299,6 +3299,8 @@ async def create_outward_stock(
             "pi_ids": pi_ids_list,
             "warehouse_id": warehouse_id,
             "mode": outward_data.get("mode"),
+            "dispatch_mode": outward_data.get("dispatch_mode", "Export"),
+            "po_ids": outward_data.get("po_ids", []),
             "containers_pallets": outward_data.get("containers_pallets"),
             "dispatch_type": outward_data.get("dispatch_type"),
             "dispatch_plan_id": outward_data.get("dispatch_plan_id"),
@@ -3628,6 +3630,8 @@ async def update_outward_stock(
         "company_id": outward_data.get("company_id", old_entry.get("company_id")),
         "warehouse_id": outward_data.get("warehouse_id", old_entry.get("warehouse_id")),
         "mode": outward_data.get("mode", old_entry.get("mode")),
+        "dispatch_mode": outward_data.get("dispatch_mode", old_entry.get("dispatch_mode", "Export")),
+        "po_ids": outward_data.get("po_ids", old_entry.get("po_ids", [])),
         "status": outward_data.get("status", old_entry.get("status")),
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "updated_by": current_user["id"]

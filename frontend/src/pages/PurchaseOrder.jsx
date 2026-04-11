@@ -1205,7 +1205,7 @@ const PurchaseOrder = () => {
                   type="checkbox"
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedPOs(pos.map(po => po.id));
+                      setSelectedPOs(filteredPOs.map(po => po.id));
                     } else {
                       setSelectedPOs([]);
                     }

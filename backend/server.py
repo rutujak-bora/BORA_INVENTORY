@@ -1991,38 +1991,48 @@ async def export_pos(
     from fastapi.responses import StreamingResponse
     from io import BytesIO
     
-    all_rows = []
-    for po_id in po_ids:
-        po = await mongo_db.purchase_orders.find_one({"id": po_id}, {"_id": 0})
-        if po:
-            company = await mongo_db.companies.find_one({"id": po.get("company_id")}, {"_id": 0})
-            company_name = company.get("name") if company else ""
-            
-            for item in po.get("line_items", []):
-                row = {
-                    "Voucher No": po.get("voucher_no"),
-                    "Date": po.get("date"),
-                    "Company Name": company_name,
-                    "Consignee": po.get("consignee"),
-                    "Supplier": po.get("supplier"),
-                    "Reference PI": po.get("reference_no_date"),
-                    "Dispatched Through": po.get("dispatched_through"),
-                    "Destination": po.get("destination"),
-                    "Product Name": item.get("product_name"),
-                    "SKU": item.get("sku"),
-                    "Category": item.get("category"),
-                    "Brand": item.get("brand"),
-                    "HSN/SAC": item.get("hsn_sac"),
-                    "Quantity": item.get("quantity"),
-                    "Rate": item.get("rate"),
-                    "Amount": item.get("amount"),
-                    "Input IGST": item.get("input_igst"),
-                    "TDS": item.get("tds"),
-                    "Status": po.get("status")
-                }
-                all_rows.append(row)
+    # Bulk fetch all selected POs
+    pos = await mongo_db.purchase_orders.find({"id": {"$in": po_ids}}, {"_id": 0}).to_list(length=None)
     
-    df = pd.DataFrame(all_rows)
+    # Bulk fetch all related companies
+    company_ids = list(set([po.get("company_id") for po in pos if po.get("company_id")]))
+    companies = await mongo_db.companies.find({"id": {"$in": company_ids}}, {"_id": 0}).to_list(length=None)
+    company_map = {c["id"]: c["name"] for c in companies}
+    
+    all_rows = []
+    # Maintain order of requested po_ids if possible, or just process what was found
+    for po in pos:
+        company_name = company_map.get(po.get("company_id"), "")
+        
+        for item in po.get("line_items", []):
+            row = {
+                "Voucher No": po.get("voucher_no"),
+                "Date": po.get("date"),
+                "Company Name": company_name,
+                "Consignee": po.get("consignee"),
+                "Supplier": po.get("supplier"),
+                "Reference PI": po.get("reference_no_date"),
+                "Dispatched Through": po.get("dispatched_through"),
+                "Destination": po.get("destination"),
+                "Product Name": item.get("product_name"),
+                "SKU": item.get("sku"),
+                "Category": item.get("category"),
+                "Brand": item.get("brand"),
+                "HSN/SAC": item.get("hsn_sac"),
+                "Quantity": item.get("quantity"),
+                "Rate": item.get("rate"),
+                "Amount": item.get("amount"),
+                "Input IGST": item.get("input_igst"),
+                "TDS": item.get("tds"),
+                "Status": po.get("status")
+            }
+            all_rows.append(row)
+    
+    if not all_rows:
+        # Create a dummy row if no data found to avoid Excel error
+        df = pd.DataFrame([{"Message": "No data found for selected IDs"}])
+    else:
+        df = pd.DataFrame(all_rows)
     
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:

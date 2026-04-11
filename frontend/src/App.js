@@ -22,6 +22,7 @@ import PurchaseAnalysis from './pages/PurchaseAnalysis';
 import PaymentTracking from './pages/PaymentTracking';
 import ExpenseCalculation from './pages/ExpenseCalculation';
 import PLReporting from './pages/PLReporting';
+import PriceComparison from './pages/PriceComparison';
 import ErrorBoundary from './components/ErrorBoundary';
 import './utils/resizeObserverFix';
 import '@/App.css';
@@ -344,6 +345,16 @@ function AppRoutes() {
               <PLReporting />
             </Layout>
           </PLReportRoute>
+        }
+      />
+      <Route
+        path="/price-comparison"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <PriceComparison />
+            </Layout>
+          </PrivateRoute>
         }
       />
     </Routes>

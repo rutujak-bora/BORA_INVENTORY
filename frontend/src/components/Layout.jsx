@@ -18,6 +18,7 @@ import {
   X,
   LogOut,
   User,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -38,6 +39,7 @@ const Layout = ({ children }) => {
         { path: '/pi', label: 'proforma Invoice', icon: FileText },
         { path: '/po', label: 'Purchase Order', icon: ShoppingCart },
         { path: '/payments', label: 'Payment Tracking', icon: CreditCard },
+        { path: '/price-comparison', label: 'Price Comparison', icon: ArrowRightLeft },
       ]
     : [
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -87,6 +89,7 @@ const Layout = ({ children }) => {
               ? [{ path: '/pl-report', label: 'P&L Reporting', icon: TrendingUp }]
               : []
             ),
+            { path: '/price-comparison', label: 'Price Comparison', icon: ArrowRightLeft },
           ],
         },
       ];

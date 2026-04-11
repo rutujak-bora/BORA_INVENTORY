@@ -82,7 +82,11 @@ const Layout = ({ children }) => {
           label: 'Reports',
           children: [
             { path: '/expenses', label: 'Expense Calculation', icon: DollarSign },
-            { path: '/pl-report', label: 'P&L Reporting', icon: TrendingUp },
+            // Only sunil, himanshu and admin can see P&L Report
+            ...(user?.role === 'admin' || user?.email === 'sunil@bora.tech' || user?.email === 'himanshu@bora.tech'
+              ? [{ path: '/pl-report', label: 'P&L Reporting', icon: TrendingUp }]
+              : []
+            ),
           ],
         },
       ];

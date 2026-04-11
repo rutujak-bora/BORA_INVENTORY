@@ -160,6 +160,26 @@ const PrivateRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/login" />;
 };
 
+const PLReportRoute = ({ children }) => {
+  const { user, isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  const hasAccess = user?.role === 'admin' ||
+    user?.email === 'sunil@bora.tech' ||
+    user?.email === 'himanshu@bora.tech';
+
+  if (!isAuthenticated) return <Navigate to="/login" />;
+
+  return hasAccess ? children : <Navigate to="/dashboard" />;
+};
+
 function AppRoutes() {
   return (
     <Routes>
@@ -319,11 +339,11 @@ function AppRoutes() {
       <Route
         path="/pl-report"
         element={
-          <PrivateRoute>
+          <PLReportRoute>
             <Layout>
               <PLReporting />
             </Layout>
-          </PrivateRoute>
+          </PLReportRoute>
         }
       />
     </Routes>

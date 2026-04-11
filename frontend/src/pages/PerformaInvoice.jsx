@@ -30,7 +30,8 @@ const proformaInvoice = () => {
     dateFrom: '',
     dateTo: '',
     status: 'all',
-    company: 'all'
+    company: 'all',
+    category: 'all'
   });
   const [filteredPIs, setFilteredPIs] = useState([]);
 
@@ -106,6 +107,13 @@ const proformaInvoice = () => {
       );
     }
 
+    // Category filter
+    if (filters.category !== 'all') {
+      filtered = filtered.filter(pi =>
+        pi.line_items?.some(item => item.category === filters.category)
+      );
+    }
+
     setFilteredPIs(filtered);
   }, [pis, searchTerm, filters]);
 
@@ -151,7 +159,8 @@ const proformaInvoice = () => {
       dateFrom: '',
       dateTo: '',
       status: 'all',
-      company: 'all'
+      company: 'all',
+      category: 'all'
     });
   };
 
@@ -840,6 +849,25 @@ const proformaInvoice = () => {
                 ))}
               </select>
             </div>
+
+            {/* Category Filter */}
+            <div>
+              <Label className="text-xs">Category</Label>
+              <select
+                className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
+                value={filters.category}
+                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+              >
+                <option value="all">All Categories</option>
+                {[...new Set(pis.flatMap(pi => pi.line_items?.map(item => item.category) || []))]
+                  .filter(Boolean)
+                  .sort()
+                  .map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))
+                }
+              </select>
+            </div>
           </div>
 
           {/* Reset and Results Count */}
@@ -885,7 +913,7 @@ const proformaInvoice = () => {
             {filteredPIs.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-slate-500 py-8">
-                  {searchTerm || filters.dateFrom || filters.dateTo || filters.status !== 'all' || filters.company !== 'all'
+                  {searchTerm || filters.dateFrom || filters.dateTo || filters.status !== 'all' || filters.company !== 'all' || filters.category !== 'all'
                     ? 'No PIs match your search/filter criteria.'
                     : 'No PIs found. Create your first PI to get started.'}
                 </TableCell>

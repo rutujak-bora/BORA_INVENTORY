@@ -133,7 +133,7 @@ const PLReporting = () => {
       const totalExportValue = plReport.summary.total_export_value || 0;
       const totalPurchaseCost = plReport.summary.total_purchase_cost || 0;
       const totalExpenses = plReport.summary.total_expenses || 0;
-      
+
       const grossTotal = totalExportValue - totalPurchaseCost;
       const grossTotalIncGst = grossTotal * 1.18;
       const netProfit = grossTotalIncGst - totalExpenses;
@@ -211,7 +211,7 @@ const PLReporting = () => {
       const totalExportValue = plReport.summary.total_export_value || 0;
       const totalPurchaseCost = plReport.summary.total_purchase_cost || 0;
       const totalExpenses = plReport.summary.total_expenses || 0;
-      
+
       const grossTotal = totalExportValue - totalPurchaseCost;
       const grossTotalIncGst = grossTotal * 1.18;
       const netProfit = grossTotalIncGst - totalExpenses;
@@ -482,7 +482,7 @@ const PLReporting = () => {
             const grossTIncGst = grossT * 1.18;
             const netP = grossTIncGst - (plReport.summary.total_expenses || 0);
             const netPP = (plReport.summary.total_purchase_cost || 0) > 0 ? (netP / plReport.summary.total_purchase_cost * 100 / 1.18) : 0;
-            
+
             return (
               <Card className="bg-gradient-to-r from-green-50 to-blue-50">
                 <CardContent className="pt-6">

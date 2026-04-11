@@ -32,7 +32,8 @@ const PurchaseOrder = () => {
     dateFrom: '',
     dateTo: '',
     status: 'all',
-    company: 'all'
+    company: 'all',
+    category: 'all'
   });
   const [filteredPOs, setFilteredPOs] = useState([]);
 
@@ -115,6 +116,13 @@ const PurchaseOrder = () => {
       );
     }
 
+    // Category filter
+    if (filters.category !== 'all') {
+      filtered = filtered.filter(po =>
+        po.line_items?.some(item => item.category === filters.category)
+      );
+    }
+
     setFilteredPOs(filtered);
   }, [pos, searchTerm, filters]);
 
@@ -158,7 +166,8 @@ const PurchaseOrder = () => {
       dateFrom: '',
       dateTo: '',
       status: 'all',
-      company: 'all'
+      company: 'all',
+      category: 'all'
     });
   };
 
@@ -1155,6 +1164,25 @@ const PurchaseOrder = () => {
                 ))}
               </select>
             </div>
+
+            {/* Category Filter */}
+            <div>
+              <Label className="text-xs">Category</Label>
+              <select
+                className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
+                value={filters.category}
+                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+              >
+                <option value="all">All Categories</option>
+                {[...new Set(pos.flatMap(po => po.line_items?.map(item => item.category) || []))]
+                  .filter(Boolean)
+                  .sort()
+                  .map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))
+                }
+              </select>
+            </div>
           </div>
           <div className="flex items-center justify-between mt-3 pt-3 border-t">
             <p className="text-sm text-slate-600">
@@ -1198,7 +1226,7 @@ const PurchaseOrder = () => {
             {filteredPOs.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-slate-500 py-8">
-                  {searchTerm || filters.dateFrom || filters.dateTo || filters.status !== 'all' || filters.company !== 'all'
+                  {searchTerm || filters.dateFrom || filters.dateTo || filters.status !== 'all' || filters.company !== 'all' || filters.category !== 'all'
                     ? 'No POs match your search/filter criteria.'
                     : 'No POs found. Create your first PO to get started.'}
                 </TableCell>

@@ -18,6 +18,11 @@ const PriceComparison = () => {
     const [newInvoiceId, setNewInvoiceId] = useState('');
     const [oldInvoiceId, setOldInvoiceId] = useState('');
     
+    // Filtering states
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    
     const [newInvoiceData, setNewInvoiceData] = useState(null);
     const [oldInvoiceData, setOldInvoiceData] = useState(null);
     
@@ -48,6 +53,9 @@ const PriceComparison = () => {
     const resetComparison = () => {
         setNewInvoiceId('');
         setOldInvoiceId('');
+        setStartDate('');
+        setEndDate('');
+        setCategoryFilter('all');
         setNewInvoiceData(null);
         setOldInvoiceData(null);
     };
@@ -79,15 +87,36 @@ const PriceComparison = () => {
         if (oldInvoiceId) fetchInvoiceDetails(oldInvoiceId, 'old');
     }, [oldInvoiceId]);
 
+    // Available categories extracted from current loaded data
+    const categories = Array.from(new Set([
+        ...(newInvoiceData?.line_items?.map(item => item.category) || []),
+        ...(oldInvoiceData?.line_items?.map(item => item.category) || [])
+    ])).filter(Boolean).sort();
+
+    // Filtered Invoices based on date range
+    const filteredInvoices = invoices.filter(inv => {
+        if (!startDate && !endDate) return true;
+        const invDate = new Date(inv.date);
+        const start = startDate ? new Date(startDate) : null;
+        const end = endDate ? new Date(endDate) : null;
+        
+        if (start && invDate < start) return false;
+        if (end && invDate > end) return false;
+        return true;
+    });
+
     const getComparisonData = () => {
         const productMap = new Map();
 
         // Process New Invoice
         newInvoiceData?.line_items?.forEach(item => {
+            if (categoryFilter !== 'all' && item.category !== categoryFilter) return;
+            
             const sku = item.sku || item.product_id;
             productMap.set(sku, {
                 sku: sku,
                 product_name: item.product_name,
+                category: item.category,
                 newPrice: item.rate,
                 oldPrice: null
             });
@@ -95,15 +124,17 @@ const PriceComparison = () => {
 
         // Process Old Invoice
         oldInvoiceData?.line_items?.forEach(item => {
+            if (categoryFilter !== 'all' && item.category !== categoryFilter) return;
+            
             const sku = item.sku || item.product_id;
             if (productMap.has(sku)) {
                 const existing = productMap.get(sku);
                 existing.oldPrice = item.rate;
-                // Prefer new product name if different
             } else {
                 productMap.set(sku, {
                     sku: sku,
                     product_name: item.product_name,
+                    category: item.category,
                     newPrice: null,
                     oldPrice: item.rate
                 });
@@ -133,6 +164,49 @@ const PriceComparison = () => {
 
             <Card>
                 <CardContent className="pt-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-slate-100">
+                        {/* Date Range Filter */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-semibold">Start Date</Label>
+                            <Input 
+                                type="date" 
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-semibold">End Date</Label>
+                            <Input 
+                                type="date" 
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+
+                        {/* Category Filter */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-semibold">Product Category</Label>
+                            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="All Categories" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Categories</SelectItem>
+                                    {categories.map(cat => (
+                                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-end pb-0.5">
+                            <Button variant="ghost" className="text-slate-500 text-xs" onClick={resetComparison}>
+                                Reset Filters
+                            </Button>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {/* Type Selection */}
                         <div className="space-y-2">
@@ -144,7 +218,7 @@ const PriceComparison = () => {
                                     onClick={() => setInvoiceType('pi')}
                                 >
                                     <FileText size={18} className="mr-2" />
-                                    Proforma Invoice (PI)
+                                    PI
                                 </Button>
                                 <Button 
                                     variant={invoiceType === 'po' ? 'default' : 'outline'}
@@ -152,53 +226,43 @@ const PriceComparison = () => {
                                     onClick={() => setInvoiceType('po')}
                                 >
                                     <ShoppingCart size={18} className="mr-2" />
-                                    Purchase Order (PO)
+                                    PO
                                 </Button>
                             </div>
                         </div>
 
                         {/* New Price Selection */}
                         <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Column A (New Price Selection)</Label>
+                            <Label className="text-sm font-semibold">Column A (New Selection)</Label>
                             <Select value={newInvoiceId} onValueChange={setNewInvoiceId}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Select newest voucher..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60 overflow-y-auto">
-                                    {invoices.map(inv => (
+                                    {filteredInvoices.map(inv => (
                                         <SelectItem key={inv.id} value={inv.id}>
                                             {inv.voucher_no} - {new Date(inv.date).toLocaleDateString()}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            {newInvoiceData && (
-                                <p className="text-xs text-blue-600 font-medium ml-1">
-                                    {newInvoiceData.company?.name || 'Voucher Data Loaded'}
-                                </p>
-                            )}
                         </div>
 
                         {/* Old Price Selection */}
                         <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Column B (Old Price Selection)</Label>
+                            <Label className="text-sm font-semibold">Column B (Old Selection)</Label>
                             <Select value={oldInvoiceId} onValueChange={setOldInvoiceId}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Select previous voucher..." />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-60 overflow-y-auto">
-                                    {invoices.map(inv => (
+                                    {filteredInvoices.map(inv => (
                                         <SelectItem key={inv.id} value={inv.id} disabled={inv.id === newInvoiceId}>
                                             {inv.voucher_no} - {new Date(inv.date).toLocaleDateString()}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                            {oldInvoiceData && (
-                                <p className="text-xs text-orange-600 font-medium ml-1">
-                                    {oldInvoiceData.company?.name || 'Voucher Data Loaded'}
-                                </p>
-                            )}
                         </div>
                     </div>
                 </CardContent>

@@ -1,0 +1,17 @@
+--- Detailed check for PO1002 ---
+PO ID: cfff630f-bba8-4ce2-9a70-5b6cceb0b0bb
+  VoucherNo: PO1002
+  PoNo: None
+  IsActive: False
+  LineItems:
+    - SKU: INDINSP5440C3U-S1 | Qty: 300.0 | ProdID: nan | ID: f078d1f2-96d0-4cad-8b27-99dc856dc52f
+
+PO ID: 7fc26b9c-d38e-4ec7-9ea7-4c681c7fea5e
+  VoucherNo: PO1002
+  PoNo: None
+  IsActive: False
+  LineItems:
+    - SKU: INDINSP5440C3U-S1 | Qty: 100.0 | ProdID: nan | ID: 332ce4c0-cbe9-42e7-9588-0611574a6686
+    - SKU: INDINSP5440C3U-S1 | Qty: 100.0 | ProdID: nan | ID: 15964b4c-9bef-40c3-b4de-01c0695a4687
+    - SKU: INDINSP5440C3U-S1 | Qty: 100.0 | ProdID:  | ID: 0e6daeb8-f922-46b9-9a92-c071bfcdb676
+

@@ -4,6 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from contextlib import asynccontextmanager
 import sys
+import certifi
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -41,7 +42,7 @@ MONGO_URL = os.environ.get('MONGO_URL')
 DB_NAME = os.environ.get('DB_NAME')
 
 try:
-    mongo_client = AsyncIOMotorClient(MONGO_URL)
+    mongo_client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where())
     mongo_db = mongo_client[DB_NAME]
     print(f"MongoDB connection initialized: Database={DB_NAME}")
 except Exception as e:

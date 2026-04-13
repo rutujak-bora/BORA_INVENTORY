@@ -186,3 +186,39 @@
 2026-03-13 19:18:30,616 - server - INFO - Application shutting down
 2026-03-13 19:18:38,408 - server - INFO - Application started - using MongoDB
 2026-03-13 19:18:38,996 - server - INFO - MongoDB indexes initialized successfully
+2026-04-07 10:31:17,161 - server - INFO - Application started - using MongoDB
+2026-04-07 10:31:21,897 - server - INFO - MongoDB indexes initialized successfully
+2026-04-07 13:13:19,426 - server - INFO - Application started - using MongoDB
+2026-04-07 13:13:24,301 - server - INFO - MongoDB indexes initialized successfully
+2026-04-07 14:39:03,956 - server - INFO - Processing PO cfff630f-bba8-4ce2-9a70-5b6cceb0b0bb for inward. Product keys in PO: []
+2026-04-07 14:39:03,957 - server - INFO - Aggregated PO quantities: {'nan': 300.0}
+2026-04-07 14:39:03,958 - server - INFO - Validating inward item: product_id=nan, sku=INDINSP5440C3U-S1, qty=300.0
+2026-04-07 14:39:03,989 - server - INFO - Item nan: PO Qty=300.0, Inwarded=0, In-Transit=0, Requested=300.0
+2026-04-07 14:42:10,480 - server - INFO - Application shutting down
+2026-04-07 14:42:15,422 - server - INFO - Application started - using MongoDB
+2026-04-07 14:42:19,987 - server - INFO - MongoDB indexes initialized successfully
+2026-04-07 14:43:21,564 - server - INFO - Processing PO cfff630f-bba8-4ce2-9a70-5b6cceb0b0bb for inward. Product keys in PO: []
+2026-04-07 14:43:21,575 - server - INFO - Processing PO 7fc26b9c-d38e-4ec7-9ea7-4c681c7fea5e for inward. Product keys in PO: ['nan']
+2026-04-07 14:43:21,575 - server - INFO - Aggregated PO quantities: {'nan': 500.0, '': 100.0}
+2026-04-07 14:43:21,576 - server - INFO - Validating inward item: product_id=nan, sku=INDINSP5440C3U-S1, qty=50.0
+2026-04-07 14:43:21,613 - server - INFO - Item nan: PO Qty=500.0, Inwarded=0, In-Transit=0, Requested=50.0
+2026-04-07 14:44:06,860 - server - INFO - Processing PO cfff630f-bba8-4ce2-9a70-5b6cceb0b0bb for inward. Product keys in PO: []
+2026-04-07 14:44:06,874 - server - INFO - Processing PO 7fc26b9c-d38e-4ec7-9ea7-4c681c7fea5e for inward. Product keys in PO: ['nan']
+2026-04-07 14:44:06,876 - server - INFO - Aggregated PO quantities: {'nan': 500.0, '': 100.0}
+2026-04-07 14:44:06,877 - server - INFO - Validating inward item: product_id=nan, sku=INDINSP5440C3U-S1, qty=300.0
+2026-04-07 14:44:06,934 - server - INFO - Item nan: PO Qty=500.0, Inwarded=0, In-Transit=0, Requested=300.0
+2026-04-07 14:44:27,554 - server - INFO - Application shutting down
+2026-04-07 14:44:32,240 - server - INFO - Application started - using MongoDB
+2026-04-07 14:44:36,839 - server - INFO - MongoDB indexes initialized successfully
+2026-04-08 11:54:31,739 - server - INFO - Application started - using MongoDB
+2026-04-08 11:54:36,702 - server - INFO - MongoDB indexes initialized successfully
+2026-04-08 11:56:42,857 - server - INFO - Application shutting down
+2026-04-08 11:56:46,129 - server - INFO - Application started - using MongoDB
+2026-04-08 12:19:11,604 - server - INFO - Application started - using MongoDB
+2026-04-08 12:19:16,845 - server - INFO - MongoDB indexes initialized successfully
+2026-04-13 10:49:01,209 - server - INFO - Application started - using MongoDB
+2026-04-13 10:49:31,277 - server - ERROR - Error initializing MongoDB indexes: ac-qzt6rjj-shard-00-00.wwvkwf9.mongodb.net:27017: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010),ac-qzt6rjj-shard-00-01.wwvkwf9.mongodb.net:27017: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010),ac-qzt6rjj-shard-00-02.wwvkwf9.mongodb.net:27017: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010), Timeout: 30s, Topology Description: <TopologyDescription id: 69dc7cc40646553bcdaba241, topology_type: ReplicaSetNoPrimary, servers: [<ServerDescription ('ac-qzt6rjj-shard-00-00.wwvkwf9.mongodb.net', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('ac-qzt6rjj-shard-00-00.wwvkwf9.mongodb.net:27017: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)')>, <ServerDescription ('ac-qzt6rjj-shard-00-01.wwvkwf9.mongodb.net', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('ac-qzt6rjj-shard-00-01.wwvkwf9.mongodb.net:27017: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)')>, <ServerDescription ('ac-qzt6rjj-shard-00-02.wwvkwf9.mongodb.net', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('ac-qzt6rjj-shard-00-02.wwvkwf9.mongodb.net:27017: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)')>]>
+2026-04-13 11:02:48,002 - server - INFO - Application started - using MongoDB
+2026-04-13 11:02:48,545 - server - INFO - MongoDB indexes initialized successfully
+2026-04-13 12:59:55,692 - server - INFO - Application started - using MongoDB
+2026-04-13 12:59:56,201 - server - INFO - MongoDB indexes initialized successfully

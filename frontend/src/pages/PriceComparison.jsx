@@ -13,7 +13,7 @@ import { SearchableSelect } from '../components/SearchableSelect';
 const PriceComparison = () => {
     const [invoiceType, setInvoiceType] = useState('pi'); // 'pi' or 'po'
     const [invoices, setInvoices] = useState([]);
-    const [allProducts, setAllProducts] = useState([]);
+    const [filterData, setFilterData] = useState({ categories: [], skus: [] });
     const [loading, setLoading] = useState(false);
     
     // Selection for Column A (Reference)
@@ -31,10 +31,10 @@ const PriceComparison = () => {
     
     const { toast } = useToast();
 
-    // 1. Fetch Invoices and Products on Mount
+    // 1. Fetch Invoices and Filter Data on Mount
     useEffect(() => {
         fetchInvoices();
-        fetchProducts();
+        fetchFilterData();
     }, [invoiceType]);
 
     const fetchInvoices = async () => {
@@ -51,15 +51,16 @@ const PriceComparison = () => {
         }
     };
 
-    const fetchProducts = async () => {
+    const fetchFilterData = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/products');
-            setAllProducts(response.data);
+            // SourceCategories and SKUs from transactions since products catalog might be empty
+            const response = await api.get('/products/transaction-filters');
+            setFilterData(response.data);
         } catch (error) {
             toast({
                 title: 'Error',
-                description: 'Failed to fetch product catalog',
+                description: 'Failed to fetch filter options',
                 variant: 'destructive',
             });
         } finally {
@@ -98,18 +99,14 @@ const PriceComparison = () => {
         setManualPrices({});
     };
 
-    // 3. Drive Categories and SKUs from Full Catalog
-    const categories = useMemo(() => {
-        return Array.from(new Set(allProducts.map(p => p.category))).filter(Boolean).sort();
-    }, [allProducts]);
+    // 3. Drive Categories and SKUs from Aggregated Filter Data
+    const categories = useMemo(() => filterData.categories || [], [filterData]);
 
     const skus = useMemo(() => {
-        let list = allProducts;
-        if (categoryFilter !== 'all') {
-            list = list.filter(p => p.category === categoryFilter);
-        }
-        return Array.from(new Set(list.map(p => p.sku_name))).filter(Boolean).sort();
-    }, [allProducts, categoryFilter]);
+        if (categoryFilter === 'all') return filterData.skus || [];
+        // Ideally the backend should filter SKUs by category, but for now we'll show all or rely on the user choosing correctly
+        return filterData.skus || [];
+    }, [filterData, categoryFilter]);
 
     // Filtered Invoices based on date range
     const filteredInvoices = useMemo(() => {
@@ -126,43 +123,31 @@ const PriceComparison = () => {
 
     // 4. Comparison Data Generation
     const comparisonData = useMemo(() => {
-        // We show products matching the filters
-        let productsToShow = allProducts;
+        // Source items primarily from the selected Reference Invoice
+        if (!referenceInvoiceData) return [];
+
+        let items = referenceInvoiceData.line_items || [];
+        
+        // Apply filters
         if (categoryFilter !== 'all') {
-            productsToShow = productsToShow.filter(p => p.category === categoryFilter);
+            items = items.filter(item => item.category === categoryFilter);
         }
         if (skuFilter !== 'all') {
-            productsToShow = productsToShow.filter(p => p.sku_name === skuFilter);
+            items = items.filter(item => (item.sku || item.product_id) === skuFilter);
         }
 
-        // Only show items that are EITHER in the reference doc OR have been manually adjusted?
-        // Requirement says "display the filtered products", usually means any matching Category/SKU.
-        // If they haven't selected a Doc, we might see all. 
-        // But if they have a Doc selected, maybe we limit it to Doc items?
-        // Let's stick to "Filter driven" listing.
-        
-        const referenceMap = new Map();
-        referenceInvoiceData?.line_items?.forEach(item => {
-            referenceMap.set(item.sku || item.product_id, item);
-        });
-
-        return productsToShow.map(p => {
-            const sku = p.sku_name;
-            const refItem = referenceMap.get(sku);
+        return items.map(item => {
+            const sku = item.sku || item.product_id;
             return {
                 sku: sku,
-                product_name: p.product_name || p.sku_name,
-                category: p.category,
-                qty: refItem?.qty || refItem?.quantity || 0,
-                referencePrice: refItem?.rate || null,
-                manualPrice: manualPrices[sku] !== undefined ? manualPrices[sku] : (refItem?.rate || null)
+                product_name: item.product_name || sku,
+                category: item.category,
+                qty: item.qty || item.quantity || 0,
+                referencePrice: item.rate || null,
+                manualPrice: manualPrices[sku] !== undefined ? manualPrices[sku] : (item.rate || null)
             };
-        }).filter(item => {
-            // Keep items that match filters. If everything is 'all', might be too many.
-            // But let's follow the filter structure.
-            return true;
         }).sort((a, b) => a.product_name.localeCompare(b.product_name));
-    }, [allProducts, categoryFilter, skuFilter, referenceInvoiceData, manualPrices]);
+    }, [referenceInvoiceData, categoryFilter, skuFilter, manualPrices]);
 
     const handleManualPriceChange = (sku, value) => {
         const numValue = value === '' ? undefined : parseFloat(value);

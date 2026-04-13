@@ -485,6 +485,30 @@ async def get_products(current_user: dict = Depends(get_current_active_user)):
         products.append(product)
     return products
 
+@api_router.get("/products/transaction-filters")
+async def get_transaction_filters(current_user: dict = Depends(get_current_active_user)):
+    """Aggregate unique categories and SKUs from all PIs and POs"""
+    try:
+        # Extract from Proforma Invoices
+        pi_categories = await mongo_db.proforma_invoices.distinct("line_items.category", {"is_active": True})
+        pi_skus = await mongo_db.proforma_invoices.distinct("line_items.sku", {"is_active": True})
+        
+        # Extract from Purchase Orders
+        po_categories = await mongo_db.purchase_orders.distinct("line_items.category", {"is_active": True})
+        po_skus = await mongo_db.purchase_orders.distinct("line_items.sku", {"is_active": True})
+        
+        # Merge and clean
+        categories = sorted(list(set(filter(None, pi_categories + po_categories))))
+        skus = sorted(list(set(filter(None, pi_skus + po_skus))))
+        
+        return {
+            "categories": categories,
+            "skus": skus
+        }
+    except Exception as e:
+        logger.error(f"Error fetching transaction filters: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/products/export")
 async def export_products(
     format: str = "json",

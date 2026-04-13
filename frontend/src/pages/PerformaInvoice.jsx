@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { SearchableSelect } from '../components/SearchableSelect';
+import { MultiSelect } from '../components/MultiSelect';
 import { Plus, Trash2, Download, Upload, X, Eye, Search, Filter } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useResizeObserverErrorFix } from '../hooks/useResizeObserverErrorFix';
@@ -31,7 +31,7 @@ const proformaInvoice = () => {
     dateTo: '',
     status: 'all',
     company: 'all',
-    category: 'all'
+    category: []
   });
   const [filteredPIs, setFilteredPIs] = useState([]);
 
@@ -108,9 +108,9 @@ const proformaInvoice = () => {
     }
 
     // Category filter
-    if (filters.category !== 'all') {
+    if (filters.category && filters.category.length > 0) {
       filtered = filtered.filter(pi =>
-        pi.line_items?.some(item => item.category === filters.category)
+        pi.line_items?.some(item => filters.category.includes(item.category))
       );
     }
 
@@ -160,7 +160,7 @@ const proformaInvoice = () => {
       dateTo: '',
       status: 'all',
       company: 'all',
-      category: 'all'
+      category: []
     });
   };
 
@@ -851,22 +851,19 @@ const proformaInvoice = () => {
             </div>
 
             {/* Category Filter */}
-            <div>
-              <Label className="text-xs">Category</Label>
-              <select
-                className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
-                value={filters.category}
-                onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-              >
-                <option value="all">All Categories</option>
-                {[...new Set(pis.flatMap(pi => pi.line_items?.map(item => item.category) || []))]
+            <div className="md:col-span-1">
+              <Label className="text-xs">Categories</Label>
+              <MultiSelect
+                selected={filters.category}
+                onSelectionChange={(selected) => setFilters({ ...filters, category: selected })}
+                options={Array.from(new Set(pis.flatMap(pi => pi.line_items?.map(item => item.category) || [])))
                   .filter(Boolean)
                   .sort()
-                  .map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))
+                  .map(cat => ({ value: cat, label: cat }))
                 }
-              </select>
+                placeholder="All Categories"
+                searchPlaceholder="Search categories..."
+              />
             </div>
           </div>
 

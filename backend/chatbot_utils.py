@@ -17,8 +17,6 @@ def get_document_details(voucher_no: str):
     Search for details of a specific Proforma Invoice (PI) or Purchase Order (PO) by its voucher number.
     Returns the items, total amount, buyer/supplier, and status.
     """
-    # This is a synchronous-style wrapper for the tool to show to Gemini
-    # The actual implementation will be handled in the async loop below
     return f"Searching for document {voucher_no}..."
 
 def get_sku_stock_stats(sku_name: str):
@@ -30,7 +28,6 @@ def get_sku_stock_stats(sku_name: str):
 
 async def tool_get_document_details(voucher_no: str):
     """Async implementation of document search"""
-    # Search PI
     pi = await mongo_db.proforma_invoices.find_one({"voucher_no": voucher_no, "is_active": True}, {"_id": 0})
     if pi:
         items = pi.get("line_items", [])
@@ -46,7 +43,6 @@ async def tool_get_document_details(voucher_no: str):
             "items": [{"sku": i.get("sku"), "qty": i.get("quantity"), "rate": i.get("rate")} for i in items]
         }
     
-    # Search PO
     po = await mongo_db.purchase_orders.find_one({"voucher_no": voucher_no, "is_active": True}, {"_id": 0})
     if po:
         items = po.get("line_items", [])
@@ -66,7 +62,6 @@ async def tool_get_document_details(voucher_no: str):
 
 async def tool_get_sku_stock_stats(sku_name: str):
     """Async implementation of SKU statistics aggregation"""
-    # Aggregate Inward
     inward_pipeline = [
         {"$match": {"line_items.sku": sku_name, "is_active": True}},
         {"$unwind": "$line_items"},
@@ -76,7 +71,6 @@ async def tool_get_sku_stock_stats(sku_name: str):
     inward_res = await mongo_db.inward_stock.aggregate(inward_pipeline).to_list(1)
     total_inward = inward_res[0]["total_qty"] if inward_res else 0
 
-    # Aggregate Outward
     outward_pipeline = [
         {"$match": {"line_items.sku": sku_name, "is_active": True}},
         {"$unwind": "$line_items"},
@@ -93,6 +87,20 @@ async def tool_get_sku_stock_stats(sku_name: str):
         "current_stock": total_inward - total_outward
     }
 
+async def get_available_model():
+    """Detect the best available model for the current API key"""
+    try:
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Priority list
+        preferred = ['models/gemini-1.5-flash', 'models/gemini-flash-latest', 'models/gemini-1.5-pro', 'models/gemini-pro']
+        for p in preferred:
+            if p in models:
+                return p
+        return models[0] if models else "gemini-1.5-flash"
+    except:
+        return "gemini-1.5-flash"
+
 async def chat_with_bora_assistant(message: str, history: list = None):
     """
     Main entry point for the Gemini Chatbot.
@@ -106,15 +114,15 @@ async def chat_with_bora_assistant(message: str, history: list = None):
 
     # Define tools for Gemini
     tools = [get_document_details, get_sku_stock_stats]
+    model_name = await get_available_model()
     
     model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash',
+        model_name=model_name,
         tools=tools,
         system_instruction="""You are the Bora Mobility Inventory Assistant. 
         You help users find details about Proforma Invoices (PI), Purchase Orders (PO), and SKU stock levels.
         Always be professional, concise, and helpful. 
-        If a user mentions a document number or SKU, use your tools to provide accurate data.
-        If you find a document, summarize its key details (Buyer/Supplier, Total Amount, Items)."""
+        If a user mentions a document number or SKU, use your tools to provide accurate data."""
     )
 
     chat = model.start_chat(history=history or [], enable_automatic_function_calling=False)
@@ -122,7 +130,6 @@ async def chat_with_bora_assistant(message: str, history: list = None):
     try:
         response = chat.send_message(message)
         
-        # Handle manual tool calling to work with async Mongo
         if response.candidates[0].content.parts[0].function_call:
             call = response.candidates[0].content.parts[0].function_call
             if call.name == "get_document_details":
@@ -132,7 +139,6 @@ async def chat_with_bora_assistant(message: str, history: list = None):
             else:
                 tool_result = {"error": "Unknown tool"}
 
-            # Send tool output back to Gemini
             response = chat.send_message(
                 genai.types.Content(
                 parts=[genai.types.Part.from_function_response(
@@ -150,4 +156,4 @@ async def chat_with_bora_assistant(message: str, history: list = None):
         }
     except Exception as e:
         logger.error(f"Chatbot Error: {str(e)}")
-        return {"text": f"I encountered an error while processing your request: {str(e)}", "error": True}
+        return {"text": f"I encountered an error: {str(e)}", "error": True}

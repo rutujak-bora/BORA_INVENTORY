@@ -487,23 +487,46 @@ async def get_products(current_user: dict = Depends(get_current_active_user)):
 
 @api_router.get("/products/transaction-filters")
 async def get_transaction_filters(current_user: dict = Depends(get_current_active_user)):
-    """Aggregate unique categories and SKUs from all PIs and POs"""
+    """Aggregate unique categories and SKUs from all PIs and POs with mappings"""
     try:
-        # Extract from Proforma Invoices
-        pi_categories = await mongo_db.proforma_invoices.distinct("line_items.category", {"is_active": True})
-        pi_skus = await mongo_db.proforma_invoices.distinct("line_items.sku", {"is_active": True})
+        # Extract from Proforma Invoices with categories
+        pi_data = await mongo_db.proforma_invoices.aggregate([
+            {"$match": {"is_active": True}},
+            {"$unwind": "$line_items"},
+            {"$group": {
+                "_id": None,
+                "categories": {"$addToSet": "$line_items.category"},
+                "skus": {"$addToSet": "$line_items.sku"},
+                "sku_map": {"$addToSet": {"sku": "$line_items.sku", "category": "$line_items.category"}}
+            }}
+        ]).to_list(1)
         
-        # Extract from Purchase Orders
-        po_categories = await mongo_db.purchase_orders.distinct("line_items.category", {"is_active": True})
-        po_skus = await mongo_db.purchase_orders.distinct("line_items.sku", {"is_active": True})
+        # Extract from Purchase Orders with categories
+        po_data = await mongo_db.purchase_orders.aggregate([
+            {"$match": {"is_active": True}},
+            {"$unwind": "$line_items"},
+            {"$group": {
+                "_id": None,
+                "categories": {"$addToSet": "$line_items.category"},
+                "skus": {"$addToSet": "$line_items.sku"},
+                "sku_map": {"$addToSet": {"sku": "$line_items.sku", "category": "$line_items.category"}}
+            }}
+        ]).to_list(1)
         
-        # Merge and clean
-        categories = sorted(list(set(filter(None, pi_categories + po_categories))))
-        skus = sorted(list(set(filter(None, pi_skus + po_skus))))
+        pi = pi_data[0] if pi_data else {"categories": [], "skus": [], "sku_map": []}
+        po = po_data[0] if po_data else {"categories": [], "skus": [], "sku_map": []}
         
         return {
-            "categories": categories,
-            "skus": skus
+            "pi": {
+                "categories": sorted(list(set(filter(None, pi["categories"])))),
+                "skus": sorted(list(set(filter(None, pi["skus"])))),
+                "sku_map": pi["sku_map"]
+            },
+            "po": {
+                "categories": sorted(list(set(filter(None, po["categories"])))),
+                "skus": sorted(list(set(filter(None, po["skus"])))),
+                "sku_map": po["sku_map"]
+            }
         }
     except Exception as e:
         logger.error(f"Error fetching transaction filters: {str(e)}")

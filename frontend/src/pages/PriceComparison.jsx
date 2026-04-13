@@ -54,7 +54,6 @@ const PriceComparison = () => {
     const fetchFilterData = async () => {
         setLoading(true);
         try {
-            // SourceCategories and SKUs from transactions since products catalog might be empty
             const response = await api.get('/products/transaction-filters');
             setFilterData(response.data);
         } catch (error) {
@@ -90,45 +89,75 @@ const PriceComparison = () => {
         fetchDetails();
     }, [referenceInvoiceId, invoiceType]);
 
-    const resetComparison = () => {
-        setReferenceInvoiceId('');
-        setStartDate('');
-        setEndDate('');
-        setCategoryFilter('all');
-        setSkuFilter('all');
-        setManualPrices({});
-    };
-
-    // 3. Drive Categories and SKUs from Aggregated Filter Data
-    const categories = useMemo(() => filterData.categories || [], [filterData]);
+    // 3. Cascading Filter Logic
+    const categories = useMemo(() => {
+        const typeData = filterData[invoiceType] || { categories: [] };
+        return typeData.categories || [];
+    }, [filterData, invoiceType]);
 
     const skus = useMemo(() => {
-        if (categoryFilter === 'all') return filterData.skus || [];
-        // Ideally the backend should filter SKUs by category, but for now we'll show all or rely on the user choosing correctly
-        return filterData.skus || [];
-    }, [filterData, categoryFilter]);
+        const typeData = filterData[invoiceType] || { skus: [], sku_map: [] };
+        if (categoryFilter === 'all') return typeData.skus || [];
+        
+        // Filter SKUs that belong to the selected category using the map
+        return typeData.sku_map
+            .filter(item => item.category === categoryFilter)
+            .map(item => item.sku)
+            .sort();
+    }, [filterData, invoiceType, categoryFilter]);
 
-    // Filtered Invoices based on date range
+    // Handle Reset when higher filters change
+    useEffect(() => {
+        setCategoryFilter('all');
+        setSkuFilter('all');
+        setReferenceInvoiceId('');
+    }, [invoiceType]);
+
+    useEffect(() => {
+        setSkuFilter('all');
+        setReferenceInvoiceId('');
+    }, [categoryFilter]);
+
+    useEffect(() => {
+        setReferenceInvoiceId('');
+    }, [skuFilter]);
+
+    // 4. Smart Document Selection (Column A)
     const filteredInvoices = useMemo(() => {
         return invoices.filter(inv => {
-            if (!startDate && !endDate) return true;
-            const invDate = new Date(inv.date);
-            const start = startDate ? new Date(startDate) : null;
-            const end = endDate ? new Date(endDate) : null;
-            if (start && invDate < start) return false;
-            if (end && invDate > end) return false;
+            // 1. Date filter
+            if (startDate || endDate) {
+                const invDate = new Date(inv.date);
+                const start = startDate ? new Date(startDate) : null;
+                const end = endDate ? new Date(endDate) : null;
+                if (start && invDate < start) return false;
+                if (end && invDate > end) return false;
+            }
+
+            // 2. Content filter (Validation: Invoice must contain selected Category/SKU)
+            const lineItems = inv.line_items || [];
+            
+            if (categoryFilter !== 'all') {
+                const hasCategory = lineItems.some(item => item.category === categoryFilter);
+                if (!hasCategory) return false;
+            }
+
+            if (skuFilter !== 'all') {
+                const hasSku = lineItems.some(item => (item.sku || item.product_id) === skuFilter);
+                if (!hasSku) return false;
+            }
+
             return true;
         });
-    }, [invoices, startDate, endDate]);
+    }, [invoices, startDate, endDate, categoryFilter, skuFilter]);
 
-    // 4. Comparison Data Generation
+    // 5. Comparison Data Generation
     const comparisonData = useMemo(() => {
-        // Source items primarily from the selected Reference Invoice
         if (!referenceInvoiceData) return [];
 
         let items = referenceInvoiceData.line_items || [];
         
-        // Apply filters
+        // Final validation: show only matching products in table
         if (categoryFilter !== 'all') {
             items = items.filter(item => item.category === categoryFilter);
         }
@@ -148,6 +177,15 @@ const PriceComparison = () => {
             };
         }).sort((a, b) => a.product_name.localeCompare(b.product_name));
     }, [referenceInvoiceData, categoryFilter, skuFilter, manualPrices]);
+
+    const resetComparison = () => {
+        setReferenceInvoiceId('');
+        setStartDate('');
+        setEndDate('');
+        setCategoryFilter('all');
+        setSkuFilter('all');
+        setManualPrices({});
+    };
 
     const handleManualPriceChange = (sku, value) => {
         const numValue = value === '' ? undefined : parseFloat(value);

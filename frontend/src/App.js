@@ -23,6 +23,7 @@ import PaymentTracking from './pages/PaymentTracking';
 import ExpenseCalculation from './pages/ExpenseCalculation';
 import PLReporting from './pages/PLReporting';
 import PriceComparison from './pages/PriceComparison';
+import AIAssistant from './pages/AIAssistant';
 import ErrorBoundary from './components/ErrorBoundary';
 import './utils/resizeObserverFix';
 import '@/App.css';
@@ -353,6 +354,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <PriceComparison />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/ai-assistant"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <AIAssistant />
             </Layout>
           </PrivateRoute>
         }

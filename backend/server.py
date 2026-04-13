@@ -28,6 +28,7 @@ from auth import (
     get_password_hash, verify_password, create_access_token,
     get_current_active_user
 )
+from chatbot_utils import chat_with_bora_assistant
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -6602,6 +6603,33 @@ async def bulk_delete_outward_stock(
         "failed_count": len(failed),
         "failed": failed
     }
+
+# ==================== CHATBOT ROUTES ====================
+@api_router.post("/chat")
+async def chatbot_query(
+    payload: dict,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Handle queries from the Bora Assistant chatbot.
+    """
+    message = payload.get("message")
+    history = payload.get("history", [])
+    
+    if not message:
+        raise HTTPException(status_code=400, detail="Message is required")
+        
+    result = await chat_with_bora_assistant(message, history)
+    
+    # Audit log for chat query
+    await mongo_db.audit_logs.insert_one({
+        "action": "chatbot_query",
+        "user_id": current_user["id"],
+        "query": message[:100], # Log only the beginning of the query
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return result
 
 app.include_router(api_router)
 

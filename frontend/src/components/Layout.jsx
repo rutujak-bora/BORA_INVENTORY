@@ -19,6 +19,7 @@ import {
   LogOut,
   User,
   ArrowRightLeft,
+  MessageSquare,
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -40,6 +41,7 @@ const Layout = ({ children }) => {
         { path: '/po', label: 'Purchase Order', icon: ShoppingCart },
         { path: '/payments', label: 'Payment Tracking', icon: CreditCard },
         { path: '/price-comparison', label: 'Price Comparison', icon: ArrowRightLeft },
+        { path: '/ai-assistant', label: 'AI Assistant', icon: MessageSquare },
       ]
     : [
         { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -90,6 +92,7 @@ const Layout = ({ children }) => {
               : []
             ),
             { path: '/price-comparison', label: 'Price Comparison', icon: ArrowRightLeft },
+            { path: '/ai-assistant', label: 'AI Assistant', icon: MessageSquare },
           ],
         },
       ];

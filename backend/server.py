@@ -6631,9 +6631,7 @@ async def chatbot_query(
     
     return result
 
-app.include_router(api_router)
-
-# Health check endpoint (no auth required)
+# Health check remains at the top level for easy monitoring
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "service": "Bora Mobility Inventory API"}
@@ -6661,3 +6659,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Application shutting down")
+
+# ==================== FINAL ROUTE REGISTRATION ====================
+# IMPORTANT: Include the router AFTER all routes have been added to it
+app.include_router(api_router)

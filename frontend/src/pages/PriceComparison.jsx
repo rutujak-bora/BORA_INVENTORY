@@ -308,6 +308,23 @@ const PriceComparison = () => {
                                 }))}
                                 placeholder="Choose a reference document..."
                             />
+                            
+                            {/* Dynamic Buyer/Supplier Display */}
+                            {referenceInvoiceData && (
+                                <div className="mt-2 flex items-center gap-2 p-2 bg-blue-50/50 rounded-lg border border-blue-100">
+                                    <div className="p-1 bg-white rounded shadow-sm text-blue-600">
+                                        {invoiceType === 'pi' ? <ShoppingCart size={14} /> : <ShoppingCart size={14} />}
+                                    </div>
+                                    <div className="text-sm">
+                                        <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider block">
+                                            {invoiceType === 'pi' ? 'Buyer Name' : 'Supplier Name'}
+                                        </span>
+                                        <span className="font-semibold text-slate-900">
+                                            {invoiceType === 'pi' ? referenceInvoiceData.buyer : referenceInvoiceData.supplier || 'N/A'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

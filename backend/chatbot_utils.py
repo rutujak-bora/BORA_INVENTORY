@@ -12,12 +12,32 @@ api_key = os.environ.get("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
-def get_document_details(voucher_no: str):
+def search_documents_by_company(company_name: str, doc_type: str = "PI"):
     """
-    Search for details of a specific Proforma Invoice (PI) or Purchase Order (PO) by its voucher number.
-    Returns the items, total amount, buyer/supplier, and status.
+    Search for Proforma Invoices (PI) or Purchase Orders (PO) by company name.
+    company_name: Part of the buyer or supplier name.
+    doc_type: 'PI' for Proforma Invoice or 'PO' for Purchase Order.
     """
-    return f"Searching for document {voucher_no}..."
+    return f"Searching for {doc_type}s for company {company_name}..."
+
+def get_stock_summary_by_category(category: str):
+    """
+    Get the total stock summary for all SKUs within a specific category.
+    Returns the total quantity available in that category.
+    """
+    return f"Calculating total stock for category {category}..."
+
+def get_recent_transactions(limit: int = 5):
+    """
+    Get the most recent inward and outward stock transactions.
+    """
+    return f"Fetching the last {limit} transactions..."
+
+def get_pending_documents(doc_type: str = "PI"):
+    """
+    List all pending Proforma Invoices (PI) or Purchase Orders (PO).
+    """
+    return f"Listing pending {doc_type}s..."
 
 def get_sku_stock_stats(sku_name: str):
     """
@@ -59,6 +79,100 @@ async def tool_get_document_details(voucher_no: str):
         }
     
     return {"error": f"No active PI or PO found with number {voucher_no}"}
+
+async def tool_search_documents_by_company(company_name: str, doc_type: str = "PI"):
+    """Search documents by company name (buyer/supplier)"""
+    query = {"is_active": True}
+    collection = "proforma_invoices" if doc_type.upper() == "PI" else "purchase_orders"
+    search_field = "buyer" if doc_type.upper() == "PI" else "supplier"
+    
+    query[search_field] = {"$regex": company_name, "$options": "i"}
+    
+    cursor = mongo_db[collection].find(query, {"_id": 0}).sort("date", -1).limit(5)
+    docs = await cursor.to_list(length=5)
+    
+    if not docs:
+        return {"message": f"No {doc_type}s found for company matching '{company_name}'"}
+    
+    return {
+        "count": len(docs),
+        "results": [{
+            "voucher_no": d.get("voucher_no"),
+            "date": d.get("date"),
+            "company": d.get(search_field),
+            "status": d.get("status")
+        } for d in docs]
+    }
+
+async def tool_get_stock_summary_by_category(category: str):
+    """Aggregate stock levels for all products in a category"""
+    # 1. Find all SKUs in this category
+    products = await mongo_db.products.find({"category": {"$regex": category, "$options": "i"}, "is_active": True}).to_list(None)
+    if not products:
+        return {"error": f"No products found in category '{category}'"}
+    
+    skus = [p["sku_name"] for p in products]
+    
+    # 2. Sum inward and outward for these SKUs
+    inward_pipeline = [
+        {"$match": {"line_items.sku": {"$in": skus}, "is_active": True}},
+        {"$unwind": "$line_items"},
+        {"$match": {"line_items.sku": {"$in": skus}}},
+        {"$group": {"_id": None, "total_qty": {"$sum": "$line_items.quantity"}}}
+    ]
+    inward_res = await mongo_db.inward_stock.aggregate(inward_pipeline).to_list(1)
+    total_inward = inward_res[0]["total_qty"] if inward_res else 0
+
+    outward_pipeline = [
+        {"$match": {"line_items.sku": {"$in": skus}, "is_active": True}},
+        {"$unwind": "$line_items"},
+        {"$match": {"line_items.sku": {"$in": skus}}},
+        {"$group": {"_id": None, "total_qty": {"$sum": "$line_items.quantity"}}}
+    ]
+    outward_res = await mongo_db.outward_stock.aggregate(outward_pipeline).to_list(1)
+    total_outward = outward_res[0]["total_qty"] if outward_res else 0
+
+    return {
+        "category": category,
+        "product_count": len(products),
+        "total_inward": total_inward,
+        "total_outward": total_outward,
+        "current_stock": total_inward - total_outward
+    }
+
+async def tool_get_recent_transactions(limit: int = 5):
+    """Latest inward and outward movements"""
+    inwards = await mongo_db.inward_stock.find({"is_active": True}, {"_id": 0}).sort("date", -1).limit(limit).to_list(limit)
+    outwards = await mongo_db.outward_stock.find({"is_active": True}, {"_id": 0}).sort("date", -1).limit(limit).to_list(limit)
+    
+    return {
+        "inwards": [{
+            "invoice": i.get("inward_invoice_no"),
+            "date": i.get("date"),
+            "items": len(i.get("line_items", []))
+        } for i in inwards],
+        "outwards": [{
+            "invoice": o.get("export_invoice_no"),
+            "date": o.get("date"),
+            "items": len(o.get("line_items", []))
+        } for o in outwards]
+    }
+
+async def tool_get_pending_documents(doc_type: str = "PI"):
+    """Fetch documents with Pending status"""
+    collection = "proforma_invoices" if doc_type.upper() == "PI" else "purchase_orders"
+    cursor = mongo_db[collection].find({"status": "Pending", "is_active": True}, {"_id": 0}).sort("date", -1).limit(10)
+    docs = await cursor.to_list(length=10)
+    
+    return {
+        "type": doc_type,
+        "count": len(docs),
+        "pending_list": [{
+            "voucher_no": d.get("voucher_no"),
+            "date": d.get("date"),
+            "company": d.get("buyer" if doc_type.upper() == "PI" else "supplier")
+        } for d in docs]
+    }
 
 async def tool_get_sku_stock_stats(sku_name: str):
     """Async implementation of SKU statistics aggregation"""
@@ -113,16 +227,30 @@ async def chat_with_bora_assistant(message: str, history: list = None):
         }
 
     # Define tools for Gemini
-    tools = [get_document_details, get_sku_stock_stats]
+    tools = [
+        get_document_details, 
+        get_sku_stock_stats,
+        search_documents_by_company,
+        get_stock_summary_by_category,
+        get_recent_transactions,
+        get_pending_documents
+    ]
     model_name = await get_available_model()
     
     model = genai.GenerativeModel(
         model_name=model_name,
         tools=tools,
         system_instruction="""You are the Bora Mobility Inventory Assistant. 
-        You help users find details about Proforma Invoices (PI), Purchase Orders (PO), and SKU stock levels.
-        Always be professional, concise, and helpful. 
-        If a user mentions a document number or SKU, use your tools to provide accurate data."""
+        You help users find details about Proforma Invoices (PI), Purchase Orders (PO), SKU stock levels, and transaction summaries.
+        
+        Guidelines:
+        - Always be professional, concise, and helpful.
+        - Use Markdown tables to present lists of documents or stock summaries for better readability.
+        - If a user mentions a document number or SKU, use the appropriate tools.
+        - If searching for a company, use search_documents_by_company.
+        - If asked for "pending" items, use get_pending_documents.
+        - If asked for recent activity, use get_recent_transactions.
+        - Current Date context: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     )
 
     chat = model.start_chat(history=history or [], enable_automatic_function_calling=False)
@@ -130,19 +258,33 @@ async def chat_with_bora_assistant(message: str, history: list = None):
     try:
         response = chat.send_message(message)
         
+        # Handle manual tool calling loop (Gemini might request multiple calls or we just handle one for now)
         if response.candidates[0].content.parts[0].function_call:
             call = response.candidates[0].content.parts[0].function_call
-            if call.name == "get_document_details":
-                tool_result = await tool_get_document_details(call.args["voucher_no"])
-            elif call.name == "get_sku_stock_stats":
-                tool_result = await tool_get_sku_stock_stats(call.args["sku_name"])
+            tool_name = call.name
+            args = call.args
+            
+            logger.info(f"Gemini calling tool: {tool_name} with args: {args}")
+
+            if tool_name == "get_document_details":
+                tool_result = await tool_get_document_details(args["voucher_no"])
+            elif tool_name == "get_sku_stock_stats":
+                tool_result = await tool_get_sku_stock_stats(args["sku_name"])
+            elif tool_name == "search_documents_by_company":
+                tool_result = await tool_search_documents_by_company(args.get("company_name"), args.get("doc_type", "PI"))
+            elif tool_name == "get_stock_summary_by_category":
+                tool_result = await tool_get_stock_summary_by_category(args.get("category"))
+            elif tool_name == "get_recent_transactions":
+                tool_result = await tool_get_recent_transactions(args.get("limit", 5))
+            elif tool_name == "get_pending_documents":
+                tool_result = await tool_get_pending_documents(args.get("doc_type", "PI"))
             else:
-                tool_result = {"error": "Unknown tool"}
+                tool_result = {"error": f"Unknown tool: {tool_name}"}
 
             response = chat.send_message(
                 genai.types.Content(
                 parts=[genai.types.Part.from_function_response(
-                    name=call.name,
+                    name=tool_name,
                     response=tool_result
                 )]
             ))

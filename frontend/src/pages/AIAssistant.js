@@ -70,8 +70,10 @@ const AIAssistant = () => {
 
     const suggestedQueries = [
         { label: "Check Stock", query: "What is the stock level for [SKU Name]?", icon: TrendingUp },
-        { label: "Find Invoice", query: "Show me details for PI-102", icon: Search },
-        { label: "Summary", query: "How many PIs are pending?", icon: MessageSquare },
+        { label: "Find by Company", query: "Find documents for [Company Name]", icon: Search },
+        { label: "Category Summary", query: "What is the total stock for category [Category]?", icon: MessageSquare },
+        { label: "Pending PIs", query: "Show me all pending Proforma Invoices", icon: Loader2 },
+        { label: "Recent Activity", query: "Show me recent inward and outward movements", icon: TrendingUp },
     ];
 
     return (

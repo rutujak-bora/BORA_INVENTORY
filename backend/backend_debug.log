@@ -224,3 +224,6 @@
 2026-04-13 12:59:56,201 - server - INFO - MongoDB indexes initialized successfully
 2026-04-13 13:28:28,894 - server - INFO - Application started - using MongoDB
 2026-04-13 13:28:29,538 - server - INFO - MongoDB indexes initialized successfully
+2026-04-13 18:13:09,921 - server - INFO - Application started - using MongoDB
+2026-04-13 18:13:10,560 - server - INFO - MongoDB indexes initialized successfully
+2026-04-13 18:16:00,102 - server - INFO - Application shutting down

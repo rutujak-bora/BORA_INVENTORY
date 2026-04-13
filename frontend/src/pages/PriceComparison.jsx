@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
 import { formatCurrency } from '../utils/formatters';
 import { Card, CardContent } from '../components/ui/card';
@@ -13,10 +13,12 @@ import { SearchableSelect } from '../components/SearchableSelect';
 const PriceComparison = () => {
     const [invoiceType, setInvoiceType] = useState('pi'); // 'pi' or 'po'
     const [invoices, setInvoices] = useState([]);
+    const [allProducts, setAllProducts] = useState([]);
     const [loading, setLoading] = useState(false);
     
-    const [newInvoiceId, setNewInvoiceId] = useState('');
-    const [oldInvoiceId, setOldInvoiceId] = useState('');
+    // Selection for Column A (Reference)
+    const [referenceInvoiceId, setReferenceInvoiceId] = useState('');
+    const [referenceInvoiceData, setReferenceInvoiceData] = useState(null);
     
     // Filtering states
     const [startDate, setStartDate] = useState('');
@@ -24,21 +26,18 @@ const PriceComparison = () => {
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [skuFilter, setSkuFilter] = useState('all');
     
-    // Price persistence state
-    const [priceOverrides, setPriceOverrides] = useState({}); // { sku: overriddenPrice }
-    
-    const [newInvoiceData, setNewInvoiceData] = useState(null);
-    const [oldInvoiceData, setOldInvoiceData] = useState(null);
+    // Manual prices for Column B
+    const [manualPrices, setManualPrices] = useState({}); // { sku: price }
     
     const { toast } = useToast();
 
+    // 1. Fetch Invoices and Products on Mount
     useEffect(() => {
         fetchInvoices();
-        resetComparison();
+        fetchProducts();
     }, [invoiceType]);
 
     const fetchInvoices = async () => {
-        setLoading(true);
         try {
             const endpoint = invoiceType === 'pi' ? '/pi' : '/po';
             const response = await api.get(endpoint);
@@ -49,132 +48,134 @@ const PriceComparison = () => {
                 description: 'Failed to fetch invoices',
                 variant: 'destructive',
             });
+        }
+    };
+
+    const fetchProducts = async () => {
+        setLoading(true);
+        try {
+            const response = await api.get('/products');
+            setAllProducts(response.data);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Failed to fetch product catalog',
+                variant: 'destructive',
+            });
         } finally {
             setLoading(false);
         }
     };
 
+    // 2. Fetch Reference Invoice Details
+    useEffect(() => {
+        const fetchDetails = async () => {
+            if (!referenceInvoiceId) {
+                setReferenceInvoiceData(null);
+                return;
+            }
+            try {
+                const endpoint = invoiceType === 'pi' ? `/pi/${referenceInvoiceId}` : `/po/${referenceInvoiceId}`;
+                const response = await api.get(endpoint);
+                setReferenceInvoiceData(response.data);
+            } catch (error) {
+                toast({
+                    title: 'Error',
+                    description: 'Failed to fetch document details',
+                    variant: 'destructive',
+                });
+            }
+        };
+        fetchDetails();
+    }, [referenceInvoiceId, invoiceType]);
+
     const resetComparison = () => {
-        setNewInvoiceId('');
-        setOldInvoiceId('');
+        setReferenceInvoiceId('');
         setStartDate('');
         setEndDate('');
         setCategoryFilter('all');
         setSkuFilter('all');
-        setPriceOverrides({});
-        setNewInvoiceData(null);
-        setOldInvoiceData(null);
+        setManualPrices({});
     };
 
-    const fetchInvoiceDetails = async (id, side) => {
-        if (!id) return;
-        try {
-            const endpoint = invoiceType === 'pi' ? `/pi/${id}` : `/po/${id}`;
-            const response = await api.get(endpoint);
-            if (side === 'new') {
-                setNewInvoiceData(response.data);
-            } else {
-                setOldInvoiceData(response.data);
-            }
-        } catch (error) {
-            toast({
-                title: 'Error',
-                description: 'Failed to fetch invoice details',
-                variant: 'destructive',
-            });
+    // 3. Drive Categories and SKUs from Full Catalog
+    const categories = useMemo(() => {
+        return Array.from(new Set(allProducts.map(p => p.category))).filter(Boolean).sort();
+    }, [allProducts]);
+
+    const skus = useMemo(() => {
+        let list = allProducts;
+        if (categoryFilter !== 'all') {
+            list = list.filter(p => p.category === categoryFilter);
         }
-    };
-
-    useEffect(() => {
-        if (newInvoiceId) fetchInvoiceDetails(newInvoiceId, 'new');
-    }, [newInvoiceId]);
-
-    useEffect(() => {
-        if (oldInvoiceId) fetchInvoiceDetails(oldInvoiceId, 'old');
-    }, [oldInvoiceId]);
-
-    // Available categories extracted from current loaded data
-    const categories = Array.from(new Set([
-        ...(newInvoiceData?.line_items?.map(item => item.category) || []),
-        ...(oldInvoiceData?.line_items?.map(item => item.category) || [])
-    ])).filter(Boolean).sort();
-
-    // Available SKUs extracted from current loaded data
-    const skus = Array.from(new Set([
-        ...(newInvoiceData?.line_items?.map(item => item.sku || item.product_id) || []),
-        ...(oldInvoiceData?.line_items?.map(item => item.sku || item.product_id) || [])
-    ])).filter(Boolean).sort();
+        return Array.from(new Set(list.map(p => p.sku_name))).filter(Boolean).sort();
+    }, [allProducts, categoryFilter]);
 
     // Filtered Invoices based on date range
-    const filteredInvoices = invoices.filter(inv => {
-        if (!startDate && !endDate) return true;
-        const invDate = new Date(inv.date);
-        const start = startDate ? new Date(startDate) : null;
-        const end = endDate ? new Date(endDate) : null;
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            if (!startDate && !endDate) return true;
+            const invDate = new Date(inv.date);
+            const start = startDate ? new Date(startDate) : null;
+            const end = endDate ? new Date(endDate) : null;
+            if (start && invDate < start) return false;
+            if (end && invDate > end) return false;
+            return true;
+        });
+    }, [invoices, startDate, endDate]);
+
+    // 4. Comparison Data Generation
+    const comparisonData = useMemo(() => {
+        // We show products matching the filters
+        let productsToShow = allProducts;
+        if (categoryFilter !== 'all') {
+            productsToShow = productsToShow.filter(p => p.category === categoryFilter);
+        }
+        if (skuFilter !== 'all') {
+            productsToShow = productsToShow.filter(p => p.sku_name === skuFilter);
+        }
+
+        // Only show items that are EITHER in the reference doc OR have been manually adjusted?
+        // Requirement says "display the filtered products", usually means any matching Category/SKU.
+        // If they haven't selected a Doc, we might see all. 
+        // But if they have a Doc selected, maybe we limit it to Doc items?
+        // Let's stick to "Filter driven" listing.
         
-        if (start && invDate < start) return false;
-        if (end && invDate > end) return false;
-        return true;
-    });
+        const referenceMap = new Map();
+        referenceInvoiceData?.line_items?.forEach(item => {
+            referenceMap.set(item.sku || item.product_id, item);
+        });
 
-    const getComparisonData = () => {
-        const productMap = new Map();
-
-        // Process New Invoice
-        newInvoiceData?.line_items?.forEach(item => {
-            if (categoryFilter !== 'all' && item.category !== categoryFilter) return;
-            const sku = item.sku || item.product_id;
-            if (skuFilter !== 'all' && sku !== skuFilter) return;
-            
-            productMap.set(sku, {
+        return productsToShow.map(p => {
+            const sku = p.sku_name;
+            const refItem = referenceMap.get(sku);
+            return {
                 sku: sku,
-                product_name: item.product_name,
-                category: item.category,
-                qty: item.qty || item.quantity || 0,
-                newPrice: priceOverrides[sku] !== undefined ? priceOverrides[sku] : item.rate,
-                actualNewPrice: item.rate,
-                oldPrice: null
-            });
-        });
+                product_name: p.product_name || p.sku_name,
+                category: p.category,
+                qty: refItem?.qty || refItem?.quantity || 0,
+                referencePrice: refItem?.rate || null,
+                manualPrice: manualPrices[sku] !== undefined ? manualPrices[sku] : (refItem?.rate || null)
+            };
+        }).filter(item => {
+            // Keep items that match filters. If everything is 'all', might be too many.
+            // But let's follow the filter structure.
+            return true;
+        }).sort((a, b) => a.product_name.localeCompare(b.product_name));
+    }, [allProducts, categoryFilter, skuFilter, referenceInvoiceData, manualPrices]);
 
-        // Process Old Invoice
-        oldInvoiceData?.line_items?.forEach(item => {
-            if (categoryFilter !== 'all' && item.category !== categoryFilter) return;
-            const sku = item.sku || item.product_id;
-            if (skuFilter !== 'all' && sku !== skuFilter) return;
-            
-            if (productMap.has(sku)) {
-                const existing = productMap.get(sku);
-                existing.oldPrice = item.rate;
-            } else {
-                productMap.set(sku, {
-                    sku: sku,
-                    product_name: item.product_name,
-                    category: item.category,
-                    qty: 0, // Not in new doc
-                    newPrice: priceOverrides[sku] !== undefined ? priceOverrides[sku] : null,
-                    oldPrice: item.rate
-                });
-            }
-        });
-
-        return Array.from(productMap.values()).sort((a, b) => a.product_name.localeCompare(b.product_name));
-    };
-
-    const handlePriceChange = (sku, value) => {
+    const handleManualPriceChange = (sku, value) => {
         const numValue = value === '' ? undefined : parseFloat(value);
-        setPriceOverrides(prev => ({
+        setManualPrices(prev => ({
             ...prev,
             [sku]: isNaN(numValue) ? undefined : numValue
         }));
     };
 
-    const comparisonData = getComparisonData();
-
-    const getPriceDiff = (newP, oldP) => {
-        if (newP === null || oldP === null || newP === undefined) return null;
-        const diff = newP - oldP;
-        const percent = oldP !== 0 ? (diff / oldP) * 100 : 0;
+    const getPriceDiff = (manual, reference) => {
+        if (manual === null || reference === null || manual === undefined) return null;
+        const diff = manual - reference;
+        const percent = reference !== 0 ? (diff / reference) * 100 : 0;
         return { diff, percent };
     };
 
@@ -183,7 +184,7 @@ const PriceComparison = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900">Price Comparison</h1>
-                    <p className="text-slate-600 mt-1">Compare product rates and analyze variations</p>
+                    <p className="text-slate-600 mt-1">Compare reference vouchers with manual price entries</p>
                 </div>
             </div>
 
@@ -221,12 +222,15 @@ const PriceComparison = () => {
                             <Label className="text-sm font-bold text-slate-700">2. Product Category</Label>
                             <SearchableSelect 
                                 value={categoryFilter}
-                                onValueChange={setCategoryFilter}
+                                onValueChange={(val) => {
+                                    setCategoryFilter(val);
+                                    setSkuFilter('all'); // Reset SKU when category changes
+                                }}
                                 options={[
                                     { value: 'all', label: 'All Categories' },
                                     ...categories.map(cat => ({ value: cat, label: cat }))
                                 ]}
-                                placeholder="All Categories"
+                                placeholder="Select Category..."
                                 searchPlaceholder="Search categories..."
                             />
                         </div>
@@ -241,8 +245,9 @@ const PriceComparison = () => {
                                     { value: 'all', label: 'All SKUs' },
                                     ...skus.map(s => ({ value: s, label: s }))
                                 ]}
-                                placeholder="All SKUs"
+                                placeholder="Select SKU..."
                                 searchPlaceholder="Search SKUs..."
+                                disabled={categoryFilter === 'all' && skus.length === 0}
                             />
                         </div>
                     </div>
@@ -250,7 +255,7 @@ const PriceComparison = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {/* Date Filters */}
                         <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Start Date</Label>
+                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Reference Start Date</Label>
                             <Input 
                                 type="date" 
                                 value={startDate}
@@ -259,7 +264,7 @@ const PriceComparison = () => {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">End Date</Label>
+                            <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Reference End Date</Label>
                             <Input 
                                 type="date" 
                                 value={endDate}
@@ -268,40 +273,24 @@ const PriceComparison = () => {
                             />
                         </div>
 
-                        {/* Column A (New Selection) */}
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Column A (New Selection)</Label>
+                        {/* Column A (Reference Selection) */}
+                        <div className="space-y-2 md:col-span-2">
+                            <Label className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Column A: Reference Document Selection</Label>
                             <SearchableSelect 
-                                value={newInvoiceId}
-                                onValueChange={setNewInvoiceId}
+                                value={referenceInvoiceId}
+                                onValueChange={setReferenceInvoiceId}
                                 options={filteredInvoices.map(inv => ({
                                     value: inv.id,
-                                    label: `${inv.voucher_no} (${new Date(inv.date).toLocaleDateString()})`
+                                    label: `${inv.voucher_no} (${new Date(inv.date).toLocaleDateString()}) - ${inv.total_amount ? `₹${formatCurrency(inv.total_amount)}` : ''}`
                                 }))}
-                                placeholder="Select newest voucher..."
-                            />
-                        </div>
-
-                        {/* Column B (Old Selection) */}
-                        <div className="space-y-2">
-                            <Label className="text-xs font-semibold text-orange-600 uppercase tracking-wider">Column B (Old Selection)</Label>
-                            <SearchableSelect 
-                                value={oldInvoiceId}
-                                onValueChange={setOldInvoiceId}
-                                options={filteredInvoices
-                                    .filter(inv => inv.id !== newInvoiceId)
-                                    .map(inv => ({
-                                        value: inv.id,
-                                        label: `${inv.voucher_no} (${new Date(inv.date).toLocaleDateString()})`
-                                    }))}
-                                placeholder="Select previous voucher..."
+                                placeholder="Choose a reference document..."
                             />
                         </div>
                     </div>
 
                     <div className="flex justify-end mt-4">
                         <Button variant="ghost" className="text-slate-400 hover:text-slate-600 text-xs" onClick={resetComparison}>
-                            Clear all filters
+                            Reset all filters
                         </Button>
                     </div>
                 </CardContent>
@@ -313,14 +302,14 @@ const PriceComparison = () => {
                     <TableHeader className="bg-slate-50/80 border-b">
                         <TableRow>
                             <TableHead className="w-1/3">Product Details & SKU</TableHead>
-                            <TableHead className="text-center w-24">Qty</TableHead>
-                            <TableHead className="text-center bg-blue-50/30">New Price (A)</TableHead>
-                            <TableHead className="text-center bg-orange-50/30">Old Price (B)</TableHead>
+                            <TableHead className="text-center w-24">Qty (Ref)</TableHead>
+                            <TableHead className="text-center bg-blue-50/30">Reference Price (A)</TableHead>
+                            <TableHead className="text-center bg-emerald-50/30 font-bold">New Price (B - Manual)</TableHead>
                             <TableHead className="text-right">Price Variance</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {!newInvoiceId || !oldInvoiceId ? (
+                        {!referenceInvoiceId && categoryFilter === 'all' ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="h-80 text-center text-slate-400">
                                     <div className="flex flex-col items-center gap-4">
@@ -329,7 +318,7 @@ const PriceComparison = () => {
                                         </div>
                                         <div className="max-w-xs">
                                             <p className="font-semibold text-slate-600">No Comparison Active</p>
-                                            <p className="text-sm">Select two documents from the dropdowns above to begin Price Comparison</p>
+                                            <p className="text-sm">Select a reference document or filter by category to begin price entry</p>
                                         </div>
                                     </div>
                                 </TableCell>
@@ -342,7 +331,7 @@ const PriceComparison = () => {
                             </TableRow>
                         ) : (
                             comparisonData.map((data, idx) => {
-                                const stats = getPriceDiff(data.newPrice, data.oldPrice);
+                                const stats = getPriceDiff(data.manualPrice, data.referencePrice);
                                 return (
                                     <TableRow key={idx} className="group hover:bg-slate-50/50 transition-colors">
                                         <TableCell>
@@ -366,23 +355,23 @@ const PriceComparison = () => {
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-center bg-blue-50/10">
-                                            <div className="flex items-center justify-center gap-1 group/input">
-                                                <span className="text-blue-400 text-sm">₹</span>
-                                                <Input 
-                                                    type="number" 
-                                                    value={data.newPrice !== null ? data.newPrice : ''}
-                                                    onChange={(e) => handlePriceChange(data.sku, e.target.value)}
-                                                    placeholder={data.actualNewPrice || "0.00"}
-                                                    className="w-24 h-9 text-center font-bold text-blue-700 bg-transparent border-transparent group-hover/input:border-blue-200 focus:bg-white focus:border-blue-500 transition-all"
-                                                />
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-center bg-orange-50/10">
-                                            {data.oldPrice !== null ? (
-                                                <div className="font-bold text-orange-700">₹{formatCurrency(data.oldPrice)}</div>
+                                            {data.referencePrice !== null ? (
+                                                <div className="font-bold text-blue-700">₹{formatCurrency(data.referencePrice)}</div>
                                             ) : (
                                                 <Minus className="mx-auto text-slate-300" />
                                             )}
+                                        </TableCell>
+                                        <TableCell className="text-center bg-emerald-50/10">
+                                            <div className="flex items-center justify-center gap-1 group/input">
+                                                <span className="text-emerald-400 text-sm">₹</span>
+                                                <Input 
+                                                    type="number" 
+                                                    value={data.manualPrice !== null ? data.manualPrice : ''}
+                                                    onChange={(e) => handleManualPriceChange(data.sku, e.target.value)}
+                                                    placeholder="0.00"
+                                                    className="w-28 h-9 text-center font-bold text-emerald-700 bg-transparent border-transparent group-hover/input:border-emerald-200 focus:bg-white focus:border-emerald-500 transition-all"
+                                                />
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             {stats ? (
@@ -396,7 +385,7 @@ const PriceComparison = () => {
                                                     </span>
                                                 </div>
                                             ) : (
-                                                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest italic">Incomplete</span>
+                                                <span className="text-slate-400 text-[10px] uppercase font-bold tracking-widest italic">Ready</span>
                                             )}
                                         </TableCell>
                                     </TableRow>

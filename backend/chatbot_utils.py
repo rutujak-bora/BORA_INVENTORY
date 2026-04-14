@@ -12,6 +12,13 @@ api_key = os.environ.get("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
+def get_document_details(voucher_no: str):
+    """
+    Search for a specific document (Proforma Invoice or Purchase Order) by its voucher number.
+    Returns the document details, status, and line items.
+    """
+    return f"Searching for document {voucher_no}..."
+
 def search_documents_by_company(company_name: str, doc_type: str = "PI"):
     """
     Search for Proforma Invoices (PI) or Purchase Orders (PO) by company name.

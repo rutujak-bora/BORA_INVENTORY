@@ -92,6 +92,7 @@ const Layout = ({ children }) => {
               : []
             ),
             { path: '/price-comparison', label: 'Price Comparison', icon: ArrowRightLeft },
+            { path: '/pi-po-stock-ledger', label: 'Stock Ledger', icon: FileText },
             { path: '/ai-assistant', label: 'AI Assistant', icon: MessageSquare },
           ],
         },

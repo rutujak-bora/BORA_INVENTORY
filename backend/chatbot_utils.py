@@ -282,19 +282,22 @@ async def chat_with_bora_assistant(message: str, history: list = None):
             elif tool_name == "get_stock_summary_by_category":
                 tool_result = await tool_get_stock_summary_by_category(args.get("category"))
             elif tool_name == "get_recent_transactions":
-                tool_result = await tool_get_recent_transactions(args.get("limit", 5))
+                tool_result = await tool_get_recent_transactions(int(args.get("limit", 5)))
             elif tool_name == "get_pending_documents":
                 tool_result = await tool_get_pending_documents(args.get("doc_type", "PI"))
             else:
                 tool_result = {"error": f"Unknown tool: {tool_name}"}
 
+            # Create FunctionResponse directly using protobuf classes
+            function_response = genai.protos.FunctionResponse(
+                name=tool_name,
+                response=tool_result
+            )
+            part = genai.protos.Part(function_response=function_response)
+            
             response = chat.send_message(
-                genai.types.Content(
-                parts=[genai.types.Part.from_function_response(
-                    name=tool_name,
-                    response=tool_result
-                )]
-            ))
+                genai.protos.Content(parts=[part])
+            )
 
         return {
             "text": response.text,

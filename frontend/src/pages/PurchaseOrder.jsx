@@ -216,7 +216,7 @@ const PurchaseOrder = () => {
     try {
       // Fetch all selected PIs
       const selectedPIs = await Promise.all(
-        piIds.map(piId => api.get(`/pi/${piId}`))
+        piIds.map(piId => api.get(`/pi/${piId}${editingPO ? `?exclude_po_id=${editingPO.id}` : ''}`))
       );
 
       // Build reference_no_date string from all PIs
@@ -239,12 +239,11 @@ const PurchaseOrder = () => {
             brand: item.brand || '',
             hsn_sac: item.hsn_sac || '',
             pi_voucher_no: pi.voucher_no, // Label the product with its PI number
-            pi_quantity: item.quantity || 0,
             quantity: 0,  // Manual entry (PO Quantity)
-            rate: 0,      // Manual entry
+            rate: item.rate || 0,      // Pre-fill with rate from PI
             amount: 0,
-            input_igst: 0,
-            tds: 0
+            gst_value: 0,
+            tds_value: 0
           });
         });
       });
@@ -345,6 +344,7 @@ const PurchaseOrder = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     try {
       if (editingPO) {
         await api.put(`/po/${editingPO.id}`, formData);
@@ -385,21 +385,7 @@ const PurchaseOrder = () => {
       reference_pi_ids = [fullPO.data.reference_pi_id];
     }
 
-    setFormData({
-      company_id: fullPO.data.company_id,
-      voucher_no: fullPO.data.voucher_no,
-      date: fullPO.data.date.split('T')[0],
-      consignee: fullPO.data.consignee || '',
-      supplier: fullPO.data.supplier || '',
-      reference_pi_ids: reference_pi_ids,
-      reference_no_date: fullPO.data.reference_no_date || '',
-      dispatched_through: fullPO.data.dispatched_through || '',
-      destination: fullPO.data.destination || '',
-      status: fullPO.data.status,
-      gst_percentage: fullPO.data.gst_percentage || 0,
-      tds_percentage: fullPO.data.tds_percentage || 0,
-      line_items: fullPO.data.line_items || []
-    });
+
     setDialogOpen(true);
   };
 
@@ -837,15 +823,6 @@ const PurchaseOrder = () => {
                               onChange={(e) => handleLineItemChange(index, 'pi_voucher_no', e.target.value)}
                               className="bg-blue-50 border-blue-200 font-medium"
                               readOnly={!!item.pi_voucher_no} // Read-only if fetched from PI
-                            />
-                          </div>
-                          <div>
-                            <Label>PI Total Qty</Label>
-                            <Input
-                              value={item.pi_quantity}
-                              onChange={(e) => handleLineItemChange(index, 'pi_quantity', e.target.value)}
-                              className="bg-blue-50 font-semibold text-blue-700"
-                              title="Total quantity from linked PI(s)"
                             />
                           </div>
                           <div>

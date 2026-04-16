@@ -1321,7 +1321,7 @@ async def get_dispatched_qty_for_pi(pi_id: str, product_sku: str, warehouse_id: 
     return total_dispatched
 
 
-@api_router.get("/pi/{pi_id}")
+
 async def get_pi(
     pi_id: str,
     warehouse_id: Optional[str] = None,
@@ -1340,6 +1340,7 @@ async def get_pi(
             {"_id": 0}
         )
         pi["company"] = company
+
 
     # Only calculate detailed stock info if a warehouse is specified (contextual detailed view)
     if warehouse_id:
@@ -1377,7 +1378,6 @@ async def get_pi(
                 warehouse_id=warehouse_id
             )
 
-            item["pi_quantity"] = float(item.get("quantity", 0))
             item["inward_quantity"] = inward_qty
             item["dispatched_quantity"] = dispatched_qty
             item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
@@ -5950,6 +5950,164 @@ async def get_customer_tracking(
             })
     
     return tracking_data
+
+@api_router.get("/pi-po-stock-ledger")
+async def get_pi_po_stock_ledger(
+    company_id: Optional[str] = None,
+    pi_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_active_user)
+):
+    """
+    Comprehensive Document & Stock Ledger:
+    PI Qty -> Linked PO Qty -> Inward Qty -> Outward Qty
+    """
+    try:
+        # 1. Build PI Query
+        pi_query = {"is_active": True}
+        if company_id and company_id != "all":
+            pi_query["company_id"] = company_id
+        if pi_id and pi_id != "all":
+            pi_query["id"] = pi_id
+
+        pis = []
+        async for pi in mongo_db.proforma_invoices.find(pi_query, {"_id": 0}):
+            pis.append(pi)
+        
+        pi_ids = [pi["id"] for pi in pis]
+        
+        # 2. Bulk Fetch linked POs
+        po_query = {
+            "is_active": True,
+            "status": {"$ne": "Cancelled"},
+            "$or": [
+                {"reference_pi_id": {"$in": pi_ids}},
+                {"reference_pi_ids": {"$in": pi_ids}}
+            ]
+        }
+        pos = []
+        async for po in mongo_db.purchase_orders.find(po_query, {"_id": 0}):
+            pos.append(po)
+        
+        po_ids = [po["id"] for po in pos]
+
+        # 3. Bulk Fetch Inward Stock
+        inward_query = {
+            "is_active": True,
+            "$or": [
+                {"pi_id": {"$in": pi_ids}},
+                {"pi_ids": {"$in": pi_ids}},
+                {"po_id": {"$in": po_ids}},
+                {"po_ids": {"$in": po_ids}}
+            ]
+        }
+        inwards = []
+        async for inward in mongo_db.inward_stock.find(inward_query, {"_id": 0}):
+            inwards.append(inward)
+
+        # 4. Bulk Fetch Outward Stock
+        outward_query = {
+            "is_active": True,
+            "status": {"$ne": "Cancelled"},
+            "$or": [
+                {"pi_id": {"$in": pi_ids}},
+                {"pi_ids": {"$in": pi_ids}},
+                {"po_id": {"$in": po_ids}},
+                {"po_ids": {"$in": po_ids}}
+            ]
+        }
+        outwards = []
+        async for outward in mongo_db.outward_stock.find(outward_query, {"_id": 0}):
+            outwards.append(outward)
+
+        # 5. Aggregate Ledger Data
+        ledger = []
+        
+        for pi in pis:
+            pi_num = pi.get("voucher_no")
+            buyer = pi.get("buyer") or "Unknown"
+            
+            for pi_item in pi.get("line_items", []):
+                sku = pi_item.get("sku")
+                product_name = pi_item.get("product_name")
+                pi_qty = float(pi_item.get("quantity", 0))
+                
+                # Calculate Linked PO Qty
+                linked_po_qty = 0.0
+                linked_po_nums = []
+                for po in pos:
+                    # Check if this PO is linked to this PI
+                    is_linked = False
+                    if po.get("reference_pi_id") == pi["id"]:
+                        is_linked = True
+                    elif pi["id"] in po.get("reference_pi_ids", []):
+                        is_linked = True
+                    
+                    if is_linked:
+                        for po_item in po.get("line_items", []):
+                            if po_item.get("sku") == sku:
+                                linked_po_qty += float(po_item.get("quantity", 0))
+                                if po.get("voucher_no") not in linked_po_nums:
+                                    linked_po_nums.append(po.get("voucher_no"))
+
+                # Calculate Inward Qty
+                inward_qty = 0.0
+                for inward in inwards:
+                    # Check linkage to PI or its POs
+                    is_linked = False
+                    if inward.get("pi_id") == pi["id"] or pi["id"] in inward.get("pi_ids", []):
+                        is_linked = True
+                    elif inward.get("po_id") in po_ids or any(pid in po_ids for pid in inward.get("po_ids", [])):
+                        # Narrow down: must be a PO linked to THIS PI
+                        inward_po_id = inward.get("po_id")
+                        relevant_po = next((p for p in pos if p["id"] == inward_po_id), None)
+                        if relevant_po and (relevant_po.get("reference_pi_id") == pi["id"] or pi["id"] in relevant_po.get("reference_pi_ids", [])):
+                            is_linked = True
+                    
+                    if is_linked:
+                        for item in inward.get("line_items", []):
+                            if item.get("sku") == sku:
+                                inward_qty += float(item.get("quantity", 0))
+
+                # Calculate Outward Qty
+                outward_qty = 0.0
+                for outward in outwards:
+                    is_linked = False
+                    if outward.get("pi_id") == pi["id"] or pi["id"] in outward.get("pi_ids", []):
+                        is_linked = True
+                    elif outward.get("po_id") in po_ids or any(pid in po_ids for pid in outward.get("po_ids", [])):
+                        outward_po_id = outward.get("po_id")
+                        relevant_po = next((p for p in pos if p["id"] == outward_po_id), None)
+                        if relevant_po and (relevant_po.get("reference_pi_id") == pi["id"] or pi["id"] in relevant_po.get("reference_pi_ids", [])):
+                            is_linked = True
+                    
+                    if is_linked:
+                        for item in outward.get("line_items", []):
+                            if item.get("sku") == sku:
+                                # Outward can have 'dispatch_quantity' or 'quantity'
+                                q = item.get("dispatch_quantity") or item.get("quantity") or 0
+                                outward_qty += float(q)
+
+                ledger.append({
+                    "pi_id": pi["id"],
+                    "pi_voucher_no": pi_num,
+                    "buyer": buyer,
+                    "date": pi.get("date"),
+                    "product_name": product_name,
+                    "sku": sku,
+                    "pi_quantity": pi_qty,
+                    "po_quantity": linked_po_qty,
+                    "pi_balance": max(pi_qty - linked_po_qty, 0),
+                    "inward_quantity": inward_qty,
+                    "outward_quantity": outward_qty,
+                    "warehouse_stock": max(inward_qty - outward_qty, 0),
+                    "po_numbers": linked_po_nums
+                })
+
+        return ledger
+
+    except Exception as e:
+        logger.error(f"Error in PI-PO stock ledger: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/purchase-analysis")
 async def get_purchase_analysis(

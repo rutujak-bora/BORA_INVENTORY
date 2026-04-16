@@ -24,6 +24,7 @@ import ExpenseCalculation from './pages/ExpenseCalculation';
 import PLReporting from './pages/PLReporting';
 import PriceComparison from './pages/PriceComparison';
 import AIAssistant from './pages/AIAssistant';
+import PIPOStockLedger from './pages/PIPOStockLedger';
 import ErrorBoundary from './components/ErrorBoundary';
 import './utils/resizeObserverFix';
 import '@/App.css';
@@ -364,6 +365,16 @@ function AppRoutes() {
           <PrivateRoute>
             <Layout>
               <AIAssistant />
+            </Layout>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/pi-po-stock-ledger"
+        element={
+          <PrivateRoute>
+            <Layout>
+              <PIPOStockLedger />
             </Layout>
           </PrivateRoute>
         }

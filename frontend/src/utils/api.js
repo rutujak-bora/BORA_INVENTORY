@@ -1,6 +1,30 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || window.location.origin;
+const getBackendUrl = () => {
+  const envUrl = process.env.REACT_APP_BACKEND_URL;
+  const currentOrigin = window.location.origin;
+  const isLocalClient = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  if (!envUrl) return currentOrigin;
+
+  // If we're on a live site but the env URL is localhost, 
+  // we want to use the current host but keep the port from the env URL if it's there.
+  if (!isLocalClient && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+    try {
+      const url = new URL(envUrl);
+      if (url.port) {
+        return `${window.location.protocol}//${window.location.hostname}:${url.port}`;
+      }
+    } catch (e) {
+      // Fallback if URL parsing fails
+    }
+    return currentOrigin;
+  }
+
+  return envUrl;
+};
+
+const BACKEND_URL = getBackendUrl();
 export const API_BASE = `${BACKEND_URL}/api`;
 
 const api = axios.create({

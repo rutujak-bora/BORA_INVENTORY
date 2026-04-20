@@ -257,18 +257,48 @@ const proformaInvoice = () => {
   };
 
   const handleEdit = async (pi) => {
-    const fullPI = await api.get(`/pi/${pi.id}`);
-    setEditingPI(fullPI.data);
-    setFormData({
-      company_id: fullPI.data.company_id,
-      voucher_no: fullPI.data.voucher_no,
-      date: fullPI.data.date.split('T')[0],
-      consignee: fullPI.data.consignee || '',
-      buyer: fullPI.data.buyer || '',
-      status: fullPI.data.status,
-      line_items: fullPI.data.line_items || []
-    });
-    setDialogOpen(true);
+    try {
+      console.log('Fetching PI for edit:', pi.id);
+      const fullPI = await api.get(`/pi/${pi.id}`);
+      const data = fullPI.data;
+      console.log('Fetched PI data:', data);
+      window.lastEditData = data; // Debug hook
+      
+      setEditingPI(data);
+      
+      // Explicitly map all fields to ensure they are defined and typed correctly
+      const newFormData = {
+        company_id: String(data.company_id || ''),
+        voucher_no: String(data.voucher_no || ''),
+        date: data.date ? (data.date.includes('T') ? data.date.split('T')[0] : data.date) : new Date().toISOString().split('T')[0],
+        consignee: String(data.consignee || ''),
+        buyer: String(data.buyer || ''),
+        status: String(data.status || 'Pending'),
+        line_items: (data.line_items || []).map(item => ({
+          product_id: String(item.product_id || ''),
+          product_name: String(item.product_name || ''),
+          sku: String(item.sku || ''),
+          category: String(item.category || ''),
+          brand: String(item.brand || ''),
+          hsn_sac: String(item.hsn_sac || ''),
+          made_in: String(item.made_in || ''),
+          quantity: Number(item.quantity || 0),
+          rate: Number(item.rate || 0),
+          amount: Number(item.amount || 0)
+        }))
+      };
+      
+      console.log('Setting PI formData:', newFormData);
+      setFormData(newFormData);
+      setDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching PI:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch PI details for editing',
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleDelete = async (pi) => {
@@ -442,7 +472,7 @@ const proformaInvoice = () => {
                 Create PI
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogContent key={editingPI ? editingPI.id : 'new'} className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingPI ? 'Edit PI' : 'Create New PI'}</DialogTitle>
               </DialogHeader>

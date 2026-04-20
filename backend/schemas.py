@@ -189,6 +189,7 @@ class PICreate(BaseModel):
     date: datetime
     consignee: Optional[str] = None
     buyer: Optional[str] = None
+    status: Optional[str] = "Pending"
     line_items: List[PILineItemCreate]
 
 class PIUpdate(BaseModel):
@@ -224,6 +225,7 @@ class POLineItemCreate(BaseModel):
     brand: Optional[str] = None
     hsn_sac: Optional[str] = None
     pi_voucher_no: Optional[str] = None  # Track which PI this product belongs to
+    pi_quantity: Optional[float] = 0  # Original PI quantity
     quantity: float
     rate: float
     amount: float
@@ -241,6 +243,7 @@ class POLineItemResponse(BaseModel):
     brand: Optional[str] = None
     hsn_sac: Optional[str] = None
     pi_voucher_no: Optional[str] = None
+    pi_quantity: float = 0
     quantity: float
     rate: float
     amount: float
@@ -259,6 +262,8 @@ class POCreate(BaseModel):
     reference_no_date: Optional[str] = None
     dispatched_through: Optional[str] = None
     destination: Optional[str] = None
+    gst_percentage: Optional[float] = 0
+    tds_percentage: Optional[float] = 0
     line_items: List[POLineItemCreate]
 
 class POUpdate(BaseModel):
@@ -272,6 +277,8 @@ class POUpdate(BaseModel):
     reference_no_date: Optional[str] = None
     dispatched_through: Optional[str] = None
     destination: Optional[str] = None
+    gst_percentage: Optional[float] = None
+    tds_percentage: Optional[float] = None
     status: Optional[str] = None
 
 class POResponse(BaseModel):
@@ -288,6 +295,8 @@ class POResponse(BaseModel):
     reference_no_date: Optional[str] = None
     dispatched_through: Optional[str] = None
     destination: Optional[str] = None
+    gst_percentage: float = 0
+    tds_percentage: float = 0
     status: str
     is_active: bool
     created_at: datetime

@@ -37,19 +37,46 @@ app = FastAPI(title="Bora Mobility Inventory System")
 
 # Configure CORS BEFORE defining routes
 # This ensures preflight OPTIONS requests are handled correctly
-cors_origins = os.environ.get('CORS_ORIGINS', '*').split(',')
-cors_origins = [origin.strip() for origin in cors_origins]  # Remove whitespace
+raw_cors_origins = os.environ.get('CORS_ORIGINS', '*')
+if not raw_cors_origins or raw_cors_origins.strip() == '*':
+    cors_origins = []
+    cors_origin_regex = "https?://.*"  # Allow all origins via regex to support credentials
+else:
+    cors_origins = [origin.strip() for origin in raw_cors_origins.split(',') if origin.strip()]
+    if "*" in cors_origins:
+        cors_origins = []
+        cors_origin_regex = "https?://.*"
+    else:
+        cors_origin_regex = None
+
+# Fallback regex to ensure localhost and common IPs are always allowed
+if not cors_origin_regex:
+    cors_origin_regex = "(https?://(localhost|127\\.0\\.0\\.1|13\\.50\\.236\\.19)(:\\d+)?)"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins if "*" not in cors_origins else [],
-    allow_origin_regex=".*" if "*" in cors_origins else None,
+    allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
     max_age=86400,
 )
+
+# Custom middleware to log headers for CORS debugging
+@app.middleware("http")
+async def log_cors_headers(request, call_next):
+    origin = request.headers.get("origin")
+    host = request.headers.get("host")
+    method = request.method
+    path = request.url.path
+    
+    if origin:
+        logger.info(f"[CORS DEBUG] Request from Origin: {origin} | Method: {method} | Path: {path} | Host: {host}")
+    
+    response = await call_next(request)
+    return response
 
 @app.get("/")
 async def root():
@@ -1322,6 +1349,7 @@ async def get_dispatched_qty_for_pi(pi_id: str, product_sku: str, warehouse_id: 
 
 
 
+@api_router.get("/pi/{pi_id}", response_model=PIDetailResponse)
 async def get_pi(
     pi_id: str,
     warehouse_id: Optional[str] = None,
@@ -1382,6 +1410,7 @@ async def get_pi(
             item["dispatched_quantity"] = dispatched_qty
             item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
     
+    logger.info(f"Returning PI detail for {pi_id}: {pi.get('voucher_no')} with {len(pi.get('line_items', []))} items")
     return pi
 
 
@@ -1593,6 +1622,7 @@ async def create_po(
             "brand": item.get("brand"),
             "hsn_sac": item.get("hsn_sac"),
             "pi_voucher_no": item.get("pi_voucher_no"),
+            "pi_quantity": float(item.get("pi_quantity", 0)),
             "quantity": quantity,
             "rate": rate,
             "amount": amount,
@@ -1859,7 +1889,7 @@ async def get_pos(current_user: dict = Depends(get_current_active_user)):
         traceback.print_exc()
         return []
 
-@api_router.get("/po/{po_id}")
+@api_router.get("/po/{po_id}", response_model=PODetailResponse)
 async def get_po(po_id: str, current_user: dict = Depends(get_current_active_user)):
     po = await mongo_db.purchase_orders.find_one({"id": po_id}, {"_id": 0})
     if not po:
@@ -1887,7 +1917,9 @@ async def get_po(po_id: str, current_user: dict = Depends(get_current_active_use
         if pi_details:
             po["reference_pi"] = pi_details[0]  # For backward compatibility
     
-    return jsonable_encoder(prepare_po_response(po))
+    response_data = jsonable_encoder(prepare_po_response(po))
+    logger.info(f"Returning PO detail for {po_id}: {response_data.get('voucher_no')} with {len(response_data.get('line_items', []))} items")
+    return response_data
 
 @api_router.put("/po/{po_id}")
 async def update_po(
@@ -1960,6 +1992,7 @@ async def update_po(
                 "brand": item.get("brand"),
                 "hsn_sac": item.get("hsn_sac"),
                 "pi_voucher_no": item.get("pi_voucher_no"),
+                "pi_quantity": float(item.get("pi_quantity", 0)),
                 "quantity": quantity,
                 "rate": rate,
                 "amount": amount,
@@ -2060,6 +2093,7 @@ async def export_pos(
                 "Consignee": po.get("consignee"),
                 "Supplier": po.get("supplier"),
                 "Reference PI": po.get("reference_no_date"),
+                "PI Quantity": item.get("pi_quantity", 0),
                 "Dispatched Through": po.get("dispatched_through"),
                 "Destination": po.get("destination"),
                 "Product Name": item.get("product_name"),

@@ -239,6 +239,7 @@ const PurchaseOrder = () => {
             brand: item.brand || '',
             hsn_sac: item.hsn_sac || '',
             pi_voucher_no: pi.voucher_no, // Label the product with its PI number
+            pi_quantity: item.quantity || 0, // Original quantity from PI
             quantity: 0,  // Manual entry (PO Quantity)
             rate: item.rate || 0,      // Pre-fill with rate from PI
             amount: 0,
@@ -376,17 +377,62 @@ const PurchaseOrder = () => {
   };
 
   const handleEdit = async (po) => {
-    const fullPO = await api.get(`/po/${po.id}`);
-    setEditingPO(fullPO.data);
+    try {
+      console.log('Fetching PO for edit:', po.id);
+      const fullPO = await api.get(`/po/${po.id}`);
+      const data = fullPO.data;
+      console.log('Fetched PO data:', data);
+      window.lastEditData = data; // Debug hook
+      
+      setEditingPO(data);
 
-    // Support both old single PI and new multiple PIs format
-    let reference_pi_ids = fullPO.data.reference_pi_ids || [];
-    if (!reference_pi_ids.length && fullPO.data.reference_pi_id) {
-      reference_pi_ids = [fullPO.data.reference_pi_id];
+      // Support both old single PI and new multiple PIs format
+      let reference_pi_ids = data.reference_pi_ids || [];
+      if (!reference_pi_ids.length && data.reference_pi_id) {
+        reference_pi_ids = [data.reference_pi_id];
+      }
+
+      const newFormData = {
+        company_id: String(data.company_id || ''),
+        voucher_no: String(data.voucher_no || ''),
+        date: data.date ? (data.date.includes('T') ? data.date.split('T')[0] : data.date) : new Date().toISOString().split('T')[0],
+        consignee: String(data.consignee || ''),
+        supplier: String(data.supplier || ''),
+        reference_pi_ids: Array.isArray(reference_pi_ids) ? reference_pi_ids : [],
+        reference_no_date: String(data.reference_no_date || ''),
+        dispatched_through: String(data.dispatched_through || ''),
+        destination: String(data.destination || ''),
+        gst_percentage: Number(data.gst_percentage || 0),
+        tds_percentage: Number(data.tds_percentage || 0),
+        status: String(data.status || 'Pending'),
+        line_items: (data.line_items || []).map(item => ({
+          product_id: String(item.product_id || ''),
+          product_name: String(item.product_name || ''),
+          sku: String(item.sku || ''),
+          category: String(item.category || ''),
+          brand: String(item.brand || ''),
+          hsn_sac: String(item.hsn_sac || ''),
+          pi_voucher_no: String(item.pi_voucher_no || ''),
+          pi_quantity: Number(item.pi_quantity || 0),
+          quantity: Number(item.quantity || 0),
+          rate: Number(item.rate || 0),
+          amount: Number(item.amount || 0),
+          gst_value: Number(item.gst_value || 0),
+          tds_value: Number(item.tds_value || 0)
+        }))
+      };
+      
+      console.log('Setting PO formData:', newFormData);
+      setFormData(newFormData);
+      setDialogOpen(true);
+    } catch (error) {
+      console.error('Error fetching PO:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch PO details for editing',
+        variant: 'destructive'
+      });
     }
-
-
-    setDialogOpen(true);
   };
 
   const handleDelete = async (po) => {
@@ -568,7 +614,7 @@ const PurchaseOrder = () => {
                 Create PO
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogContent key={editingPO ? editingPO.id : 'new'} className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingPO ? 'Edit PO' : 'Create New PO'}</DialogTitle>
               </DialogHeader>
@@ -826,6 +872,15 @@ const PurchaseOrder = () => {
                             />
                           </div>
                           <div>
+                            <Label className="text-slate-500">PI Quantity</Label>
+                            <Input
+                              type="number"
+                              value={item.pi_quantity || 0}
+                              className="bg-gray-100 border-dashed"
+                              readOnly
+                            />
+                          </div>
+                          <div>
                             <Label>PO Quantity *</Label>
                             <Input
                               type="number"
@@ -1032,6 +1087,7 @@ const PurchaseOrder = () => {
                         <th className="text-left p-3 font-medium text-slate-700">SKU</th>
                         <th className="text-left p-3 font-medium text-slate-700">Category</th>
                         <th className="text-left p-3 font-medium text-slate-700">Brand</th>
+                        <th className="text-right p-3 font-medium text-slate-700">PI Qty</th>
                         <th className="text-right p-3 font-medium text-slate-700">Quantity</th>
                         <th className="text-right p-3 font-medium text-slate-700">Rate</th>
                         <th className="text-right p-3 font-medium text-slate-700">Amount</th>
@@ -1049,6 +1105,7 @@ const PurchaseOrder = () => {
                           <td className="p-3 font-mono text-sm">{item.sku}</td>
                           <td className="p-3">{item.category || '-'}</td>
                           <td className="p-3">{item.brand || '-'}</td>
+                          <td className="p-3 text-right text-slate-500 font-medium">{formatNumber(item.pi_quantity || 0)}</td>
                           <td className="p-3 text-right">{formatNumber(item.quantity)}</td>
                           <td className="p-3 text-right">₹{formatCurrency(item.rate)}</td>
                           <td className="p-3 text-right font-semibold">₹{formatCurrency(item.amount)}</td>

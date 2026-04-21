@@ -30,6 +30,7 @@ const StockSummaryNew = () => {
   // Dropdown options
   const [companies, setCompanies] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   // View transaction dialog
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -65,12 +66,14 @@ const StockSummaryNew = () => {
 
   const fetchDropdownOptions = async () => {
     try {
-      const [companiesRes, warehousesRes] = await Promise.all([
+      const [companiesRes, warehousesRes, categoriesRes] = await Promise.all([
         api.get("/companies"),
-        api.get("/warehouses")
+        api.get("/warehouses"),
+        api.get("/categories")
       ]);
       setCompanies(companiesRes.data);
       setWarehouses(warehousesRes.data);
+      setCategories(categoriesRes.data);
     } catch (error) {
       console.error("Error fetching dropdown options:", error);
     }
@@ -393,13 +396,18 @@ const StockSummaryNew = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Category
             </label>
-            <input
-              type="text"
+            <select
               value={filters.category}
               onChange={(e) => handleFilterChange("category", e.target.value)}
-              placeholder="Search Category..."
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat, idx) => (
+                <option key={idx} value={cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>

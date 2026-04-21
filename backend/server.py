@@ -2984,12 +2984,32 @@ async def update_stock_tracking(inward_entry: dict, operation: str):
         for item in inward_entry.get("line_items", []):
             try:
                 # Get product category and color
-                product = await mongo_db.products.find_one(
-                    {"id": item["product_id"]}, 
-                    {"_id": 0, "category": 1, "color": 1}
-                )
-                category = product.get("category") if product else "Unknown"
-                color = product.get("color") if product else "N/A"
+                category = "Unknown"
+                color = "N/A"
+                
+                # First check if item already has category
+                if item.get("category"):
+                    category = item.get("category")
+                    
+                # Try finding product by ID
+                if category == "Unknown" and item.get("product_id"):
+                    product = await mongo_db.products.find_one(
+                        {"id": item["product_id"]}, 
+                        {"_id": 0, "category": 1, "Category": 1, "color": 1}
+                    )
+                    if product:
+                        category = product.get("category") or product.get("Category") or "Unknown"
+                        color = product.get("color") or "N/A"
+                        
+                # Try finding product by SKU if product_id failed or wasn't there
+                if category == "Unknown" and item.get("sku"):
+                    product = await mongo_db.products.find_one(
+                        {"sku": item["sku"]}, 
+                        {"_id": 0, "category": 1, "Category": 1, "color": 1}
+                    )
+                    if product:
+                        category = product.get("category") or product.get("Category") or "Unknown"
+                        color = product.get("color") or "N/A"
                 
                 print(f"     - Creating entry for: {item.get('product_name')} (Qty: {item.get('quantity')})")
                 
@@ -3035,6 +3055,16 @@ async def update_stock_tracking(inward_entry: dict, operation: str):
         traceback.print_exc()
 
 # In-Transit tracking functions removed - feature deprecated
+
+@api_router.get("/categories")
+async def get_categories():
+    categories = await mongo_db.products.distinct("category")
+    categories_upper = await mongo_db.products.distinct("Category")
+    po_categories = await mongo_db.purchase_orders.distinct("line_items.category")
+    all_cats = list({c for c in categories + categories_upper + po_categories if c and isinstance(c, str) and c.strip() and c != "Unknown"})
+    all_cats.sort()
+    return [{"id": c, "name": c} for c in all_cats]
+
 
 @api_router.get("/stock-summary")
 async def get_stock_summary(

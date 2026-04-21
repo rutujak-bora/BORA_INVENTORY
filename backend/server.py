@@ -3057,13 +3057,19 @@ async def update_stock_tracking(inward_entry: dict, operation: str):
 # In-Transit tracking functions removed - feature deprecated
 
 @api_router.get("/categories")
-async def get_categories():
-    categories = await mongo_db.products.distinct("category")
-    categories_upper = await mongo_db.products.distinct("Category")
+async def get_categories(current_user: dict = Depends(get_current_active_user)):
+    # Pull categories from multiple sources to be comprehensive
+    p_categories = await mongo_db.products.distinct("category")
+    p_categories_alt = await mongo_db.products.distinct("Category")
     po_categories = await mongo_db.purchase_orders.distinct("line_items.category")
-    all_cats = list({c for c in categories + categories_upper + po_categories if c and isinstance(c, str) and c.strip() and c != "Unknown"})
-    all_cats.sort()
-    return [{"id": c, "name": c} for c in all_cats]
+    st_categories = await mongo_db.stock_tracking.distinct("category")
+    
+    # Combine and clean
+    combined = p_categories + p_categories_alt + po_categories + st_categories
+    unique_cats = {c.strip() for c in combined if c and isinstance(c, str) and c.strip() and c.lower() != "unknown" and c.lower() != "nan"}
+    
+    sorted_cats = sorted(list(unique_cats))
+    return [{"id": c, "name": c} for c in sorted_cats]
 
 
 @api_router.get("/stock-summary")

@@ -3058,15 +3058,37 @@ async def update_stock_tracking(inward_entry: dict, operation: str):
 
 @api_router.get("/categories")
 async def get_categories(current_user: dict = Depends(get_current_active_user)):
-    # Pull categories from multiple sources to be comprehensive
-    p_categories = await mongo_db.products.distinct("category")
-    p_categories_alt = await mongo_db.products.distinct("Category")
-    po_categories = await mongo_db.purchase_orders.distinct("line_items.category")
-    st_categories = await mongo_db.stock_tracking.distinct("category")
+    """
+    Fetch all unique categories from products, purchase orders, and stock tracking.
+    """
+    combined = []
     
-    # Combine and clean
-    combined = p_categories + p_categories_alt + po_categories + st_categories
-    unique_cats = {c.strip() for c in combined if c and isinstance(c, str) and c.strip() and c.lower() != "unknown" and c.lower() != "nan"}
+    # helper for safe distinct retrieval
+    async def get_distinct_safe(collection, field):
+        try:
+            return await collection.distinct(field)
+        except Exception as e:
+            logger.error(f"Error fetching distinct {field} from {collection.name}: {str(e)}")
+            return []
+
+    # Pull categories from multiple sources to be comprehensive
+    sources = [
+        (mongo_db.products, "category"),
+        (mongo_db.products, "Category"),
+        (mongo_db.purchase_orders, "line_items.category"),
+        (mongo_db.stock_tracking, "category")
+    ]
+    
+    for coll, field in sources:
+        results = await get_distinct_safe(coll, field)
+        combined.extend(results)
+    
+    # Combine and clean (only strings, no empty, unknown, or nan)
+    unique_cats = {
+        c.strip() for c in combined 
+        if c and isinstance(c, str) and c.strip() 
+        and c.lower() not in ["unknown", "nan", "none", "null"]
+    }
     
     sorted_cats = sorted(list(unique_cats))
     return [{"id": c, "name": c} for c in sorted_cats]

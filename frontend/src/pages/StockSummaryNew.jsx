@@ -31,6 +31,8 @@ const StockSummaryNew = () => {
   const [companies, setCompanies] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [piOptions, setPiOptions] = useState([]);
+  const [poOptions, setPoOptions] = useState([]);
 
   // View transaction dialog
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -65,18 +67,30 @@ const StockSummaryNew = () => {
   };
 
   const fetchDropdownOptions = async () => {
-    try {
-      const [companiesRes, warehousesRes, categoriesRes] = await Promise.all([
-        api.get("/companies"),
-        api.get("/warehouses"),
-        api.get("/categories")
-      ]);
-      setCompanies(companiesRes.data);
-      setWarehouses(warehousesRes.data);
-      setCategories(categoriesRes.data);
-    } catch (error) {
-      console.error("Error fetching dropdown options:", error);
-    }
+    // Fetch companies
+    api.get("/companies")
+      .then(res => setCompanies(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error("Error fetching companies:", err));
+
+    // Fetch warehouses
+    api.get("/warehouses")
+      .then(res => setWarehouses(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error("Error fetching warehouses:", err));
+
+    // Fetch categories
+    api.get("/categories")
+      .then(res => setCategories(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error("Error fetching categories:", err));
+
+    // Fetch PI numbers
+    api.get("/pi")
+      .then(res => setPiOptions(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error("Error fetching PIs:", err));
+
+    // Fetch PO numbers
+    api.get("/po")
+      .then(res => setPoOptions(Array.isArray(res.data) ? res.data : []))
+      .catch(err => console.error("Error fetching POs:", err));
   };
 
   const applyFilters = () => {
@@ -357,26 +371,36 @@ const StockSummaryNew = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               PI Number
             </label>
-            <input
-              type="text"
+            <select
               value={filters.piNumber}
               onChange={(e) => handleFilterChange("piNumber", e.target.value)}
-              placeholder="Search PI..."
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              <option value="">All PIs</option>
+              {piOptions.map((pi) => (
+                <option key={pi.id} value={pi.voucher_no}>
+                  {pi.voucher_no}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               PO Number
             </label>
-            <input
-              type="text"
+            <select
               value={filters.poNumber}
               onChange={(e) => handleFilterChange("poNumber", e.target.value)}
-              placeholder="Search PO..."
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              <option value="">All POs</option>
+              {poOptions.map((po) => (
+                <option key={po.id} value={po.voucher_no}>
+                  {po.voucher_no}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

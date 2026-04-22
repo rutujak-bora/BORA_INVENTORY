@@ -16,9 +16,12 @@ from dotenv import load_dotenv
 load_dotenv("/app/backend/.env")
 
 
-async def test_purchase_orders_endpoint():
+def test_purchase_orders_endpoint():
     """Test that purchase orders endpoint returns 200 with valid array"""
+    asyncio.run(run_test_logic())
 
+
+async def run_test_logic():
     # Connect to MongoDB
     mongo_url = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
     db_name = os.environ.get("DB_NAME", "bora_inventory_mongo")

@@ -3,6 +3,7 @@ import api from "../utils/api";
 import { formatCurrency, formatNumber } from "../utils/formatters";
 import { Eye, Trash2, RefreshCw, Filter, X, Download } from "lucide-react";
 import * as XLSX from 'xlsx';
+import { MultiSelect } from "../components/MultiSelect";
 
 /**
  * STOCK SUMMARY - TWO SECTIONS
@@ -17,14 +18,14 @@ const StockSummaryNew = () => {
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Filter states
+  // Filter states (now using arrays for multi-select)
   const [filters, setFilters] = useState({
-    company: "",
-    warehouse: "",
-    piNumber: "",
-    poNumber: "",
+    company: [],
+    warehouse: [],
+    piNumber: [],
+    poNumber: [],
     sku: "",
-    category: ""
+    category: []
   });
 
   // Dropdown options
@@ -99,28 +100,31 @@ const StockSummaryNew = () => {
   const applyFilters = () => {
     let filtered = [...stockData];
 
-    if (filters.company) {
+    if (filters.company.length > 0) {
       filtered = filtered.filter(item =>
-        item.company_name?.toLowerCase().includes(filters.company.toLowerCase())
+        item.company_name && filters.company.includes(item.company_name)
       );
     }
 
-    if (filters.warehouse) {
+    if (filters.warehouse.length > 0) {
       filtered = filtered.filter(item =>
-        item.warehouse_name?.toLowerCase().includes(filters.warehouse.toLowerCase())
+        item.warehouse_name && filters.warehouse.includes(item.warehouse_name)
       );
     }
 
-    if (filters.piNumber) {
-      filtered = filtered.filter(item =>
-        item.pi_number?.toLowerCase().includes(filters.piNumber.toLowerCase())
-      );
+    if (filters.piNumber.length > 0) {
+      filtered = filtered.filter(item => {
+        // Handle cases where pi_po_number might contain the PI number
+        const itemPi = item.pi_number || (item.pi_po_number?.split(' & ')[0]);
+        return itemPi && filters.piNumber.includes(itemPi);
+      });
     }
 
-    if (filters.poNumber) {
-      filtered = filtered.filter(item =>
-        item.po_number?.toLowerCase().includes(filters.poNumber.toLowerCase())
-      );
+    if (filters.poNumber.length > 0) {
+      filtered = filtered.filter(item => {
+        const itemPo = item.po_number || (item.pi_po_number?.split(' & ')[1]);
+        return itemPo && filters.poNumber.includes(itemPo);
+      });
     }
 
     if (filters.sku) {
@@ -129,9 +133,9 @@ const StockSummaryNew = () => {
       );
     }
 
-    if (filters.category) {
+    if (filters.category.length > 0) {
       filtered = filtered.filter(item =>
-        item.category?.toLowerCase().includes(filters.category.toLowerCase())
+        item.category && filters.category.includes(item.category.toUpperCase())
       );
     }
 
@@ -144,12 +148,12 @@ const StockSummaryNew = () => {
 
   const resetFilters = () => {
     setFilters({
-      company: "",
-      warehouse: "",
-      piNumber: "",
-      poNumber: "",
+      company: [],
+      warehouse: [],
+      piNumber: [],
+      poNumber: [],
       sku: "",
-      category: ""
+      category: []
     });
   };
 
@@ -338,72 +342,48 @@ const StockSummaryNew = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Company
             </label>
-            <select
-              value={filters.company}
-              onChange={(e) => handleFilterChange("company", e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.name}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
+            <MultiSelect
+              selected={filters.company}
+              onSelectionChange={(selected) => handleFilterChange("company", selected)}
+              options={companies.map(c => ({ value: c.name, label: c.name }))}
+              placeholder="All Companies"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Warehouse
             </label>
-            <select
-              value={filters.warehouse}
-              onChange={(e) => handleFilterChange("warehouse", e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Warehouses</option>
-              {warehouses.map((warehouse) => (
-                <option key={warehouse.id} value={warehouse.name}>
-                  {warehouse.name}
-                </option>
-              ))}
-            </select>
+            <MultiSelect
+              selected={filters.warehouse}
+              onSelectionChange={(selected) => handleFilterChange("warehouse", selected)}
+              options={warehouses.map(w => ({ value: w.name, label: w.name }))}
+              placeholder="All Warehouses"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               PI Number
             </label>
-            <select
-              value={filters.piNumber}
-              onChange={(e) => handleFilterChange("piNumber", e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All PIs</option>
-              {piOptions.map((pi) => (
-                <option key={pi.id} value={pi.voucher_no}>
-                  {pi.voucher_no}
-                </option>
-              ))}
-            </select>
+            <MultiSelect
+              selected={filters.piNumber}
+              onSelectionChange={(selected) => handleFilterChange("piNumber", selected)}
+              options={piOptions.map(pi => ({ value: pi.voucher_no, label: pi.voucher_no }))}
+              placeholder="All PIs"
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               PO Number
             </label>
-            <select
-              value={filters.poNumber}
-              onChange={(e) => handleFilterChange("poNumber", e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All POs</option>
-              {poOptions.map((po) => (
-                <option key={po.id} value={po.voucher_no}>
-                  {po.voucher_no}
-                </option>
-              ))}
-            </select>
+            <MultiSelect
+              selected={filters.poNumber}
+              onSelectionChange={(selected) => handleFilterChange("poNumber", selected)}
+              options={poOptions.map(po => ({ value: po.voucher_no, label: po.voucher_no }))}
+              placeholder="All POs"
+            />
           </div>
 
           <div>
@@ -415,7 +395,7 @@ const StockSummaryNew = () => {
               value={filters.sku}
               onChange={(e) => handleFilterChange("sku", e.target.value)}
               placeholder="Search SKU..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 text-sm h-[40px]"
             />
           </div>
 
@@ -423,21 +403,15 @@ const StockSummaryNew = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Category
             </label>
-            <select
-              value={filters.category}
-              onChange={(e) => handleFilterChange("category", e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat, idx) => {
-                const name = typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown');
-                return (
-                  <option key={idx} value={name}>
-                    {name}
-                  </option>
-                );
-              })}
-            </select>
+            <MultiSelect
+              selected={filters.category}
+              onSelectionChange={(selected) => handleFilterChange("category", selected)}
+              options={categories.map(cat => ({ 
+                value: typeof cat === 'string' ? cat.toUpperCase() : (cat.name || cat.id || 'Unknown').toUpperCase(), 
+                label: typeof cat === 'string' ? cat.toUpperCase() : (cat.name || cat.id || 'Unknown').toUpperCase() 
+              }))}
+              placeholder="All Categories"
+            />
           </div>
         </div>
       </div>

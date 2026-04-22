@@ -20,6 +20,7 @@ from schemas import (
     WarehouseCreate, WarehouseUpdate,
     BankCreate, BankUpdate,
     DashboardStats, MappingUpdate,
+    PIDetailResponse, PODetailResponse,
     InwardStockCreate, InwardStockResponse, InwardStockDetailResponse,
     StockSummaryResponse, StockTrackingResponse,
     OutwardStockCreate, OutwardStockResponse, OutwardStockDetailResponse

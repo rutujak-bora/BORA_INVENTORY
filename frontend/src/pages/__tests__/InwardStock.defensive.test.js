@@ -86,7 +86,7 @@ describe('InwardStock Defensive Tests', () => {
     const id3 = validObj?.id;
     
     expect(id1).toBeUndefined();
-    expect(id2).toBeNull();
+    expect(id2).toBeUndefined();
     expect(id3).toBe('1');
     
     console.log('✅ Test 4: Optional chaining prevents crash on undefined/null objects');

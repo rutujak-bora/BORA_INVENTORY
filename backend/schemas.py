@@ -3,6 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from models import UserRole
 
+
 # Auth Schemas
 class UserCreate(BaseModel):
     username: str
@@ -10,13 +11,15 @@ class UserCreate(BaseModel):
     password: str
     role: Optional[UserRole] = UserRole.REGULAR
 
+
 class UserLogin(BaseModel):
     username: str
     password: str
 
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     username: str
     email: str
@@ -25,10 +28,12 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
 
 # Company Schemas
 class CompanyCreate(BaseModel):
@@ -40,6 +45,7 @@ class CompanyCreate(BaseModel):
     country: Optional[str] = None
     city: Optional[str] = None
 
+
 class CompanyUpdate(BaseModel):
     name: Optional[str] = None
     gstn: Optional[str] = None
@@ -49,9 +55,10 @@ class CompanyUpdate(BaseModel):
     country: Optional[str] = None
     city: Optional[str] = None
 
+
 class CompanyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     name: str
     gstn: Optional[str] = None
@@ -63,6 +70,7 @@ class CompanyResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
+
 # Product Schemas
 class ProductCreate(BaseModel):
     sku_name: str
@@ -71,8 +79,11 @@ class ProductCreate(BaseModel):
     hsn_sac: Optional[str] = None
     country_of_origin: Optional[str] = None
     color: Optional[str] = None
-    specification: Optional[str] = None  # Changed to string to accept both text and numbers
+    specification: Optional[str] = (
+        None  # Changed to string to accept both text and numbers
+    )
     feature: Optional[str] = None  # New field
+
 
 class ProductUpdate(BaseModel):
     sku_name: Optional[str] = None
@@ -81,12 +92,15 @@ class ProductUpdate(BaseModel):
     hsn_sac: Optional[str] = None
     country_of_origin: Optional[str] = None
     color: Optional[str] = None
-    specification: Optional[str] = None  # Changed to string to accept both text and numbers
+    specification: Optional[str] = (
+        None  # Changed to string to accept both text and numbers
+    )
     feature: Optional[str] = None  # New field
+
 
 class ProductResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     sku_name: str
     category: Optional[str] = None
@@ -94,10 +108,13 @@ class ProductResponse(BaseModel):
     hsn_sac: Optional[str] = None
     country_of_origin: Optional[str] = None
     color: Optional[str] = None
-    specification: Optional[str] = None  # Changed to string to accept both text and numbers
+    specification: Optional[str] = (
+        None  # Changed to string to accept both text and numbers
+    )
     feature: Optional[str] = None  # New field
     is_active: bool
     created_at: datetime
+
 
 # Warehouse Schemas
 class WarehouseCreate(BaseModel):
@@ -107,6 +124,7 @@ class WarehouseCreate(BaseModel):
     country: Optional[str] = None
     contact_details: Optional[str] = None
 
+
 class WarehouseUpdate(BaseModel):
     name: Optional[str] = None
     address: Optional[str] = None
@@ -114,9 +132,10 @@ class WarehouseUpdate(BaseModel):
     country: Optional[str] = None
     contact_details: Optional[str] = None
 
+
 class WarehouseResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     name: str
     address: Optional[str] = None
@@ -135,6 +154,7 @@ class BankCreate(BaseModel):
     address: Optional[str] = None
     account_number: Optional[str] = None
 
+
 class BankUpdate(BaseModel):
     bank_name: Optional[str] = None
     ifsc_code: Optional[str] = None
@@ -142,9 +162,10 @@ class BankUpdate(BaseModel):
     address: Optional[str] = None
     account_number: Optional[str] = None
 
+
 class BankResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     bank_name: str
     ifsc_code: Optional[str] = None
@@ -153,6 +174,7 @@ class BankResponse(BaseModel):
     account_number: Optional[str] = None
     is_active: bool
     created_at: datetime
+
 
 # PI Line Item Schema
 class PILineItemCreate(BaseModel):
@@ -167,9 +189,10 @@ class PILineItemCreate(BaseModel):
     rate: float
     amount: float
 
+
 class PILineItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     product_id: str
     product_name: str
@@ -182,6 +205,7 @@ class PILineItemResponse(BaseModel):
     rate: float
     amount: float
 
+
 # PI Schemas
 class PICreate(BaseModel):
     company_id: str
@@ -192,6 +216,7 @@ class PICreate(BaseModel):
     status: Optional[str] = "Pending"
     line_items: List[PILineItemCreate]
 
+
 class PIUpdate(BaseModel):
     company_id: Optional[str] = None
     voucher_no: Optional[str] = None
@@ -200,9 +225,10 @@ class PIUpdate(BaseModel):
     buyer: Optional[str] = None
     status: Optional[str] = None
 
+
 class PIResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     company_id: str
     voucher_no: str
@@ -213,8 +239,10 @@ class PIResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
+
 class PIDetailResponse(PIResponse):
     line_items: List[PILineItemResponse] = []
+
 
 # PO Line Item Schema
 class POLineItemCreate(BaseModel):
@@ -232,9 +260,10 @@ class POLineItemCreate(BaseModel):
     input_igst: Optional[float] = 0
     tds: Optional[float] = 0
 
+
 class POLineItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     product_id: str
     product_name: str
@@ -249,6 +278,7 @@ class POLineItemResponse(BaseModel):
     amount: float
     input_igst: float
     tds: float
+
 
 # PO Schemas
 class POCreate(BaseModel):
@@ -266,6 +296,7 @@ class POCreate(BaseModel):
     tds_percentage: Optional[float] = 0
     line_items: List[POLineItemCreate]
 
+
 class POUpdate(BaseModel):
     company_id: Optional[str] = None
     voucher_no: Optional[str] = None
@@ -281,9 +312,10 @@ class POUpdate(BaseModel):
     tds_percentage: Optional[float] = None
     status: Optional[str] = None
 
+
 class POResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     company_id: str
     voucher_no: str
@@ -301,8 +333,10 @@ class POResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
+
 class PODetailResponse(POResponse):
     line_items: List[POLineItemResponse] = []
+
 
 # Payment Schemas
 class PaymentCreate(BaseModel):
@@ -321,9 +355,10 @@ class PaymentCreate(BaseModel):
     dispatch_goods_value: Optional[float] = 0
     notes: Optional[str] = None
 
+
 class PaymentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     pi_id: str
     voucher_no: Optional[str] = None
@@ -340,6 +375,7 @@ class PaymentResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
 
+
 # Inward Stock Line Item Schemas
 class InwardLineItemCreate(BaseModel):
     product_id: str
@@ -349,9 +385,10 @@ class InwardLineItemCreate(BaseModel):
     rate: float
     amount: float
 
+
 class InwardLineItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     product_id: str
     product_name: str
@@ -359,6 +396,7 @@ class InwardLineItemResponse(BaseModel):
     quantity: float
     rate: float
     amount: float
+
 
 # Inward Stock Schemas (Enhanced for multi-product support)
 class InwardStockCreate(BaseModel):
@@ -372,9 +410,10 @@ class InwardStockCreate(BaseModel):
     status: Optional[str] = "Received"
     line_items: List[InwardLineItemCreate]
 
+
 class InwardStockResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     inward_invoice_no: str
     date: datetime
@@ -388,8 +427,10 @@ class InwardStockResponse(BaseModel):
     line_items_count: int
     created_at: datetime
 
+
 class InwardStockDetailResponse(InwardStockResponse):
     line_items: List[InwardLineItemResponse] = []
+
 
 # Stock Summary Schemas
 class StockSummaryResponse(BaseModel):
@@ -402,7 +443,8 @@ class StockSummaryResponse(BaseModel):
     quantity_inward: float
     quantity_outward: float
     remaining_stock: float
-    
+
+
 # Central Stock Tracking Schema
 class StockTrackingResponse(BaseModel):
     id: str
@@ -413,6 +455,7 @@ class StockTrackingResponse(BaseModel):
     warehouse_name: Optional[str] = None
     current_stock: float
     last_updated: datetime
+
 
 # Outward Stock Schemas
 class OutwardLineItemCreate(BaseModel):
@@ -425,9 +468,10 @@ class OutwardLineItemCreate(BaseModel):
     dimensions: Optional[str] = None
     weight: Optional[float] = None
 
+
 class OutwardLineItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     product_id: str
     product_name: str
@@ -438,20 +482,26 @@ class OutwardLineItemResponse(BaseModel):
     dimensions: Optional[str] = None
     weight: Optional[float] = None
 
+
 class OutwardStockCreate(BaseModel):
-    export_invoice_no: Optional[str] = None  # For dispatch plans, this might be generated later
+    export_invoice_no: Optional[str] = (
+        None  # For dispatch plans, this might be generated later
+    )
     date: datetime
     company_id: str
     pi_id: Optional[str] = None
     warehouse_id: str
     mode: Optional[str] = None  # Sea, Air
     dispatch_type: str  # dispatch_plan, export_invoice, direct_export
-    status: Optional[str] = "Pending Dispatch"  # Pending Dispatch, Dispatched, Delivered
+    status: Optional[str] = (
+        "Pending Dispatch"  # Pending Dispatch, Dispatched, Delivered
+    )
     line_items: List[OutwardLineItemCreate]
+
 
 class OutwardStockResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     export_invoice_no: Optional[str] = None
     date: datetime
@@ -465,8 +515,10 @@ class OutwardStockResponse(BaseModel):
     line_items_count: int
     created_at: datetime
 
+
 class OutwardStockDetailResponse(OutwardStockResponse):
     line_items: List[OutwardLineItemResponse] = []
+
 
 # Expense Schemas
 class ExpenseCreate(BaseModel):
@@ -476,9 +528,10 @@ class ExpenseCreate(BaseModel):
     other_charges: Optional[float] = 0
     notes: Optional[str] = None
 
+
 class ExpenseResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    
+
     id: str
     export_invoice_nos: str
     freight: float
@@ -489,9 +542,11 @@ class ExpenseResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
 
+
 class MappingUpdate(BaseModel):
     notes: Optional[str] = None
     status: Optional[str] = None
+
 
 # Dashboard Stats
 class DashboardStats(BaseModel):

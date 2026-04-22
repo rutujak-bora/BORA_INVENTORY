@@ -79,7 +79,10 @@ const StockSummaryNew = () => {
 
     // Fetch categories
     api.get("/categories")
-      .then(res => setCategories(Array.isArray(res.data) ? res.data : []))
+      .then(res => {
+        console.log("Categories data received:", res.data);
+        setCategories(Array.isArray(res.data) ? res.data : []);
+      })
       .catch(err => console.error("Error fetching categories:", err));
 
     // Fetch PI numbers
@@ -426,11 +429,14 @@ const StockSummaryNew = () => {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Categories</option>
-              {categories.map((cat, idx) => (
-                <option key={idx} value={cat.name}>
-                  {cat.name}
-                </option>
-              ))}
+              {categories.map((cat, idx) => {
+                const name = typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown');
+                return (
+                  <option key={idx} value={name}>
+                    {name}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

@@ -3076,18 +3076,19 @@ async def get_categories(current_user: dict = Depends(get_current_active_user)):
         (mongo_db.products, "category"),
         (mongo_db.products, "Category"),
         (mongo_db.purchase_orders, "line_items.category"),
-        (mongo_db.stock_tracking, "category")
+        (mongo_db.stock_tracking, "category"),
+        (mongo_db.inward_stock, "line_items.category") # new source
     ]
     
     for coll, field in sources:
         results = await get_distinct_safe(coll, field)
         combined.extend(results)
     
-    # Combine and clean (only strings, no empty, unknown, or nan)
+    # Normalizing (uppercase) and cleaning
     unique_cats = {
-        c.strip() for c in combined 
+        c.strip().upper() for c in combined 
         if c and isinstance(c, str) and c.strip() 
-        and c.lower() not in ["unknown", "nan", "none", "null"]
+        and c.lower() not in ["unknown", "nan", "none", "null", "undefined"]
     }
     
     sorted_cats = sorted(list(unique_cats))

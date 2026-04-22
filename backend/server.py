@@ -139,11 +139,6 @@ async def get_categories(current_user: dict = Depends(get_current_active_user)):
     sorted_cats = sorted(list(unique_cats))
     return [{"id": c, "name": c} for c in sorted_cats]
 
-# Add file handler for persistent logs
-file_handler = logging.FileHandler("backend_debug.log")
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(file_handler)
-
 # ==================== AUTH ROUTES ====================
 @api_router.post("/auth/login")
 async def login(user_data: UserLogin):

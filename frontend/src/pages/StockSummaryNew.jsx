@@ -78,13 +78,25 @@ const StockSummaryNew = () => {
       .then(res => setWarehouses(Array.isArray(res.data) ? res.data : []))
       .catch(err => console.error("Error fetching warehouses:", err));
 
-    // Fetch categories
+    // Fetch categories with fallback
     api.get("/categories")
       .then(res => {
-        console.log("Categories data received:", res.data);
+        console.log("Categories data received from primary endpoint:", res.data);
         setCategories(Array.isArray(res.data) ? res.data : []);
       })
-      .catch(err => console.error("Error fetching categories:", err));
+      .catch(err => {
+        if (err.response?.status === 404) {
+          console.log("Primary categories endpoint 404, trying fallback...");
+          api.get("/get-categories")
+            .then(res => {
+              console.log("Categories data received from fallback endpoint:", res.data);
+              setCategories(Array.isArray(res.data) ? res.data : []);
+            })
+            .catch(fallbackErr => console.error("Error fetching categories from fallback:", fallbackErr));
+        } else {
+          console.error("Error fetching categories:", err);
+        }
+      });
 
     // Fetch PI numbers
     api.get("/pi")

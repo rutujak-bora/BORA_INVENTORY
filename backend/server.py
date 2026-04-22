@@ -97,6 +97,48 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ==================== CATEGORIES DROPDOWN (PRIORITY) ====================
+# Moved to top of router to prevent potential shadowing/404 issues on live server
+@api_router.get("/categories")
+@api_router.get("/get-categories") # Fallback mirror
+async def get_categories(current_user: dict = Depends(get_current_active_user)):
+    """
+    Fetch all unique categories from products, purchase orders, and stock tracking.
+    Normalized to uppercase and deduplicated.
+    """
+    combined = []
+    
+    # helper for safe distinct retrieval
+    async def get_distinct_safe(collection, field):
+        try:
+            return await collection.distinct(field)
+        except Exception as e:
+            logger.error(f"Error fetching distinct {field} from {collection.name}: {str(e)}")
+            return []
+
+    # Pull categories from multiple sources to be comprehensive
+    sources = [
+        (mongo_db.products, "category"),
+        (mongo_db.products, "Category"),
+        (mongo_db.purchase_orders, "line_items.category"),
+        (mongo_db.stock_tracking, "category"),
+        (mongo_db.inward_stock, "line_items.category")
+    ]
+    
+    for coll, field in sources:
+        results = await get_distinct_safe(coll, field)
+        combined.extend(results)
+    
+    # Normalizing (uppercase) and cleaning
+    unique_cats = {
+        c.strip().upper() for c in combined 
+        if c and isinstance(c, str) and c.strip() 
+        and c.lower() not in ["unknown", "nan", "none", "null", "undefined"]
+    }
+    
+    sorted_cats = sorted(list(unique_cats))
+    return [{"id": c, "name": c} for c in sorted_cats]
+
 # Add file handler for persistent logs
 file_handler = logging.FileHandler("backend_debug.log")
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -3056,43 +3098,7 @@ async def update_stock_tracking(inward_entry: dict, operation: str):
 
 # In-Transit tracking functions removed - feature deprecated
 
-@api_router.get("/categories")
-async def get_categories(current_user: dict = Depends(get_current_active_user)):
-    """
-    Fetch all unique categories from products, purchase orders, and stock tracking.
-    """
-    combined = []
-    
-    # helper for safe distinct retrieval
-    async def get_distinct_safe(collection, field):
-        try:
-            return await collection.distinct(field)
-        except Exception as e:
-            logger.error(f"Error fetching distinct {field} from {collection.name}: {str(e)}")
-            return []
-
-    # Pull categories from multiple sources to be comprehensive
-    sources = [
-        (mongo_db.products, "category"),
-        (mongo_db.products, "Category"),
-        (mongo_db.purchase_orders, "line_items.category"),
-        (mongo_db.stock_tracking, "category"),
-        (mongo_db.inward_stock, "line_items.category") # new source
-    ]
-    
-    for coll, field in sources:
-        results = await get_distinct_safe(coll, field)
-        combined.extend(results)
-    
-    # Normalizing (uppercase) and cleaning
-    unique_cats = {
-        c.strip().upper() for c in combined 
-        if c and isinstance(c, str) and c.strip() 
-        and c.lower() not in ["unknown", "nan", "none", "null", "undefined"]
-    }
-    
-    sorted_cats = sorted(list(unique_cats))
-    return [{"id": c, "name": c} for c in sorted_cats]
+# Stock Summary routes moved Categories out of here to top for priority
 
 
 @api_router.get("/stock-summary")

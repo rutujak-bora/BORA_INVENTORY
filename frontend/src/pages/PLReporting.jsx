@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { RefreshCw, Download, FileSpreadsheet, FileText, TrendingUp, X, Calendar } from 'lucide-react';
+import { RefreshCw, Download, FileSpreadsheet, FileText, TrendingUp, X, Calendar, Filter } from 'lucide-react';
+import { MultiSelect } from '../components/MultiSelect';
 import { useToast } from '../hooks/use-toast';
 import { useResizeObserverErrorFix } from '../hooks/useResizeObserverErrorFix';
 import { getSafeSelectContentProps } from '../utils/selectHelpers';
@@ -19,6 +20,7 @@ import * as XLSX from 'xlsx';
 const PLReporting = () => {
   const [exportInvoices, setExportInvoices] = useState([]);
   const [companies, setCompanies] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
   const [plReport, setPlReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -27,8 +29,9 @@ const PLReporting = () => {
   const [filters, setFilters] = useState({
     from_date: '',
     to_date: '',
-    company_id: 'all',
-    sku: ''
+    company_ids: [],
+    sku: '',
+    categories: []
   });
 
   const { toast } = useToast();
@@ -37,15 +40,25 @@ const PLReporting = () => {
   useEffect(() => {
     fetchExportInvoices();
     fetchCompanies();
+    fetchCategories();
   }, []);
 
-  const fetchExportInvoices = async (fromDate = '', toDate = '') => {
+  const fetchExportInvoices = async (fromDate = filters.from_date, toDate = filters.to_date) => {
     setLoading(true);
     try {
       let url = '/pl-report/export-invoices';
-      if (fromDate && toDate) {
-        url += `?from_date=${fromDate}&to_date=${toDate}`;
+      const params = new URLSearchParams();
+      
+      if (fromDate) params.append('from_date', fromDate);
+      if (toDate) params.append('to_date', toDate);
+      if (filters.company_ids.length > 0) params.append('company_ids', filters.company_ids.join(','));
+      if (filters.categories.length > 0) params.append('categories', filters.categories.join(','));
+
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
       }
+      
       const response = await api.get(url);
       setExportInvoices(response.data);
     } catch (error) {
@@ -61,6 +74,15 @@ const PLReporting = () => {
       setCompanies(response.data);
     } catch (error) {
       console.error('Failed to fetch companies:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/categories');
+      setCategories(response.data);
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
     }
   };
 
@@ -86,8 +108,9 @@ const PLReporting = () => {
         export_invoice_ids: invoicesToCalculate,
         from_date: filters.from_date,
         to_date: filters.to_date,
-        company_id: filters.company_id === 'all' ? '' : filters.company_id,
-        sku: filters.sku
+        company_ids: filters.company_ids,
+        sku: filters.sku,
+        categories: filters.categories
       });
       setPlReport(response.data);
     } catch (error) {
@@ -276,21 +299,19 @@ const PLReporting = () => {
   };
 
   const handleApplyFilters = () => {
-    if (filters.from_date && filters.to_date) {
-      fetchExportInvoices(filters.from_date, filters.to_date);
-    } else {
-      fetchExportInvoices();
-    }
+    fetchExportInvoices();
   };
 
   const clearFilters = () => {
     setFilters({
       from_date: '',
       to_date: '',
-      company_id: 'all',
-      sku: ''
+      company_ids: [],
+      sku: '',
+      categories: []
     });
-    fetchExportInvoices();
+    // Need to use fresh defaults because state update is async
+    setTimeout(() => fetchExportInvoices('', ''), 0);
   };
 
   if (loading) {
@@ -317,48 +338,55 @@ const PLReporting = () => {
 
       {/* Filters */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <Filter size={18} />
+            Filters
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div>
-              <Label className="text-xs">From Date</Label>
+              <Label className="text-xs font-medium text-slate-500">From Date</Label>
               <Input
                 type="date"
                 value={filters.from_date}
                 onChange={(e) => setFilters(prev => ({ ...prev, from_date: e.target.value }))}
+                className="h-9"
               />
             </div>
             <div>
-              <Label className="text-xs">To Date</Label>
+              <Label className="text-xs font-medium text-slate-500">To Date</Label>
               <Input
                 type="date"
                 value={filters.to_date}
                 onChange={(e) => setFilters(prev => ({ ...prev, to_date: e.target.value }))}
+                className="h-9"
               />
             </div>
             <div>
-              <Label className="text-xs">Company</Label>
-              <Select
-                value={filters.company_id}
-                onValueChange={(value) => {
-                  setTimeout(() => setFilters(prev => ({ ...prev, company_id: value })), 0);
-                }}
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="All companies" />
-                </SelectTrigger>
-                <SelectContent {...getSafeSelectContentProps()}>
-                  <SelectItem value="all">All Companies</SelectItem>
-                  {companies.map(company => (
-                    <SelectItem key={company.id} value={company.id}>{company.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-medium text-slate-500">Company</Label>
+              <MultiSelect
+                selected={filters.company_ids}
+                onSelectionChange={(selected) => setFilters(prev => ({ ...prev, company_ids: selected }))}
+                options={companies.map(c => ({ value: c.id, label: c.name }))}
+                placeholder="All Companies"
+              />
             </div>
             <div>
-              <Label className="text-xs">SKU</Label>
+              <Label className="text-xs font-medium text-slate-500">Category</Label>
+              <MultiSelect
+                selected={filters.categories}
+                onSelectionChange={(selected) => setFilters(prev => ({ ...prev, categories: selected }))}
+                options={categories.map(cat => ({ 
+                  value: typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown'), 
+                  label: typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown') 
+                }))}
+                placeholder="All Categories"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-slate-500">SKU</Label>
               <Input
                 value={filters.sku}
                 onChange={(e) => setFilters(prev => ({ ...prev, sku: e.target.value }))}
@@ -367,7 +395,7 @@ const PLReporting = () => {
               />
             </div>
             <div className="flex items-end gap-2">
-              <Button onClick={handleApplyFilters} className="h-9">
+              <Button onClick={handleApplyFilters} className="h-9 px-4">
                 <Calendar size={16} className="mr-2" />
                 Apply
               </Button>

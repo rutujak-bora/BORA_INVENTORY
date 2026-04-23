@@ -9,7 +9,7 @@ from fastapi import (
     Query,
 )
 from fastapi.encoders import jsonable_encoder
-from typing import Optional
+from typing import Optional, List
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pathlib import Path
@@ -5829,7 +5829,13 @@ async def calculate_pl_report(
     from_date = request_data.get("from_date")
     to_date = request_data.get("to_date")
     company_id = request_data.get("company_id")
+    company_ids = request_data.get("company_ids", [])
     sku_filter = request_data.get("sku")
+    categories_filter = request_data.get("categories", [])
+
+    # Legacy support for single company_id
+    if company_id and company_id != "all" and company_id not in company_ids:
+        company_ids.append(company_id)
 
     if not export_invoice_ids:
         raise HTTPException(status_code=400, detail="No export invoices selected")
@@ -5841,7 +5847,7 @@ async def calculate_pl_report(
     if not outwards:
         return {"summary": {}, "message": "No invoices found"}
 
-    # 2. Collect PI IDs and SKUs for rate lookup
+    # 2. Collect PI IDs and SKUs for rate lookup and category filtering
     pi_ids = []
     skus = []
     for o in outwards:
@@ -5851,6 +5857,16 @@ async def calculate_pl_report(
         for item in o.get("line_items", []):
             if item.get("sku"):
                 skus.append(item.get("sku"))
+    
+    # 2.1 Fetch product categories
+    unique_skus = list(set(skus))
+    sku_category_map = {}
+    if unique_skus:
+        products = await mongo_db.products.find(
+            {"sku_name": {"$in": unique_skus}}, 
+            {"sku_name": 1, "category": 1}
+        ).to_list(length=None)
+        sku_category_map = {p["sku_name"]: p.get("category") for p in products}
 
     # 3. Bulk fetch POs for rate mapping
     # Strategy: Build a map of SKU -> Rate from linked POs or most recent POs
@@ -5909,7 +5925,7 @@ async def calculate_pl_report(
             continue
         if to_date and outward.get("date") > to_date:
             continue
-        if company_id and outward.get("company_id") != company_id:
+        if company_ids and outward.get("company_id") not in company_ids:
             continue
 
         inv_export_value = 0
@@ -5922,6 +5938,12 @@ async def calculate_pl_report(
 
         for item in outward.get("line_items", []):
             if sku_filter and sku_filter.lower() not in item.get("sku", "").lower():
+                continue
+            
+            # Category filter
+            item_sku = item.get("sku")
+            item_category = sku_category_map.get(item_sku)
+            if categories_filter and item_category not in categories_filter:
                 continue
 
             qty = float(item.get("quantity", 0))
@@ -5997,7 +6019,8 @@ async def calculate_pl_report(
         "filters_applied": {
             "from_date": from_date,
             "to_date": to_date,
-            "company_id": company_id,
+            "company_ids": company_ids,
+            "categories": categories_filter,
             "sku": sku_filter,
             "invoice_count": len(export_invoice_details),
         },
@@ -6008,6 +6031,8 @@ async def calculate_pl_report(
 async def get_export_invoices_for_pl(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    company_ids: Optional[str] = None, # Comma separated
+    categories: Optional[str] = None, # Comma separated
     current_user: dict = Depends(get_current_active_user),
 ):
     """Get export invoices available for P&L calculation"""
@@ -6015,6 +6040,19 @@ async def get_export_invoices_for_pl(
 
     if from_date and to_date:
         query["date"] = {"$gte": from_date, "$lte": to_date}
+
+    if company_ids:
+        query["company_id"] = {"$in": company_ids.split(",")}
+    
+    if categories:
+        cat_list = categories.split(",")
+        # Find SKUs that match these categories
+        cat_products = await mongo_db.products.find(
+            {"category": {"$in": cat_list}}, 
+            {"sku_name": 1}
+        ).to_list(length=None)
+        skus_in_cats = [p["sku_name"] for p in cat_products]
+        query["line_items.sku"] = {"$in": skus_in_cats}
 
     invoices = []
     async for outward in mongo_db.outward_stock.find(query, {"_id": 0}).sort(

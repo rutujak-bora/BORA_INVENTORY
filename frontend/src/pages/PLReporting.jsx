@@ -38,11 +38,14 @@ const PLReporting = () => {
   useResizeObserverErrorFix();
 
   useEffect(() => {
-    fetchExportInvoices();
     fetchCompanies();
     fetchCategories();
   }, []);
 
+  // Fetch export invoices when filters change to keep dropdown in sync
+  useEffect(() => {
+    fetchExportInvoices();
+  }, [filters.from_date, filters.to_date, filters.company_ids, filters.categories]);
   const fetchExportInvoices = async (fromDate = filters.from_date, toDate = filters.to_date) => {
     setLoading(true);
     try {

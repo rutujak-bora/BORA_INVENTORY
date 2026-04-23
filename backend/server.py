@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import pandas as pd
 import io
 import math
+import re
 from bson import ObjectId
 
 from database import mongo_db
@@ -5943,8 +5944,11 @@ async def calculate_pl_report(
             # Category filter
             item_sku = item.get("sku")
             item_category = sku_category_map.get(item_sku)
-            if categories_filter and item_category not in categories_filter:
-                continue
+            if categories_filter:
+                normalized_item_cat = str(item_category).strip().upper() if item_category else ""
+                normalized_filters = [c.strip().upper() for c in categories_filter]
+                if normalized_item_cat not in normalized_filters:
+                    continue
 
             qty = float(item.get("quantity", 0))
             export_rate = float(item.get("rate", 0))
@@ -6045,10 +6049,11 @@ async def get_export_invoices_for_pl(
         query["company_id"] = {"$in": company_ids.split(",")}
     
     if categories:
-        cat_list = categories.split(",")
-        # Find SKUs that match these categories
+        cat_list = [c.strip() for c in categories.split(",")]
+        # Find SKUs that match these categories (case-insensitive)
+        regex_list = [re.compile(f"^{re.escape(c)}$", re.IGNORECASE) for c in cat_list]
         cat_products = await mongo_db.products.find(
-            {"category": {"$in": cat_list}}, 
+            {"category": {"$in": regex_list}}, 
             {"sku_name": 1}
         ).to_list(length=None)
         skus_in_cats = [p["sku_name"] for p in cat_products]

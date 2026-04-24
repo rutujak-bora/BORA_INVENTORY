@@ -1594,6 +1594,62 @@ async def get_dispatched_qty_for_pi(
     return total_dispatched
 
 
+async def get_inward_qty_for_po(
+    po_id: str, product_sku: str, warehouse_id: str, product_id: str = None
+) -> float:
+    """Calculate total inward quantity for a specific PO, product SKU, and warehouse"""
+    total_inward = 0.0
+
+    # Match by PO ID
+    query = {
+        "is_active": True,
+        "warehouse_id": warehouse_id,
+        "po_id": po_id,
+    }
+
+    async for inward in mongo_db.inward_stock.find(query, {"_id": 0}):
+        for item in inward.get("line_items", []):
+            matched = False
+            if product_id and item.get("product_id") == product_id:
+                matched = True
+            elif product_sku and item.get("sku") == product_sku:
+                matched = True
+
+            if matched:
+                total_inward += float(item.get("quantity", 0))
+
+    return total_inward
+
+
+async def get_dispatched_qty_for_po(
+    po_id: str, product_sku: str, warehouse_id: str, product_id: str = None
+) -> float:
+    """Calculate total dispatched quantity for a specific PO, product SKU, and warehouse"""
+    total_dispatched = 0.0
+
+    # Build query - Include dispatch_plan, export_invoice, and direct_export
+    query = {
+        "warehouse_id": warehouse_id,
+        "is_active": True,
+        "status": {"$ne": "Cancelled"},
+        "$or": [{"po_id": po_id}, {"po_ids": po_id}],
+    }
+
+    async for outward in mongo_db.outward_stock.find(query, {"_id": 0}):
+        for item in outward.get("line_items", []):
+            matched = False
+            if product_id and item.get("product_id") == product_id:
+                matched = True
+            elif product_sku and item.get("sku") == product_sku:
+                matched = True
+
+            if matched:
+                qty = item.get("dispatch_quantity") or item.get("quantity", 0)
+                total_dispatched += float(qty)
+
+    return total_dispatched
+
+
 @api_router.get("/pi/{pi_id}", response_model=PIDetailResponse)
 async def get_pi(
     pi_id: str,
@@ -2184,7 +2240,11 @@ async def get_pos(current_user: dict = Depends(get_current_active_user)):
 
 
 @api_router.get("/po/{po_id}", response_model=PODetailResponse)
-async def get_po(po_id: str, current_user: dict = Depends(get_current_active_user)):
+async def get_po(
+    po_id: str,
+    warehouse_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_active_user),
+):
     po = await mongo_db.purchase_orders.find_one({"id": po_id}, {"_id": 0})
     if not po:
         raise HTTPException(status_code=404, detail="PO not found")
@@ -2195,6 +2255,40 @@ async def get_po(po_id: str, current_user: dict = Depends(get_current_active_use
             {"id": po["company_id"]}, {"_id": 0}
         )
         po["company"] = company
+
+    # Only calculate detailed stock info if a warehouse is specified
+    if warehouse_id:
+        # Calculate quantities for each line item
+        for item in po.get("line_items", []):
+            product_sku = item.get("sku")
+            product_id = item.get("product_id")
+
+            # Look up product_id from products collection if missing
+            if not product_id and product_sku:
+                product = await mongo_db.products.find_one(
+                    {"sku": product_sku}, {"id": 1}
+                )
+                if product:
+                    product_id = product["id"]
+                    item["product_id"] = product_id
+
+            inward_qty = await get_inward_qty_for_po(
+                po_id=po_id,
+                product_sku=product_sku,
+                product_id=product_id,
+                warehouse_id=warehouse_id,
+            )
+
+            dispatched_qty = await get_dispatched_qty_for_po(
+                po_id=po_id,
+                product_sku=product_sku,
+                product_id=product_id,
+                warehouse_id=warehouse_id,
+            )
+
+            item["inward_quantity"] = inward_qty
+            item["dispatched_quantity"] = dispatched_qty
+            item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
 
     # Get PI details if linked (support both single and multiple PIs)
     reference_pi_ids = po.get("reference_pi_ids", [])

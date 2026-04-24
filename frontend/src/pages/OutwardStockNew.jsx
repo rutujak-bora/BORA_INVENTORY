@@ -395,30 +395,38 @@ const OutwardStockNew = () => {
     const warehouseId = formData.warehouse_id || selectedWarehouseId;
 
     try {
+      // Fetch detailed PO data including stock info
+      const selectedPOs = await Promise.all(
+        idsToFetch.map(poId =>
+          api.get(`/po/${poId}?warehouse_id=${warehouseId}`)
+        )
+      );
+
       const allLineItems = [];
       const seenProducts = new Set();
       const quantities = {};
 
-      for (const poId of idsToFetch) {
-        const po = pos.find(p => p.id === poId);
-        if (!po) continue;
+      selectedPOs.forEach(res => {
+        const po = res.data;
 
-        for (const item of (po.line_items || [])) {
+        po.line_items.forEach(item => {
+          // Use product_id and sku for unique key
           const key = `${item.product_id}-${item.sku}`;
-          if (seenProducts.has(key)) continue;
+          if (seenProducts.has(key)) return;
           seenProducts.add(key);
 
-          // Fetch available quantity specifically for this product
-          const availableQty = await fetchAvailableQuantity(item.product_id, warehouseId);
+          const availableQty = item.available_quantity ?? 0;
           const itemId = item.id || item._id;
+          const dispatchedQty = item.dispatched_quantity || 0;
+          const poTotalQty = item.quantity || 0;
 
           allLineItems.push({
             id: itemId,
             product_id: item.product_id,
             product_name: item.product_name,
             sku: item.sku,
-            pi_total_quantity: item.quantity || 0,
-            dispatched_quantity: item.dispatched_quantity || 0,
+            pi_total_quantity: poTotalQty, // Using existing field name for compatibility with table
+            dispatched_quantity: dispatchedQty,
             rate: item.rate,
             available_quantity: availableQty,
             dispatch_quantity: 0,
@@ -428,13 +436,13 @@ const OutwardStockNew = () => {
           });
 
           quantities[itemId] = availableQty;
-        }
-      }
+        });
+      });
 
       setFormData(prev => ({
         ...prev,
         po_ids: idsToFetch,
-        company_id: pos.find(p => p.id === idsToFetch[0])?.company_id || prev.company_id,
+        company_id: selectedPOs[0]?.data?.company_id || prev.company_id,
         line_items: allLineItems
       }));
 
@@ -442,7 +450,7 @@ const OutwardStockNew = () => {
 
       toast({
         title: 'PO Selected',
-        description: 'Available stock loaded from Purchase Order(s)'
+        description: 'Available stock loaded (Inward − Outward for this PO)'
       });
 
     } catch (error) {
@@ -1760,7 +1768,7 @@ const OutwardStockNew = () => {
 
                         {formData.dispatch_type !== 'direct_export' && (
                           <div>
-                            <Label>PI Total Quantity</Label>
+                            <Label>{formData.dispatch_mode === 'Local' ? 'PO Total Quantity' : 'PI Total Quantity'}</Label>
                             <Input
                               value={item.pi_total_quantity || 0}
                               readOnly

@@ -1612,9 +1612,12 @@ async def get_inward_qty_for_po(
         inward_invoice = inward.get("inward_invoice_no")
         for item in inward.get("line_items", []):
             matched = False
+            item_sku = (item.get("sku") or "").strip().upper()
+            target_sku = (product_sku or "").strip().upper()
+
             if product_id and item.get("product_id") == product_id:
                 matched = True
-            elif product_sku and item.get("sku") == product_sku:
+            elif target_sku and item_sku == target_sku:
                 matched = True
 
             if matched:
@@ -1643,9 +1646,12 @@ async def get_dispatched_qty_for_po(
     async for outward in mongo_db.outward_stock.find(query, {"_id": 0}):
         for item in outward.get("line_items", []):
             matched = False
+            item_sku = (item.get("sku") or "").strip().upper()
+            target_sku = (product_sku or "").strip().upper()
+
             if product_id and item.get("product_id") == product_id:
                 matched = True
-            elif product_sku and item.get("sku") == product_sku:
+            elif target_sku and item_sku == target_sku:
                 matched = True
 
             if matched:

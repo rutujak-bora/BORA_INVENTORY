@@ -325,6 +325,8 @@ const OutwardStockNew = () => {
         description: 'Please select a warehouse first to see available stock.',
         variant: 'destructive'
       });
+      // Save the IDs so the useEffect can trigger later when warehouse is selected
+      setFormData(prev => ({ ...prev, pi_ids: idsToFetch }));
       return;
     }
 
@@ -420,6 +422,8 @@ const OutwardStockNew = () => {
         description: 'Please select a warehouse first to see available stock.',
         variant: 'destructive'
       });
+      // Save the IDs so the useEffect can trigger later when warehouse is selected
+      setFormData(prev => ({ ...prev, po_ids: idsToFetch }));
       return;
     }
 

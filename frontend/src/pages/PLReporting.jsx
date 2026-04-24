@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'; // Trigger frontend deploy
 import api from '../utils/api';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';

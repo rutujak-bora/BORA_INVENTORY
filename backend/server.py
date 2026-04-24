@@ -5858,14 +5858,13 @@ async def calculate_pl_report(
         for item in o.get("line_items", []):
             if item.get("sku"):
                 skus.append(item.get("sku"))
-    
+
     # 2.1 Fetch product categories
     unique_skus = list(set(skus))
     sku_category_map = {}
     if unique_skus:
         products = await mongo_db.products.find(
-            {"sku_name": {"$in": unique_skus}}, 
-            {"sku_name": 1, "category": 1}
+            {"sku_name": {"$in": unique_skus}}, {"sku_name": 1, "category": 1}
         ).to_list(length=None)
         sku_category_map = {p["sku_name"]: p.get("category") for p in products}
 
@@ -5940,12 +5939,14 @@ async def calculate_pl_report(
         for item in outward.get("line_items", []):
             if sku_filter and sku_filter.lower() not in item.get("sku", "").lower():
                 continue
-            
+
             # Category filter
             item_sku = item.get("sku")
             item_category = sku_category_map.get(item_sku)
             if categories_filter:
-                normalized_item_cat = str(item_category).strip().upper() if item_category else ""
+                normalized_item_cat = (
+                    str(item_category).strip().upper() if item_category else ""
+                )
                 normalized_filters = [c.strip().upper() for c in categories_filter]
                 if normalized_item_cat not in normalized_filters:
                     continue
@@ -6035,8 +6036,8 @@ async def calculate_pl_report(
 async def get_export_invoices_for_pl(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
-    company_ids: Optional[str] = None, # Comma separated
-    categories: Optional[str] = None, # Comma separated
+    company_ids: Optional[str] = None,  # Comma separated
+    categories: Optional[str] = None,  # Comma separated
     current_user: dict = Depends(get_current_active_user),
 ):
     """Get export invoices available for P&L calculation"""
@@ -6047,14 +6048,13 @@ async def get_export_invoices_for_pl(
 
     if company_ids:
         query["company_id"] = {"$in": company_ids.split(",")}
-    
+
     if categories:
         cat_list = [c.strip() for c in categories.split(",")]
         # Find SKUs that match these categories (case-insensitive)
         regex_list = [re.compile(f"^{re.escape(c)}$", re.IGNORECASE) for c in cat_list]
         cat_products = await mongo_db.products.find(
-            {"category": {"$in": regex_list}}, 
-            {"sku_name": 1}
+            {"category": {"$in": regex_list}}, {"sku_name": 1}
         ).to_list(length=None)
         skus_in_cats = [p["sku_name"] for p in cat_products]
         query["line_items.sku"] = {"$in": skus_in_cats}

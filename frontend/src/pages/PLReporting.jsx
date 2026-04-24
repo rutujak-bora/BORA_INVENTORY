@@ -83,9 +83,18 @@ const PLReporting = () => {
   const fetchCategories = async () => {
     try {
       const response = await api.get('/categories');
-      setCategories(response.data);
+      setCategories(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      if (error.response?.status === 404) {
+        try {
+          const fallbackResponse = await api.get('/get-categories');
+          setCategories(Array.isArray(fallbackResponse.data) ? fallbackResponse.data : []);
+        } catch (fallbackError) {
+          console.error('Failed to fetch categories from fallback:', fallbackError);
+        }
+      } else {
+        console.error('Failed to fetch categories:', error);
+      }
     }
   };
 
@@ -381,10 +390,10 @@ const PLReporting = () => {
               <MultiSelect
                 selected={filters.categories}
                 onSelectionChange={(selected) => setFilters(prev => ({ ...prev, categories: selected }))}
-                options={categories.map(cat => ({ 
-                  value: typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown'), 
-                  label: typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown') 
-                }))}
+                options={categories.map(cat => {
+                  const val = typeof cat === 'string' ? cat : (cat.name || cat.id || 'Unknown');
+                  return { value: val, label: val };
+                })}
                 placeholder="All Categories"
               />
             </div>

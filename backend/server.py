@@ -1607,7 +1607,9 @@ async def get_inward_qty_for_po(
         "po_id": po_id,
     }
 
+    logger.info(f"Calculating inward qty for PO {po_id}, Product {product_sku}, WH {warehouse_id}")
     async for inward in mongo_db.inward_stock.find(query, {"_id": 0}):
+        inward_invoice = inward.get("inward_invoice_no")
         for item in inward.get("line_items", []):
             matched = False
             if product_id and item.get("product_id") == product_id:
@@ -1616,8 +1618,11 @@ async def get_inward_qty_for_po(
                 matched = True
 
             if matched:
-                total_inward += float(item.get("quantity", 0))
+                qty = float(item.get("quantity", 0))
+                total_inward += qty
+                logger.debug(f"Found match in inward {inward_invoice}: {qty}")
 
+    logger.info(f"Total inward qty found: {total_inward}")
     return total_inward
 
 
@@ -2258,6 +2263,7 @@ async def get_po(
 
     # Only calculate detailed stock info if a warehouse is specified
     if warehouse_id:
+        logger.info(f"Fetching PO stock for warehouse_id: {warehouse_id}")
         # Calculate quantities for each line item
         for item in po.get("line_items", []):
             product_sku = item.get("sku")
@@ -2289,6 +2295,13 @@ async def get_po(
             item["inward_quantity"] = inward_qty
             item["dispatched_quantity"] = dispatched_qty
             item["available_quantity"] = max(inward_qty - dispatched_qty, 0)
+    else:
+        logger.warning(f"get_po called without warehouse_id for PO {po_id}")
+        # Ensure available_quantity is at least 0 to avoid frontend issues
+        for item in po.get("line_items", []):
+            item["available_quantity"] = 0
+            item["inward_quantity"] = 0
+            item["dispatched_quantity"] = 0
 
     # Get PI details if linked (support both single and multiple PIs)
     reference_pi_ids = po.get("reference_pi_ids", [])

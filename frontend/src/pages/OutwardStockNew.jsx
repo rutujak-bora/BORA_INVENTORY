@@ -171,6 +171,17 @@ const OutwardStockNew = () => {
     }
   };
 
+  // Re-fetch stock data when warehouse changes
+  useEffect(() => {
+    if (formData.warehouse_id) {
+      if (formData.pi_ids.length > 0) {
+        handlePISelect(formData.pi_ids);
+      } else if (formData.po_ids && formData.po_ids.length > 0) {
+        handlePOSelect(formData.po_ids);
+      }
+    }
+  }, [formData.warehouse_id]);
+
   // Calculate totals for filtered data
   const calculateTotals = (entries) => {
     const totalDispatchQty = entries.reduce((sum, entry) => {
@@ -308,6 +319,15 @@ const OutwardStockNew = () => {
 
     const warehouseId = formData.warehouse_id || selectedWarehouseId;
 
+    if (!warehouseId) {
+      toast({
+        title: 'Warehouse Required',
+        description: 'Please select a warehouse first to see available stock.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
       // 1️⃣ Call API WITH warehouse_id
       const selectedPIs = await Promise.all(
@@ -393,6 +413,15 @@ const OutwardStockNew = () => {
     }
 
     const warehouseId = formData.warehouse_id || selectedWarehouseId;
+
+    if (!warehouseId) {
+      toast({
+        title: 'Warehouse Required',
+        description: 'Please select a warehouse first to see available stock.',
+        variant: 'destructive'
+      });
+      return;
+    }
 
     try {
       // Fetch detailed PO data including stock info

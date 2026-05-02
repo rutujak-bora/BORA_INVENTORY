@@ -1604,7 +1604,7 @@ async def get_inward_qty_for_po(
     query = {
         "is_active": True,
         "warehouse_id": warehouse_id,
-        "po_id": po_id,
+        "$or": [{"po_id": po_id}, {"po_ids": po_id}],
     }
 
     logger.info(f"Calculating inward qty for PO {po_id}, Product {product_sku}, WH {warehouse_id}")
@@ -1617,7 +1617,7 @@ async def get_inward_qty_for_po(
 
             if product_id and item.get("product_id") == product_id:
                 matched = True
-            elif target_sku and item_sku == target_sku:
+            elif target_sku and (item_sku == target_sku or item_sku.startswith(target_sku) or target_sku.startswith(item_sku)):
                 matched = True
 
             if matched:
@@ -1651,7 +1651,7 @@ async def get_dispatched_qty_for_po(
 
             if product_id and item.get("product_id") == product_id:
                 matched = True
-            elif target_sku and item_sku == target_sku:
+            elif target_sku and (item_sku == target_sku or item_sku.startswith(target_sku) or target_sku.startswith(item_sku)):
                 matched = True
 
             if matched:
@@ -2641,7 +2641,7 @@ async def create_inward_stock(
                                 and existing_item.get("id") == po_line_item_id
                             ):
                                 matched = True
-                            elif sku and existing_item.get("sku") == sku:
+                            elif sku and existing_item.get("sku") and (existing_item.get("sku") == sku or existing_item.get("sku").startswith(sku) or sku.startswith(existing_item.get("sku"))):
                                 matched = True
                             elif (
                                 product_id
@@ -2669,7 +2669,7 @@ async def create_inward_stock(
                             matched = False
                             if po_line_item_id and p_item.get("id") == po_line_item_id:
                                 matched = True
-                            elif sku and p_item.get("sku") == sku:
+                            elif sku and p_item.get("sku") and (p_item.get("sku") == sku or p_item.get("sku").startswith(sku) or sku.startswith(p_item.get("sku"))):
                                 matched = True
                             elif product_id and p_item.get("product_id") == product_id:
                                 matched = True
@@ -2736,11 +2736,19 @@ async def create_inward_stock(
         already_inwarded = 0
         for po_id in po_ids:
             async for existing_inward in mongo_db.inward_stock.find(
-                {"po_id": po_id, "is_active": True}, {"_id": 0}
+                {"$or": [{"po_id": po_id}, {"po_ids": po_id}], "is_active": True}, {"_id": 0}
             ):
                 for existing_item in existing_inward.get("line_items", []):
 
-                    if existing_item.get("id") == po_line_item_id:
+                    matched = False
+                    if po_line_item_id and existing_item.get("id") == po_line_item_id:
+                        matched = True
+                    elif sku and existing_item.get("sku") and (existing_item.get("sku") == sku or existing_item.get("sku").startswith(sku) or sku.startswith(existing_item.get("sku"))):
+                        matched = True
+                    elif product_id and existing_item.get("product_id") == product_id:
+                        matched = True
+
+                    if matched:
                         already_inwarded += float(existing_item.get("quantity", 0))
 
         remaining = total_po_qty - (already_inwarded + inward_qty)

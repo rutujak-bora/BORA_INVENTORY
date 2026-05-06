@@ -80,9 +80,7 @@ else:
 
 # Fallback regex to ensure localhost and common IPs are always allowed
 if not cors_origin_regex:
-    cors_origin_regex = (
-        "(https?://(localhost|127\\.0\\.0\\.1|13\\.50\\.236\\.19|51\\.20\\.53\\.33)(:\\d+)?)"
-    )
+    cors_origin_regex = "(https?://(localhost|127\\.0\\.0\\.1|13\\.50\\.236\\.19|51\\.20\\.53\\.33)(:\\d+)?)"
 
 app.add_middleware(
     CORSMiddleware,
@@ -1607,7 +1605,9 @@ async def get_inward_qty_for_po(
         "$or": [{"po_id": po_id}, {"po_ids": po_id}],
     }
 
-    logger.info(f"Calculating inward qty for PO {po_id}, Product {product_sku}, WH {warehouse_id}")
+    logger.info(
+        f"Calculating inward qty for PO {po_id}, Product {product_sku}, WH {warehouse_id}"
+    )
     async for inward in mongo_db.inward_stock.find(query, {"_id": 0}):
         inward_invoice = inward.get("inward_invoice_no")
         for item in inward.get("line_items", []):
@@ -1617,7 +1617,11 @@ async def get_inward_qty_for_po(
 
             if product_id and item.get("product_id") == product_id:
                 matched = True
-            elif target_sku and (item_sku == target_sku or item_sku.startswith(target_sku) or target_sku.startswith(item_sku)):
+            elif target_sku and (
+                item_sku == target_sku
+                or item_sku.startswith(target_sku)
+                or target_sku.startswith(item_sku)
+            ):
                 matched = True
 
             if matched:
@@ -1651,7 +1655,11 @@ async def get_dispatched_qty_for_po(
 
             if product_id and item.get("product_id") == product_id:
                 matched = True
-            elif target_sku and (item_sku == target_sku or item_sku.startswith(target_sku) or target_sku.startswith(item_sku)):
+            elif target_sku and (
+                item_sku == target_sku
+                or item_sku.startswith(target_sku)
+                or target_sku.startswith(item_sku)
+            ):
                 matched = True
 
             if matched:
@@ -2641,7 +2649,15 @@ async def create_inward_stock(
                                 and existing_item.get("id") == po_line_item_id
                             ):
                                 matched = True
-                            elif sku and existing_item.get("sku") and (existing_item.get("sku") == sku or existing_item.get("sku").startswith(sku) or sku.startswith(existing_item.get("sku"))):
+                            elif (
+                                sku
+                                and existing_item.get("sku")
+                                and (
+                                    existing_item.get("sku") == sku
+                                    or existing_item.get("sku").startswith(sku)
+                                    or sku.startswith(existing_item.get("sku"))
+                                )
+                            ):
                                 matched = True
                             elif (
                                 product_id
@@ -2669,7 +2685,15 @@ async def create_inward_stock(
                             matched = False
                             if po_line_item_id and p_item.get("id") == po_line_item_id:
                                 matched = True
-                            elif sku and p_item.get("sku") and (p_item.get("sku") == sku or p_item.get("sku").startswith(sku) or sku.startswith(p_item.get("sku"))):
+                            elif (
+                                sku
+                                and p_item.get("sku")
+                                and (
+                                    p_item.get("sku") == sku
+                                    or p_item.get("sku").startswith(sku)
+                                    or sku.startswith(p_item.get("sku"))
+                                )
+                            ):
                                 matched = True
                             elif product_id and p_item.get("product_id") == product_id:
                                 matched = True
@@ -2736,14 +2760,23 @@ async def create_inward_stock(
         already_inwarded = 0
         for po_id in po_ids:
             async for existing_inward in mongo_db.inward_stock.find(
-                {"$or": [{"po_id": po_id}, {"po_ids": po_id}], "is_active": True}, {"_id": 0}
+                {"$or": [{"po_id": po_id}, {"po_ids": po_id}], "is_active": True},
+                {"_id": 0},
             ):
                 for existing_item in existing_inward.get("line_items", []):
 
                     matched = False
                     if po_line_item_id and existing_item.get("id") == po_line_item_id:
                         matched = True
-                    elif sku and existing_item.get("sku") and (existing_item.get("sku") == sku or existing_item.get("sku").startswith(sku) or sku.startswith(existing_item.get("sku"))):
+                    elif (
+                        sku
+                        and existing_item.get("sku")
+                        and (
+                            existing_item.get("sku") == sku
+                            or existing_item.get("sku").startswith(sku)
+                            or sku.startswith(existing_item.get("sku"))
+                        )
+                    ):
                         matched = True
                     elif product_id and existing_item.get("product_id") == product_id:
                         matched = True
@@ -6084,7 +6117,7 @@ async def calculate_pl_report(
                 if f"{pid}:{item_sku_norm}" in po_rate_map:
                     p_rate = po_rate_map[f"{pid}:{item_sku_norm}"]
                     break
-            
+
             # Fallback to global rate for this SKU
             if p_rate == 0:
                 p_rate = global_rate_map.get(item_sku_norm, 0)

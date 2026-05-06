@@ -69,12 +69,10 @@ if not raw_cors_origins or raw_cors_origins.strip() == "*":
         "https?://.*"  # Allow all origins via regex to support credentials
     )
 else:
-    cors_origins = [
-        origin.strip() for origin in raw_cors_origins.split(",") if origin.strip()
-    ]
-    if "*" in cors_origins:
-        cors_origins = []
-        cors_origin_regex = "https?://.*"
+    cors_origin_regex = "https?://.*"
+    # Also keep the specific ones for logging/debugging
+    if "*" not in cors_origins:
+        cors_origins.append("*")
     else:
         cors_origin_regex = None
 
@@ -184,13 +182,20 @@ async def get_categories(current_user: dict = Depends(get_current_active_user)):
 # ==================== AUTH ROUTES ====================
 @api_router.post("/auth/login")
 async def login(user_data: UserLogin):
+    logger.info(f"🔐 Login attempt for: {user_data.username}")
     user_doc = await mongo_db.users.find_one(
         {"username": user_data.username}, {"_id": 0}
     )
 
-    if not user_doc or not verify_password(
-        user_data.password, user_doc["hashed_password"]
-    ):
+    if not user_doc:
+        logger.warning(f"❌ User not found in DB: {user_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+
+    if not verify_password(user_data.password, user_doc["hashed_password"]):
+        logger.warning(f"❌ Invalid password for: {user_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

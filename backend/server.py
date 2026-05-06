@@ -81,7 +81,7 @@ else:
 # Fallback regex to ensure localhost and common IPs are always allowed
 if not cors_origin_regex:
     cors_origin_regex = (
-        "(https?://(localhost|127\\.0\\.0\\.1|13\\.50\\.236\\.19)(:\\d+)?)"
+        "(https?://(localhost|127\\.0\\.0\\.1|13\\.50\\.236\\.19|51\\.20\\.53\\.33)(:\\d+)?)"
     )
 
 app.add_middleware(
@@ -6015,7 +6015,7 @@ async def calculate_pl_report(
             [po.get("reference_pi_id")] if po.get("reference_pi_id") else []
         )
         for item in po.get("line_items", []):
-            item_sku = item.get("sku")
+            item_sku = str(item.get("sku", "")).strip()
             item_rate = float(item.get("rate", 0))
             if item_sku:
                 for pid in p_ids:
@@ -6078,15 +6078,16 @@ async def calculate_pl_report(
 
             # Lookup purchase rate
             p_rate = 0
+            item_sku_norm = str(item.get("sku", "")).strip()
             # Try PI specific PO rate first
             for pid in inv_pi_ids:
-                if f"{pid}:{item.get('sku')}" in po_rate_map:
-                    p_rate = po_rate_map[f"{pid}:{item.get('sku')}"]
+                if f"{pid}:{item_sku_norm}" in po_rate_map:
+                    p_rate = po_rate_map[f"{pid}:{item_sku_norm}"]
                     break
-
+            
             # Fallback to global rate for this SKU
             if p_rate == 0:
-                p_rate = global_rate_map.get(item.get("sku"), 0)
+                p_rate = global_rate_map.get(item_sku_norm, 0)
 
             purchase_cost = qty * p_rate
             inv_export_value += export_val
@@ -7187,7 +7188,8 @@ async def get_pi_po_stock_ledger(
 
                     if is_linked:
                         for po_item in po.get("line_items", []):
-                            if po_item.get("sku") == sku:
+                            po_sku = str(po_item.get("sku", "")).strip()
+                            if po_sku == str(sku).strip():
                                 linked_po_qty += float(po_item.get("quantity", 0))
                                 if po.get("voucher_no") not in linked_po_nums:
                                     linked_po_nums.append(po.get("voucher_no"))
@@ -7217,7 +7219,8 @@ async def get_pi_po_stock_ledger(
 
                     if is_linked:
                         for item in inward.get("line_items", []):
-                            if item.get("sku") == sku:
+                            inw_sku = str(item.get("sku", "")).strip()
+                            if inw_sku == str(sku).strip():
                                 inward_qty += float(item.get("quantity", 0))
 
                 # Calculate Outward Qty
@@ -7243,7 +7246,8 @@ async def get_pi_po_stock_ledger(
 
                     if is_linked:
                         for item in outward.get("line_items", []):
-                            if item.get("sku") == sku:
+                            outw_sku = str(item.get("sku", "")).strip()
+                            if outw_sku == str(sku).strip():
                                 # Outward can have 'dispatch_quantity' or 'quantity'
                                 q = (
                                     item.get("dispatch_quantity")

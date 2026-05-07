@@ -27,7 +27,7 @@ jobs:
         
       - name: Build Production Bundle
         env:
-          REACT_APP_BACKEND_URL: http://${{ secrets.BACKEND_IP }}
+          REACT_APP_BACKEND_URL: http://${{ secrets.BACKEND_IP }}:8000
           CI: false
         run: |
           cd frontend

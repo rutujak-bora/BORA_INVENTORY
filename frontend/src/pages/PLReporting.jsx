@@ -51,7 +51,7 @@ const PLReporting = () => {
     try {
       let url = '/pl-report/export-invoices';
       const params = new URLSearchParams();
-      
+
       if (fromDate) params.append('from_date', fromDate);
       if (toDate) params.append('to_date', toDate);
       if (filters.company_ids.length > 0) params.append('company_ids', filters.company_ids.join(','));
@@ -61,7 +61,7 @@ const PLReporting = () => {
       if (queryString) {
         url += `?${queryString}`;
       }
-      
+
       const response = await api.get(url);
       setExportInvoices(response.data);
     } catch (error) {

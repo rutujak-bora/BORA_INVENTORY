@@ -60,25 +60,28 @@ load_dotenv(ROOT_DIR / ".env")
 
 app = FastAPI(title="Bora Mobility Inventory System")
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Configure CORS BEFORE defining routes
 # This ensures preflight OPTIONS requests are handled correctly
 raw_cors_origins = os.environ.get("CORS_ORIGINS", "*")
-if not raw_cors_origins or raw_cors_origins.strip() == "*":
-    cors_origins = []
-    cors_origin_regex = (
-        "https?://.*"  # Allow all origins via regex to support credentials
-    )
-else:
-    cors_origin_regex = "https?://.*"
-    # Also keep the specific ones for logging/debugging
-    if "*" not in cors_origins:
-        cors_origins.append("*")
-    else:
-        cors_origin_regex = None
+cors_origins = []
+cors_origin_regex = None
 
+if not raw_cors_origins or raw_cors_origins.strip() == "*":
+    cors_origin_regex = "https?://.*"  # Allow all origins via regex to support credentials
+else:
+    # Parse the comma-separated list
+    cors_origins = [o.strip() for o in raw_cors_origins.split(",") if o.strip()]
+    
+    # If any origin is '*', use regex to allow all with credentials support
+    if "*" in cors_origins:
+        cors_origin_regex = "https?://.*"
+        cors_origins = []
 # Fallback regex to ensure localhost and common IPs are always allowed
 if not cors_origin_regex:
-    cors_origin_regex = "(https?://(localhost|127\\.0\\.0\\.1|13\\.50\\.236\\.19|51\\.20\\.53\\.33)(:\\d+)?)"
+    cors_origin_regex = r"https?://(localhost|127\.0\.0\.1|13\.50\.236\.19|51\.20\.53\.33|crm\.bora\.tech|.*\.bora\.tech)(:\d+)?"
 
 app.add_middleware(
     CORSMiddleware,
@@ -126,9 +129,6 @@ async def http_exception_handler(request, exc):
 
 
 api_router = APIRouter(prefix="/api")
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 # ==================== CATEGORIES DROPDOWN (PRIORITY) ====================

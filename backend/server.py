@@ -71,11 +71,13 @@ cors_origins = []
 cors_origin_regex = None
 
 if not raw_cors_origins or raw_cors_origins.strip() == "*":
-    cors_origin_regex = "https?://.*"  # Allow all origins via regex to support credentials
+    cors_origin_regex = (
+        "https?://.*"  # Allow all origins via regex to support credentials
+    )
 else:
     # Parse the comma-separated list
     cors_origins = [o.strip() for o in raw_cors_origins.split(",") if o.strip()]
-    
+
     # If any origin is '*', use regex to allow all with credentials support
     if "*" in cors_origins:
         cors_origin_regex = "https?://.*"
@@ -186,7 +188,7 @@ async def login(user_data: UserLogin, request: Request):
     # Log the login attempt with whichever ID was provided
     login_id = user_data.login_id
     logger.info(f"🔐 Login attempt for: {login_id}")
-    
+
     # Try to find user by username or email
     user_doc = await mongo_db.users.find_one(
         {"$or": [{"username": login_id}, {"email": login_id}]}, {"_id": 0}

@@ -35,13 +35,21 @@ jobs:
             # Always restart the service to apply code changes
             sudo systemctl restart bora-backend
             
-            # Fix Nginx to ensure it proxies /api correctly for POST requests
-            # This is a defensive fix to prevent 405 Not Allowed errors
-            if [ -f /etc/nginx/sites-available/default ]; then
-              echo "Updating Nginx configuration..."
-              # Ensure /api is proxied to the backend
-              if ! grep -q "location /api" /etc/nginx/sites-available/default; then
-                sudo sed -i '/location \/ {/i \    location /api {\n        proxy_pass http://localhost:8000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n' /etc/nginx/sites-available/default
+            # AGGRESSIVE Nginx fix for POST requests on IP address
+            echo "Attempting to fix Nginx 405 error..."
+            NGINX_CONF="/etc/nginx/sites-available/default"
+            if [ ! -f "$NGINX_CONF" ]; then
+              NGINX_CONF=$(ls /etc/nginx/sites-enabled/* | head -n 1)
+            fi
+            
+            if [ -n "$NGINX_CONF" ] && [ -f "$NGINX_CONF" ]; then
+              echo "Found Nginx config at $NGINX_CONF. Updating..."
+              # Ensure /api is proxied to the backend and handles POST
+              if ! grep -q "location /api" "$NGINX_CONF"; then
+                sudo sed -i '/location \/ {/i \    location /api {\n        proxy_pass http://127.0.0.1:8000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }\n' "$NGINX_CONF"
               fi
-              sudo systemctl restart nginx
+              sudo nginx -t && sudo systemctl restart nginx
+              echo "Nginx updated and restarted."
+            else
+              echo "Could not find Nginx config file to fix."
             fi

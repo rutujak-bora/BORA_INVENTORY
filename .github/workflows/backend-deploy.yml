@@ -27,9 +27,21 @@ jobs:
               echo "Requirements changed. Updating dependencies..."
               cd backend
               ./venv/bin/pip install -r requirements.txt
+              cd ..
             else
               echo "Requirements unchanged. Skipping pip install."
             fi
             
             # Always restart the service to apply code changes
             sudo systemctl restart bora-backend
+            
+            # Fix Nginx to ensure it proxies /api correctly for POST requests
+            # This is a defensive fix to prevent 405 Not Allowed errors
+            if [ -f /etc/nginx/sites-available/default ]; then
+              echo "Updating Nginx configuration..."
+              # Ensure /api is proxied to the backend
+              if ! grep -q "location /api" /etc/nginx/sites-available/default; then
+                sudo sed -i '/location \/ {/i \    location /api {\n        proxy_pass http://localhost:8000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n' /etc/nginx/sites-available/default
+              fi
+              sudo systemctl restart nginx
+            fi

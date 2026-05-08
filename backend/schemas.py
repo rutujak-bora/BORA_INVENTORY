@@ -13,8 +13,13 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    username: str
+    username: Optional[str] = None
+    email: Optional[str] = None
     password: str
+
+    @property
+    def login_id(self) -> str:
+        return self.username or self.email
 
 
 class UserResponse(BaseModel):

@@ -7,6 +7,7 @@ from fastapi import (
     UploadFile,
     File,
     Query,
+    Request,
 )
 from fastapi.encoders import jsonable_encoder
 from typing import Optional, List
@@ -181,14 +182,18 @@ async def get_categories(current_user: dict = Depends(get_current_active_user)):
 
 # ==================== AUTH ROUTES ====================
 @api_router.post("/auth/login")
-async def login(user_data: UserLogin):
-    logger.info(f"🔐 Login attempt for: {user_data.username}")
+async def login(user_data: UserLogin, request: Request):
+    # Log the login attempt with whichever ID was provided
+    login_id = user_data.login_id
+    logger.info(f"🔐 Login attempt for: {login_id}")
+    
+    # Try to find user by username or email
     user_doc = await mongo_db.users.find_one(
-        {"username": user_data.username}, {"_id": 0}
+        {"$or": [{"username": login_id}, {"email": login_id}]}, {"_id": 0}
     )
 
     if not user_doc:
-        logger.warning(f"❌ User not found in DB: {user_data.username}")
+        logger.warning(f"❌ User not found in DB: {login_id}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

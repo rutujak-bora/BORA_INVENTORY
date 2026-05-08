@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'; // Trigger frontend deploy
+import React, { useEffect, useState } from 'react'; // Redeploy: fix backend URL to 13.50.236.19
 import api from '../utils/api';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 import { Button } from '../components/ui/button';

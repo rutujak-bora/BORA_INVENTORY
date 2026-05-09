@@ -70,6 +70,10 @@ EOF
             # Always restart the service to apply code changes
             sudo systemctl restart bora-backend
             
+            # Export logs so I can read them remotely to debug the 502 error
+            sleep 5
+            sudo journalctl -u bora-backend -n 100 --no-pager | sudo tee /var/www/html/backend_error_log.txt
+            
             # FORCE-OVERWRITE Nginx config to resolve 405 error
             echo "Applying final Nginx configuration fix..."
             sudo tee /etc/nginx/sites-available/default << 'EOF'

@@ -22,13 +22,12 @@ jobs:
             sudo apt update
             sudo apt install -y python3-venv python3-pip
             
-            if [ ! -d "~/BORA_INVENTORY" ]; then
-              git clone https://github.com/rutujak-bora/BORA_INVENTORY.git ~/BORA_INVENTORY
+            if [ ! -d "$HOME/BORA_INVENTORY" ]; then
+              git clone https://github.com/rutujak-bora/BORA_INVENTORY.git $HOME/BORA_INVENTORY
             fi
             
-            # Create the .env file automatically
             echo "Creating .env file..."
-            cat << 'ENVEOF' > ~/BORA_INVENTORY/backend/.env
+            cat << 'ENVEOF' > $HOME/BORA_INVENTORY/backend/.env
 ACCESS_TOKEN_EXPIRE_MINUTES=90
 CORS_ORIGINS=http://13.50.236.19,http://localhost:3000,http://127.0.0.1:3000
 DB_NAME=bora_inventory_mongo
@@ -38,7 +37,7 @@ MONGO_URL=mongodb+srv://rutujak_db_user:i5DpW7YHUtGCvMys@boratech.wwvkwf9.mongod
 GEMINI_API_KEY=AIzaSyBmlTpe1iyXNdM6rdINNhYHCte8RdcWN0I
 ENVEOF
 
-            cd ~/BORA_INVENTORY
+            cd $HOME/BORA_INVENTORY
             git pull origin main
             
             echo "Setting up Python environment and installing dependencies..."

@@ -23,6 +23,19 @@ jobs:
               sudo apt install -y python3-venv python3-pip
               git clone https://github.com/rutujak-bora/BORA_INVENTORY.git ~/BORA_INVENTORY
             fi
+            
+            # Create the .env file automatically
+            echo "Creating .env file..."
+            cat << 'ENVEOF' > ~/BORA_INVENTORY/backend/.env
+ACCESS_TOKEN_EXPIRE_MINUTES=90
+CORS_ORIGINS=http://13.50.236.19,http://localhost:3000,http://127.0.0.1:3000
+DB_NAME=bora_inventory_mongo
+JWT_ALGORITHM=HS256
+JWT_SECRET_KEY=bora_secret_key_change_in_production_2025
+MONGO_URL=mongodb+srv://rutujak_db_user:i5DpW7YHUtGCvMys@boratech.wwvkwf9.mongodb.net/bora_inventory_mongo
+GEMINI_API_KEY=AIzaSyBmlTpe1iyXNdM6rdINNhYHCte8RdcWN0I
+ENVEOF
+
             cd ~/BORA_INVENTORY
             # Get the current commit before pulling
             PREV_COMMIT=$(git rev-parse HEAD)

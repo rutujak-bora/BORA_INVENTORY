@@ -17,10 +17,12 @@ jobs:
           username: ubuntu
           key: ${{ secrets.FRONTEND_SSH_KEY }}
           script: |
+            echo "Server setup: Installing system dependencies..."
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt update
+            sudo apt install -y python3-venv python3-pip
+            
             if [ ! -d "~/BORA_INVENTORY" ]; then
-              echo "Server setup: Installing system dependencies..."
-              sudo apt update
-              sudo apt install -y python3-venv python3-pip
               git clone https://github.com/rutujak-bora/BORA_INVENTORY.git ~/BORA_INVENTORY
             fi
             

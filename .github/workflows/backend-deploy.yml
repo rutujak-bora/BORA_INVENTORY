@@ -37,19 +37,13 @@ GEMINI_API_KEY=AIzaSyBmlTpe1iyXNdM6rdINNhYHCte8RdcWN0I
 ENVEOF
 
             cd ~/BORA_INVENTORY
-            # Get the current commit before pulling
-            PREV_COMMIT=$(git rev-parse HEAD)
             git pull origin main
             
-            # Check if requirements.txt has changed
-            if git diff --name-only $PREV_COMMIT HEAD | grep -q "backend/requirements.txt"; then
-              echo "Requirements changed. Updating dependencies..."
-              cd backend
-              ./venv/bin/pip install -r requirements.txt
-              cd ..
-            else
-              echo "Requirements unchanged. Skipping pip install."
-            fi
+            echo "Setting up Python environment and installing dependencies..."
+            cd backend
+            python3 -m venv venv
+            ./venv/bin/pip install -r requirements.txt
+            cd ..
             
             # Create systemd service if it doesn't exist
             if [ ! -f "/etc/systemd/system/bora-backend.service" ]; then

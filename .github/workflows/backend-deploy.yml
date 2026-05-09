@@ -13,10 +13,12 @@ jobs:
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.BACKEND_IP }}
+          host: ${{ secrets.FRONTEND_IP }}
           username: ubuntu
-          key: ${{ secrets.BACKEND_SSH_KEY }}
-          script: |
+          key: ${{ secrets.FRONTEND_SSH_KEY }}
+            if [ ! -d "~/BORA_INVENTORY" ]; then
+              git clone https://github.com/rutujak-bora/BORA_INVENTORY.git ~/BORA_INVENTORY
+            fi
             cd ~/BORA_INVENTORY
             # Get the current commit before pulling
             PREV_COMMIT=$(git rev-parse HEAD)

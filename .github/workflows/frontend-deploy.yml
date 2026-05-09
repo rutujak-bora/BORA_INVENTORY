@@ -44,7 +44,7 @@ jobs:
           target: "/home/ubuntu/temp-build"
           strip_components: 1
 
-      - name: Deploy static files to Nginx
+      - name: Deploy static files and update Nginx
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.FRONTEND_IP }}
@@ -56,5 +56,27 @@ jobs:
             tar -xzf /home/ubuntu/temp-build/build.tar.gz -C /home/ubuntu/temp-build/extracted
             sudo rm -rf /var/www/html/*
             sudo cp -r /home/ubuntu/temp-build/extracted/build/* /var/www/html/
-            sudo rm -rf /home/ubuntu/temp-build/*
+            
+            # Apply Nginx Bridge Configuration
+            sudo tee /etc/nginx/sites-available/bora-frontend << 'EOF'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    root /var/www/html;
+    index index.html;
+    server_name _;
+    location /api {
+        proxy_pass http://51.20.53.33:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+EOF
+            sudo ln -sf /etc/nginx/sites-available/bora-frontend /etc/nginx/sites-enabled/bora-frontend
             sudo systemctl restart nginx
+            sudo rm -rf /home/ubuntu/temp-build/*

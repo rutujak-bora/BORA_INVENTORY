@@ -48,10 +48,12 @@ jobs:
         env:
           MONGO_URL: mongodb://localhost:27017
           DB_NAME: bora_inventory_mongo
+          JWT_SECRET_KEY: bora_secret_key_change_in_production_2025
         run: |
           # Running tests that don't require a live DB if possible
           # For now, we'll try to run pytest in the backend directory
           export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
+
           pytest backend/tests --disable-warnings
 
   frontend-build-and-test:

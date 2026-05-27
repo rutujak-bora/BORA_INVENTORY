@@ -139,18 +139,22 @@ async def run_test_logic(client):
 
         response = client.post("/api/outward-stock", json=payload)
 
-        assert response.status_code == 200, (
-            f"Expected HTTP 200, got {response.status_code}. Body: {response.text}"
-        )
+        assert (
+            response.status_code == 200
+        ), f"Expected HTTP 200, got {response.status_code}. Body: {response.text}"
         res_data = response.json()
         created_outward_id = res_data.get("id")
         print(f"[OK] POST /api/outward-stock returned 200. ID={created_outward_id}")
 
         # Verify response fields
-        assert res_data["dispatch_mode"] == "Local", "dispatch_mode mismatch in response"
+        assert (
+            res_data["dispatch_mode"] == "Local"
+        ), "dispatch_mode mismatch in response"
         assert res_data["po_ids"] == [po_id], "po_ids mismatch in response"
         assert len(res_data["line_items"]) == 1, "Expected 1 line item in response"
-        assert res_data["line_items"][0]["quantity"] == 3.0, "Quantity mismatch in response"
+        assert (
+            res_data["line_items"][0]["quantity"] == 3.0
+        ), "Quantity mismatch in response"
         print("[OK] Response payload fields verified.")
 
         # ------------------------------------------------------------------ #
@@ -168,9 +172,9 @@ async def run_test_logic(client):
         tracking = await mongo_db.stock_tracking.find_one({"id": stock_tracking_id})
         assert tracking is not None, "Stock tracking entry not found"
         remaining = float(tracking["remaining_stock"])
-        assert remaining == 7.0, (
-            f"Expected remaining_stock=7.0 after FIFO deduction, got {remaining}"
-        )
+        assert (
+            remaining == 7.0
+        ), f"Expected remaining_stock=7.0 after FIFO deduction, got {remaining}"
         print(f"[OK] FIFO stock deduction verified: remaining_stock={remaining}")
 
         print("\n[PASS] All assertions passed.")

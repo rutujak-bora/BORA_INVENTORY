@@ -264,6 +264,8 @@ class POLineItemCreate(BaseModel):
     amount: float
     input_igst: Optional[float] = 0
     tds: Optional[float] = 0
+    gst_value: Optional[float] = 0
+    tds_value: Optional[float] = 0
 
 
 class POLineItemResponse(BaseModel):
@@ -281,8 +283,13 @@ class POLineItemResponse(BaseModel):
     quantity: float
     rate: float
     amount: float
-    input_igst: float
-    tds: float
+    input_igst: float = 0
+    tds: float = 0
+    gst_value: float = 0
+    tds_value: float = 0
+    inward_quantity: Optional[float] = 0
+    dispatched_quantity: Optional[float] = 0
+    available_quantity: Optional[float] = 0
 
 
 # PO Schemas
@@ -337,10 +344,15 @@ class POResponse(BaseModel):
     status: str
     is_active: bool
     created_at: datetime
+    total_amount: float = 0
+    line_items_count: int = 0
 
 
 class PODetailResponse(POResponse):
     line_items: List[POLineItemResponse] = []
+    company: Optional[CompanyResponse] = None
+    reference_pi: Optional[PIResponse] = None
+    reference_pis: Optional[List[PIResponse]] = []
 
 
 # Payment Schemas

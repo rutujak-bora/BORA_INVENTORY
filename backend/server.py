@@ -2045,6 +2045,14 @@ def prepare_po_response(po):
             except (ValueError, TypeError):
                 pass
 
+        # Ensure both old and new fields are populated to avoid Pydantic validation errors
+        gst_val = item.get("gst_value", item.get("input_igst", 0))
+        tds_val = item.get("tds_value", item.get("tds", 0))
+        item["gst_value"] = gst_val
+        item["input_igst"] = gst_val
+        item["tds_value"] = tds_val
+        item["tds"] = tds_val
+
     po["total_amount"] = round(total_amount, 2)
     po["line_items_count"] = len(po.get("line_items", []))
     return sanitize_po(po)

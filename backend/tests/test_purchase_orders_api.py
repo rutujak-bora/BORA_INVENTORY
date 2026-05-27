@@ -1,19 +1,15 @@
-"""
-Integration test for Purchase Orders API endpoint
-Tests both /api/po and /api/purchase-orders routes
-"""
-
 import sys
-
-sys.path.insert(0, "/app/backend")
-
+import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
 from dotenv import load_dotenv
 
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, backend_dir)
+
 # Load environment
-load_dotenv("/app/backend/.env")
+env_path = os.path.join(backend_dir, ".env")
+load_dotenv(env_path)
 
 
 def test_purchase_orders_endpoint():
@@ -33,7 +29,7 @@ async def run_test_logic():
 
     # Test 1: Check if PO collection exists and has data
     po_count = await db.purchase_orders.count_documents({"is_active": True})
-    print(f"✅ Test 1: Found {po_count} active POs in database")
+    print(f"[OK] Test 1: Found {po_count} active POs in database")
 
     # Test 2: Simulate API response structure
     pos = []
@@ -43,11 +39,11 @@ async def run_test_logic():
         po["line_items_count"] = len(po.get("line_items", []))
         pos.append(po)
 
-    print(f"✅ Test 2: API would return array with {len(pos)} items")
+    print(f"[OK] Test 2: API would return array with {len(pos)} items")
 
     # Test 3: Verify array structure
     assert isinstance(pos, list), "Response must be a list"
-    print("✅ Test 3: Response is a valid array")
+    print("[OK] Test 3: Response is a valid array")
 
     # Test 4: Verify first PO has required fields
     if len(pos) > 0:
@@ -56,14 +52,14 @@ async def run_test_logic():
         missing_fields = [f for f in required_fields if f not in first_po]
 
         if missing_fields:
-            print(f"⚠️  Test 4: Missing fields in PO: {missing_fields}")
+            print(f"[WARN] Test 4: Missing fields in PO: {missing_fields}")
         else:
-            print("✅ Test 4: First PO has all required fields")
+            print("[OK] Test 4: First PO has all required fields")
             print(f"   - Voucher No: {first_po['voucher_no']}")
-            print(f"   - Total Amount: ₹{first_po['total_amount']}")
+            print(f"   - Total Amount: {first_po['total_amount']}")
             print(f"   - Line Items: {first_po['line_items_count']}")
     else:
-        print("⚠️  Test 4: No POs in database to validate structure")
+        print("[WARN] Test 4: No POs in database to validate structure")
 
     # Test 5: Verify error handling returns empty array
     try:
@@ -71,9 +67,9 @@ async def run_test_logic():
         empty_result = []
         assert isinstance(empty_result, list), "Empty result must still be an array"
         assert len(empty_result) == 0, "Empty result length must be 0"
-        print("✅ Test 5: Empty array handling works correctly")
+        print("[OK] Test 5: Empty array handling works correctly")
     except Exception as e:
-        print(f"❌ Test 5: Failed - {str(e)}")
+        print(f"[ERROR] Test 5: Failed - {str(e)}")
 
     print("\n=== All Tests Passed ===")
 
@@ -81,4 +77,4 @@ async def run_test_logic():
 
 
 if __name__ == "__main__":
-    asyncio.run(test_purchase_orders_endpoint())
+    test_purchase_orders_endpoint()

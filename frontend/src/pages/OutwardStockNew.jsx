@@ -679,12 +679,23 @@ const OutwardStockNew = () => {
     }
     console.log('✅ Warehouse ID:', formData.warehouse_id);
 
-    if (formData.dispatch_type !== 'direct_export' && formData.pi_ids.length === 0) {
-      console.log('❌ Validation failed: No PI selected');
-      toast({ title: 'Error', description: 'Please select at least one PI', variant: 'destructive' });
-      return false;
+    if (formData.dispatch_type !== 'direct_export') {
+      if (formData.dispatch_mode === 'Local') {
+        if (!formData.po_ids || formData.po_ids.length === 0) {
+          console.log('❌ Validation failed: No PO selected');
+          toast({ title: 'Error', description: 'Please select at least one Purchase Order', variant: 'destructive' });
+          return false;
+        }
+        console.log('✅ PO IDs:', formData.po_ids);
+      } else {
+        if (!formData.pi_ids || formData.pi_ids.length === 0) {
+          console.log('❌ Validation failed: No PI selected');
+          toast({ title: 'Error', description: 'Please select at least one PI', variant: 'destructive' });
+          return false;
+        }
+        console.log('✅ PI IDs:', formData.pi_ids);
+      }
     }
-    console.log('✅ PI IDs:', formData.pi_ids);
 
     const validItems = formData.line_items.filter(item => item.product_name && item.product_name.trim() !== '');
     console.log('✅ Valid line items:', validItems.length);
@@ -919,6 +930,8 @@ const OutwardStockNew = () => {
         company_id: entry.company_id,
         warehouse_id: entry.warehouse_id,
         mode: entry.mode,
+        dispatch_mode: entry.dispatch_mode || 'Export',
+        po_ids: entry.po_ids || [],
         pi_ids: entry.pi_ids || [],
         dispatch_plan_id: entry.dispatch_plan_id || '',
         export_invoice_no: entry.export_invoice_no,
@@ -927,9 +940,15 @@ const OutwardStockNew = () => {
         line_items: entry.line_items || []
       });
 
-      // If PI-based, fetch available quantities
-      if (entry.pi_ids && entry.pi_ids.length > 0 && entry.warehouse_id) {
-        await handlePISelect(entry.pi_ids);
+      // Fetch available quantities based on mode
+      if (entry.dispatch_mode === 'Local') {
+        if (entry.po_ids && entry.po_ids.length > 0 && entry.warehouse_id) {
+          await handlePOSelect(entry.po_ids);
+        }
+      } else {
+        if (entry.pi_ids && entry.pi_ids.length > 0 && entry.warehouse_id) {
+          await handlePISelect(entry.pi_ids);
+        }
       }
 
       setDialogOpen(true);
@@ -1086,7 +1105,7 @@ const OutwardStockNew = () => {
                   <TableHead>Invoice No</TableHead>
                   {/* <TableHead>Invoice Number</TableHead> */}
                   <TableHead>Mode</TableHead>
-                  <TableHead>PI Reference</TableHead>
+                  <TableHead>PI/PO Reference</TableHead>
                   <TableHead>Items</TableHead>
                   <TableHead>Total Amount</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -1109,9 +1128,9 @@ const OutwardStockNew = () => {
                       {/* <TableCell>{entry.export_invoice_number || '-'}</TableCell> */}
                       <TableCell>{entry.mode}</TableCell>
                       <TableCell>
-                        {entry.pi_ids?.length > 0
-                          ? `${entry.pi_ids.length} PI(s)`
-                          : '-'}
+                        {entry.dispatch_mode === 'Local'
+                          ? (entry.po_ids?.length > 0 ? `${entry.po_ids.length} PO(s)` : '-')
+                          : (entry.pi_ids?.length > 0 ? `${entry.pi_ids.length} PI(s)` : '-') }
                       </TableCell>
                       <TableCell>{entry.line_items_count || entry.line_items?.length || 0}</TableCell>
                       <TableCell>₹{entry.total_amount?.toFixed(2) || '0.00'}</TableCell>
@@ -1174,7 +1193,7 @@ const OutwardStockNew = () => {
                     <TableHead>Invoice No</TableHead>
                     {/* <TableHead>Invoice Number</TableHead> */}
                     <TableHead>Mode</TableHead>
-                    <TableHead>PI Reference</TableHead>
+                    <TableHead>PI/PO Reference</TableHead>
                     <TableHead>Items</TableHead>
                     <TableHead>Total Dispatch Qty</TableHead>
                     <TableHead>Total Amount</TableHead>
@@ -1203,9 +1222,9 @@ const OutwardStockNew = () => {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {entry.pi_ids?.length > 0
-                            ? `${entry.pi_ids.length} PI(s)`
-                            : '-'}
+                          {entry.dispatch_mode === 'Local'
+                            ? (entry.po_ids?.length > 0 ? `${entry.po_ids.length} PO(s)` : '-')
+                            : (entry.pi_ids?.length > 0 ? `${entry.pi_ids.length} PI(s)` : '-') }
                         </TableCell>
                         <TableCell>{entry.line_items_count || entry.line_items?.length || 0}</TableCell>
                         <TableCell className="font-semibold">
@@ -1991,7 +2010,7 @@ const OutwardStockNew = () => {
               </div>
 
               {/* PI References */}
-              {viewingEntry.pi_ids && viewingEntry.pi_ids.length > 0 && (
+              {viewingEntry.dispatch_mode !== 'Local' && viewingEntry.pi_ids && viewingEntry.pi_ids.length > 0 && (
                 <div>
                   <h3 className="text-sm font-semibold text-slate-600 mb-2">PI References</h3>
                   <div className="flex flex-wrap gap-2">
@@ -2002,6 +2021,23 @@ const OutwardStockNew = () => {
                       return (
                         <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
                           {piDetail ? piDetail.voucher_no : `PI #${idx + 1}`}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* PO References */}
+              {viewingEntry.dispatch_mode === 'Local' && viewingEntry.po_ids && viewingEntry.po_ids.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-600 mb-2">PO References</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingEntry.po_ids.map((poId, idx) => {
+                      const poDetail = pos.find(p => p.id === poId);
+                      return (
+                        <span key={idx} className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+                          {poDetail ? (poDetail.po_number || poDetail.voucher_no) : `PO #${idx + 1}`}
                         </span>
                       );
                     })}

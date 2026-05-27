@@ -49,7 +49,11 @@ MONGO_URL = os.environ.get("MONGO_URL")
 DB_NAME = os.environ.get("DB_NAME")
 
 try:
-    mongo_client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where())
+    client_kwargs = {}
+    if MONGO_URL.startswith("mongodb+srv://") or "ssl=true" in MONGO_URL.lower():
+        client_kwargs["tlsCAFile"] = certifi.where()
+
+    mongo_client = AsyncIOMotorClient(MONGO_URL, **client_kwargs)
     mongo_db = mongo_client[DB_NAME]
     print(f"MongoDB connection initialized: Database={DB_NAME}")
 except Exception as e:

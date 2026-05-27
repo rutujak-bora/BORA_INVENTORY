@@ -19,6 +19,7 @@ fastapi==0.110.1
 flake8==7.3.0
 greenlet==3.2.4
 h11==0.16.0
+httpx==0.28.1
 idna==3.10
 iniconfig==2.1.0
 isort==6.1.0

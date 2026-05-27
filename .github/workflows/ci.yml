@@ -45,6 +45,9 @@ jobs:
           mypy backend --ignore-missing-imports
 
       - name: Run unit tests
+        env:
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: bora_inventory_mongo
         run: |
           # Running tests that don't require a live DB if possible
           # For now, we'll try to run pytest in the backend directory

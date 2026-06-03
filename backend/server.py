@@ -1526,10 +1526,15 @@ async def get_inward_qty_for_pi(
         query["$or"].append({"po_id": {"$in": linked_po_ids}})
         query["$or"].append({"po_ids": {"$in": linked_po_ids}})
 
+    # Clean "nan" product_id before matching to avoid cross-item contamination
+    clean_product_id = product_id if (product_id and str(product_id).strip().lower() != "nan") else None
+
     async for inward in mongo_db.inward_stock.find(query, {"_id": 0}):
         for item in inward.get("line_items", []):
+            item_pid = item.get("product_id")
+            item_clean_pid = item_pid if (item_pid and str(item_pid).strip().lower() != "nan") else None
             matched = False
-            if product_id and item.get("product_id") == product_id:
+            if clean_product_id and item_clean_pid and item_clean_pid == clean_product_id:
                 matched = True
             elif product_sku and item.get("sku") == product_sku:
                 matched = True
@@ -1580,6 +1585,9 @@ async def get_dispatched_qty_for_pi(
         o.get("dispatch_plan_id") for o in all_outwards if o.get("dispatch_plan_id")
     }
 
+    # Clean "nan" product_id before matching to avoid cross-item contamination
+    clean_product_id = product_id if (product_id and str(product_id).strip().lower() != "nan") else None
+
     # 4. Calculate dispatched quantity, skipping converted dispatch plans
     for outward in all_outwards:
         # Skip dispatch plans that have been converted to export invoices (to avoid double-counting)
@@ -1590,8 +1598,10 @@ async def get_dispatched_qty_for_pi(
             continue
 
         for item in outward.get("line_items", []):
+            item_pid = item.get("product_id")
+            item_clean_pid = item_pid if (item_pid and str(item_pid).strip().lower() != "nan") else None
             matched = False
-            if product_id and item.get("product_id") == product_id:
+            if clean_product_id and item_clean_pid and item_clean_pid == clean_product_id:
                 matched = True
             elif product_sku and item.get("sku") == product_sku:
                 matched = True
@@ -1711,7 +1721,11 @@ async def get_pi(
             product_sku = item.get("sku")
             product_id = item.get("product_id")
 
-            # CRITICAL FIX: If product_id is missing, look it up from products collection
+            # CRITICAL FIX: Treat "nan" string as missing (comes from Excel/CSV imports with empty cells)
+            if product_id and str(product_id).strip().lower() == "nan":
+                product_id = None
+                item["product_id"] = None
+            # If product_id is missing, look it up from products collection by SKU
             if not product_id and product_sku:
                 product = await mongo_db.products.find_one(
                     {"sku": product_sku}, {"id": 1}
@@ -3880,7 +3894,9 @@ async def get_low_stock_alerts(
     """Get low stock alerts for dashboard"""
     alerts = []
     async for stock in mongo_db.stock_tracking.find({}, {"_id": 0}):
-        if stock["current_stock"] <= threshold:
+        # Use remaining_stock field (current_stock is not stored in stock_tracking)
+        remaining = stock.get("remaining_stock", 0)
+        if remaining <= threshold:
             # Get warehouse name
             warehouse_name = None
             if stock.get("warehouse_id"):
@@ -3895,9 +3911,9 @@ async def get_low_stock_alerts(
                 "sku": stock["sku"],
                 "warehouse_id": stock.get("warehouse_id"),
                 "warehouse_name": warehouse_name,
-                "current_stock": stock["current_stock"],
-                "alert_level": "critical" if stock["current_stock"] == 0 else "warning",
-                "message": f"{stock['product_name']} is {'out of stock' if stock['current_stock'] == 0 else 'running low'} in {warehouse_name or 'Unknown Warehouse'}",
+                "current_stock": remaining,
+                "alert_level": "critical" if remaining == 0 else "warning",
+                "message": f"{stock['product_name']} is {'out of stock' if remaining == 0 else 'running low'} in {warehouse_name or 'Unknown Warehouse'}",
             }
             alerts.append(alert)
 
@@ -4372,13 +4388,17 @@ async def get_pending_dispatch_plans(
 async def get_available_inward_quantity(
     product_id: str,
     warehouse_id: Optional[str] = None,
+    sku: Optional[str] = None,
     current_user: dict = Depends(get_current_active_user),
 ):
     """Get available inward quantity for a specific SKU/product"""
     if not warehouse_id:
         raise HTTPException(status_code=400, detail="warehouse_id is required")
 
-    available_quantity = await get_available_stock(product_id, warehouse_id)
+    # Treat "nan" or empty string product_id as missing — fall back to SKU-based lookup
+    clean_product_id = product_id if (product_id and product_id.strip().lower() != "nan") else None
+
+    available_quantity = await get_available_stock(clean_product_id or "", warehouse_id, sku=sku)
 
     return {
         "product_id": product_id,
@@ -4689,8 +4709,10 @@ async def get_available_stock(
     query = {"warehouse_id": warehouse_id, "remaining_stock": {"$gt": 0}}
 
     or_filters = []
-    if product_id:
-        or_filters.append({"product_id": product_id})
+    # Ignore "nan" string (arises from Excel/CSV imports with empty cells)
+    clean_pid = product_id if (product_id and product_id.strip().lower() != "nan") else None
+    if clean_pid:
+        or_filters.append({"product_id": clean_pid})
     if sku:
         # Flexible SKU matching: allow the provided SKU to be a prefix or match exactly
         sku_clean = sku.strip()
@@ -4895,7 +4917,9 @@ async def get_available_stock_summary(
 
     stock_entries = []
     async for stock in mongo_db.stock_tracking.find(query, {"_id": 0}):
-        if stock["current_stock"] > 0:  # Only show items with available stock
+        # Use remaining_stock field (current_stock is not stored in stock_tracking)
+        remaining = stock.get("remaining_stock", 0)
+        if remaining > 0:  # Only show items with available stock
             # Get warehouse name
             warehouse_name = None
             if stock.get("warehouse_id"):
@@ -4910,7 +4934,7 @@ async def get_available_stock_summary(
                 "sku": stock["sku"],
                 "warehouse_id": stock.get("warehouse_id"),
                 "warehouse_name": warehouse_name,
-                "available_stock": stock["current_stock"],
+                "available_stock": remaining,
             }
             stock_entries.append(stock_summary)
 

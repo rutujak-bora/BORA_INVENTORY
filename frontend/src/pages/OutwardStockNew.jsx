@@ -208,11 +208,16 @@ const OutwardStockNew = () => {
     });
   };
 
-  // Fetch available quantity for a product
-  const fetchAvailableQuantity = async (productId, warehouseId) => {
-    if (!productId || !warehouseId) return 0;
+  // Fetch available quantity for a product (falls back to SKU when product_id is missing or "nan")
+  const fetchAvailableQuantity = async (productId, warehouseId, sku = null) => {
+    if (!warehouseId) return 0;
+    // Treat "nan" or blank product_id as missing
+    const cleanId = productId && productId.trim().toLowerCase() !== 'nan' ? productId : null;
+    if (!cleanId && !sku) return 0;
     try {
-      const res = await api.get(`/outward-stock/available-quantity/${productId}?warehouse_id=${warehouseId}`);
+      const skuParam = sku ? `&sku=${encodeURIComponent(sku)}` : '';
+      const idSegment = cleanId || 'none';
+      const res = await api.get(`/outward-stock/available-quantity/${idSegment}?warehouse_id=${warehouseId}${skuParam}`);
       return res.data.available_quantity || 0;
     } catch (error) {
       console.error('Failed to fetch available quantity:', error);
@@ -584,11 +589,12 @@ const OutwardStockNew = () => {
           line_items: lineItems
         }));
 
-        // Fetch available quantities
+        // Fetch available quantities — key by item.id (unique) so UI rendering by item.id works correctly
         const quantities = {};
         for (const item of lineItems) {
-          const availableQty = await fetchAvailableQuantity(item.product_id, dispatchPlan.warehouse_id);
-          quantities[item.product_id] = availableQty;
+          const itemKey = item.id || item._id || item.product_id;
+          const availableQty = await fetchAvailableQuantity(item.product_id, dispatchPlan.warehouse_id, item.sku);
+          quantities[itemKey] = availableQty;
         }
         setAvailableQuantities(quantities);
 
@@ -1130,7 +1136,7 @@ const OutwardStockNew = () => {
                       <TableCell>
                         {entry.dispatch_mode === 'Local'
                           ? (entry.po_ids?.length > 0 ? `${entry.po_ids.length} PO(s)` : '-')
-                          : (entry.pi_ids?.length > 0 ? `${entry.pi_ids.length} PI(s)` : '-') }
+                          : (entry.pi_ids?.length > 0 ? `${entry.pi_ids.length} PI(s)` : '-')}
                       </TableCell>
                       <TableCell>{entry.line_items_count || entry.line_items?.length || 0}</TableCell>
                       <TableCell>₹{entry.total_amount?.toFixed(2) || '0.00'}</TableCell>
@@ -1224,7 +1230,7 @@ const OutwardStockNew = () => {
                         <TableCell>
                           {entry.dispatch_mode === 'Local'
                             ? (entry.po_ids?.length > 0 ? `${entry.po_ids.length} PO(s)` : '-')
-                            : (entry.pi_ids?.length > 0 ? `${entry.pi_ids.length} PI(s)` : '-') }
+                            : (entry.pi_ids?.length > 0 ? `${entry.pi_ids.length} PI(s)` : '-')}
                         </TableCell>
                         <TableCell>{entry.line_items_count || entry.line_items?.length || 0}</TableCell>
                         <TableCell className="font-semibold">
@@ -1585,7 +1591,7 @@ const OutwardStockNew = () => {
                 <h3 className="font-semibold text-slate-800 mb-4 border-b pb-2">
                   {formData.dispatch_mode === 'Local' ? 'Local Dispatch Source' : 'Export Dispatch Source'}
                 </h3>
-                
+
                 {formData.dispatch_mode === 'Export' ? (
                   // PI Selector
                   <div>

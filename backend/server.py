@@ -1527,14 +1527,26 @@ async def get_inward_qty_for_pi(
         query["$or"].append({"po_ids": {"$in": linked_po_ids}})
 
     # Clean "nan" product_id before matching to avoid cross-item contamination
-    clean_product_id = product_id if (product_id and str(product_id).strip().lower() != "nan") else None
+    clean_product_id = (
+        product_id
+        if (product_id and str(product_id).strip().lower() != "nan")
+        else None
+    )
 
     async for inward in mongo_db.inward_stock.find(query, {"_id": 0}):
         for item in inward.get("line_items", []):
             item_pid = item.get("product_id")
-            item_clean_pid = item_pid if (item_pid and str(item_pid).strip().lower() != "nan") else None
+            item_clean_pid = (
+                item_pid
+                if (item_pid and str(item_pid).strip().lower() != "nan")
+                else None
+            )
             matched = False
-            if clean_product_id and item_clean_pid and item_clean_pid == clean_product_id:
+            if (
+                clean_product_id
+                and item_clean_pid
+                and item_clean_pid == clean_product_id
+            ):
                 matched = True
             elif product_sku and item.get("sku") == product_sku:
                 matched = True
@@ -1586,7 +1598,11 @@ async def get_dispatched_qty_for_pi(
     }
 
     # Clean "nan" product_id before matching to avoid cross-item contamination
-    clean_product_id = product_id if (product_id and str(product_id).strip().lower() != "nan") else None
+    clean_product_id = (
+        product_id
+        if (product_id and str(product_id).strip().lower() != "nan")
+        else None
+    )
 
     # 4. Calculate dispatched quantity, skipping converted dispatch plans
     for outward in all_outwards:
@@ -1599,9 +1615,17 @@ async def get_dispatched_qty_for_pi(
 
         for item in outward.get("line_items", []):
             item_pid = item.get("product_id")
-            item_clean_pid = item_pid if (item_pid and str(item_pid).strip().lower() != "nan") else None
+            item_clean_pid = (
+                item_pid
+                if (item_pid and str(item_pid).strip().lower() != "nan")
+                else None
+            )
             matched = False
-            if clean_product_id and item_clean_pid and item_clean_pid == clean_product_id:
+            if (
+                clean_product_id
+                and item_clean_pid
+                and item_clean_pid == clean_product_id
+            ):
                 matched = True
             elif product_sku and item.get("sku") == product_sku:
                 matched = True
@@ -4396,9 +4420,13 @@ async def get_available_inward_quantity(
         raise HTTPException(status_code=400, detail="warehouse_id is required")
 
     # Treat "nan" or empty string product_id as missing — fall back to SKU-based lookup
-    clean_product_id = product_id if (product_id and product_id.strip().lower() != "nan") else None
+    clean_product_id = (
+        product_id if (product_id and product_id.strip().lower() != "nan") else None
+    )
 
-    available_quantity = await get_available_stock(clean_product_id or "", warehouse_id, sku=sku)
+    available_quantity = await get_available_stock(
+        clean_product_id or "", warehouse_id, sku=sku
+    )
 
     return {
         "product_id": product_id,
@@ -4710,7 +4738,9 @@ async def get_available_stock(
 
     or_filters = []
     # Ignore "nan" string (arises from Excel/CSV imports with empty cells)
-    clean_pid = product_id if (product_id and product_id.strip().lower() != "nan") else None
+    clean_pid = (
+        product_id if (product_id and product_id.strip().lower() != "nan") else None
+    )
     if clean_pid:
         or_filters.append({"product_id": clean_pid})
     if sku:
